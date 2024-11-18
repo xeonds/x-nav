@@ -1,5 +1,9 @@
-# Vue 3 + Vite
+## fitool
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
-
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
+- 写一个go版本的fit/gpx处理库，同时写一个泛用的二进制文件处理库
+- 数据库存储fit文件的blob，跟用户id关联
+- 成绩分析表（多个），一一对应用户的fit文件，包括爬升和下降等等数据，编写函数具体处理fit文件得到数据
+- 路径表，每个fit对应的完整路径，用来做生涯地图
+- 赛段数据表，包括赛段全程路径数据，备注信息，一些标注信息等
+- 需要一个地图数据处理库，进行路径匹配赛段，以及计算爬升，速度等数据
+- 支持各种数据导出为csv
