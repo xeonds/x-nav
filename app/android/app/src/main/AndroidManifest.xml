@@ -18,6 +18,9 @@
     <!-- Needed only if your app uses Bluetooth scan results to derive physical location. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
+    <!-- Needed to access the internet -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Specify Bluetooth feature usage -->
     <uses-feature android:name="android.hardware.bluetooth" android:required="true"/>
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true"/>
