@@ -4,25 +4,48 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart'; // 添加此行以使用SharedPreferences
+import 'package:app/utils/storage.dart';
 
-class RideHistory extends StatelessWidget {
-  const RideHistory({super.key});
+class RideHistory extends StatefulWidget {
+  const RideHistory({Key? key}) : super(key: key);
+
+  @override
+  _RideHistoryState createState() => _RideHistoryState();
+}
+
+class _RideHistoryState extends State<RideHistory> {
+  List<File> fitFiles = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFitFiles();
+  }
+
+  Future<void> _loadFitFiles() async {
+    final files = await Storage().getFitFiles();
+    setState(() {
+      fitFiles = files;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('骑行记录'),
-      ),
-      body: const Column(
-        children: [
-          // 顶部骑行数据
-          RideSummary(),
-          // 骑行记录列表
-          Expanded(
-            child: RideHistoryList(),
-          ),
-        ],
+      appBar: AppBar(title: const Text('骑行记录')),
+      body: ListView.builder(
+        itemCount: fitFiles.length,
+        itemBuilder: (context, index) {
+          final file = fitFiles[index];
+          return Card(
+            child: ListTile(
+              title: Text(file.path.split('/').last),
+              onTap: () {
+                // 点击后的反应之后再说
+              },
+            ),
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
@@ -39,20 +62,21 @@ class RideHistory extends StatelessWidget {
             if (!await directory.exists()) {
               await directory.create(recursive: true);
             }
-            final newFile = await file
-                .copy('${directory.path}/${result.files.single.name}');
+            final newFile = await file.copy(
+              '${directory.path}/${result.files.single.name}',
+            );
 
             // 解析fit文件并更新数据
             final fitData = FitParser.parseFitFile(newFile.path);
             await updateRideData(fitData);
 
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('文件已导入: ${newFile.path}')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('文件已导入: ${newFile.path}')));
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('未选择文件')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('未选择文件')));
           }
         },
         child: const Icon(Icons.file_upload),
@@ -139,11 +163,12 @@ class _RideHistoryListState extends State<RideHistoryList> {
     final directory = await getApplicationDocumentsDirectory();
     final historyDir = Directory('${directory.path}/history');
     if (await historyDir.exists()) {
-      final files = historyDir
-          .listSync()
-          .where((file) => file.path.endsWith('.fit'))
-          .map((file) => file.path)
-          .toList();
+      final files =
+          historyDir
+              .listSync()
+              .where((file) => file.path.endsWith('.fit'))
+              .map((file) => file.path)
+              .toList();
       final List<Map<String, dynamic>> history = [];
       for (var path in files) {
         final fitData = FitParser.parseFitFile(path);
@@ -160,24 +185,25 @@ class _RideHistoryListState extends State<RideHistoryList> {
     return _rideHistory.isEmpty
         ? const Center(child: Text('没有骑行记录'))
         : ListView.builder(
-            itemCount: _rideHistory.length,
-            itemBuilder: (context, index) {
-              final ride = _rideHistory[index];
-              return Card(
-                child: ListTile(
-                  leading: Image.asset('path/to/thumbnail'), // 替换为实际路径
-                  title: Text('骑行标题: ${ride['title']}'), // 替换为实际数据
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('日期时间: ${ride['date']}'), // 替换为实际数据
-                      Text(
-                          '里程: ${ride['distance']} km 耗时: ${ride['time']} 分钟 均速: ${ride['speed']} km/h'), // 替换为实际数据
-                    ],
-                  ),
+          itemCount: _rideHistory.length,
+          itemBuilder: (context, index) {
+            final ride = _rideHistory[index];
+            return Card(
+              child: ListTile(
+                leading: Image.asset('path/to/thumbnail'), // 替换为实际路径
+                title: Text('骑行标题: ${ride['title']}'), // 替换为实际数据
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('日期时间: ${ride['date']}'), // 替换为实际数据
+                    Text(
+                      '里程: ${ride['distance']} km 耗时: ${ride['time']} 分钟 均速: ${ride['speed']} km/h',
+                    ), // 替换为实际数据
+                  ],
                 ),
-              );
-            },
-          );
+              ),
+            );
+          },
+        );
   }
 }

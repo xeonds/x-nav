@@ -1,111 +1,85 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:gpx/gpx.dart'; // 添加 gpx 解析库
+import "package:app/utils/storage.dart";
 
 class RoutesPage extends StatefulWidget {
+  const RoutesPage({super.key});
+
   @override
-  _RoutesPageState createState() => _RoutesPageState();
+  State<RoutesPage> createState() => RoutesPageState();
 }
 
-class _RoutesPageState extends State<RoutesPage> {
-  List<String> routes = [];
+class RoutesPageState extends State<RoutesPage> {
+  List<File> gpxFiles = [];
+  Set<Polyline> polylines = {};
 
   @override
   void initState() {
     super.initState();
-    _loadRoutes();
+    _loadGpxFiles();
   }
 
-  Future<void> _loadRoutes() async {
-    final root = await getApplicationDocumentsDirectory();
-    final directory = Directory('${root.path}/route');
-    if (!await directory.exists()) {
-      await directory.create(recursive: true);
-    }
-    final files = directory
-        .listSync()
-        .where((item) => item.path.endsWith('.gpx'))
-        .toList();
+  Future<void> _loadGpxFiles() async {
+    final files = await Storage().getGpxFiles();
     setState(() {
-      routes = files.map((file) => file.path.split('/').last).toList();
+      gpxFiles = files;
+      _parseGpxFiles();
     });
   }
 
-  Future<void> _importRoute() async {
-    FilePickerResult? result =
-        await FilePicker.platform.pickFiles(type: FileType.any);
-    if (result != null) {
-      File file = File(result.files.single.path!);
-      final root = await getApplicationDocumentsDirectory();
-      final directory = Directory('${root.path}/route');
-      final newFile =
-          await file.copy('${directory.path}/${file.uri.pathSegments.last}');
-      setState(() {
-        routes.add(newFile.path.split('/').last);
-      });
-    }
-  }
-
-  Future<void> _exportRoute(String route) async {
-    final root = await getApplicationDocumentsDirectory();
-    final directory = Directory('${root.path}/route');
-    final file = File('${directory.path}/$route');
-    final newFile = await file.copy('${directory.path}/$route');
-    ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Route exported to ${newFile.path}')));
-  }
-
-  void _previewRoute(String route) {
-    Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (context) => RoutePreviewPage(route: route)));
-  }
-
-  void _editRoute(String route) {
-    Navigator.push(context,
-        MaterialPageRoute(builder: (context) => RouteEditPage(route: route)));
+  void _parseGpxFiles() {
+    // 解析gpx文件并生成polylines
+    // 这里需要添加具体的解析逻辑
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Routes'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.add),
-            onPressed: _importRoute,
-          ),
-        ],
+        title: const Text('Routes'),
       ),
-      body: ListView.builder(
-        itemCount: routes.length,
-        itemBuilder: (context, index) {
-          return ListTile(
-            title: Text(routes[index]),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
+      body: Column(
+        children: [
+          Expanded(
+            child: FlutterMap(
+              options: const MapOptions(
+                initialCenter: LatLng(0, 0),
+                initialZoom: 2,
+              ),
               children: [
-                IconButton(
-                  icon: Icon(Icons.remove_red_eye),
-                  onPressed: () => _previewRoute(routes[index]),
+                TileLayer(
+                  urlTemplate:
+                      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                  subdomains: const ['a', 'b', 'c'],
                 ),
-                IconButton(
-                  icon: Icon(Icons.edit),
-                  onPressed: () => _editRoute(routes[index]),
-                ),
-                IconButton(
-                  icon: Icon(Icons.file_download),
-                  onPressed: () => _exportRoute(routes[index]),
+                PolylineLayer(
+                  polylines: polylines.toList(),
                 ),
               ],
             ),
-          );
-        },
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: gpxFiles.length,
+              itemBuilder: (context, index) {
+                final file = gpxFiles[index];
+                return Card(
+                  child: ListTile(
+                    title: Text(file.path.split('/').last),
+                    onTap: () {
+                      // 点击后的反应之后再说
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -143,21 +117,28 @@ class RoutePreviewPage extends StatelessWidget {
                 .map((trkpt) => LatLng(trkpt.lat!, trkpt.lon!))
                 .toList();
             final polyline = Polyline(
-              polylineId: PolylineId('route'),
               points: points,
               color: Colors.blue,
-              width: 5,
+              strokeWidth: 5,
             );
             return Column(
               children: [
                 Expanded(
                   flex: 2,
-                  child: GoogleMap(
-                    initialCameraPosition: CameraPosition(
-                      target: points.isNotEmpty ? points.first : LatLng(0, 0),
-                      zoom: 14,
+                  child: FlutterMap(
+                    options: MapOptions(
+                      initialCenter:
+                          points.isNotEmpty ? points.first : LatLng(0, 0),
+                      initialZoom: 14,
                     ),
-                    polylines: {polyline},
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        subdomains: const ['a', 'b', 'c'],
+                      ),
+                      PolylineLayer(polylines: [polyline]),
+                    ],
                   ),
                 ),
                 Expanded(

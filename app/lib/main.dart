@@ -1,6 +1,8 @@
 import 'package:app/page/history.dart';
+import 'package:app/page/home.dart';
 import 'package:app/page/map.dart';
 import 'package:app/page/routes.dart';
+import 'package:app/page/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'dart:async';
@@ -21,26 +23,26 @@ class MyApp extends StatelessWidget {
           headlineMedium: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
       ),
-      home: HomePage(),
+      home: AppMainPages(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
-class HomePage extends StatefulWidget {
+class AppMainPages extends StatefulWidget {
   @override
-  _HomePageState createState() => _HomePageState();
+  _AppMainPagesState createState() => _AppMainPagesState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _AppMainPagesState extends State<AppMainPages> {
   int _selectedIndex = 0;
 
   static final List<Widget> _widgetOptions = <Widget>[
-    const Text('Home Page'),
+    HomePage(),
     const MapPage(),
     RoutesPage(),
     const RideHistory(),
-    const Text('Me Page'),
+    UserPage(),
   ];
 
   void _onItemTapped(int index) {
@@ -53,7 +55,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       // appBar: AppBar(
-      //   title: const Text('X-Nav'),
+      //   title: const Text(''),
       // ),
       body: Center(
         child: _widgetOptions.elementAt(_selectedIndex),

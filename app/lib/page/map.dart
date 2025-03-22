@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:path_provider/path_provider.dart';
@@ -11,11 +12,11 @@ class MapPage extends StatefulWidget {
   const MapPage({super.key});
 
   @override
-  State<MapPage> createState() => _MapPageState();
+  State<MapPage> createState() => MapPageState();
 }
 
-class _MapPageState extends State<MapPage> {
-  GoogleMapController? _controller;
+class MapPageState extends State<MapPage> {
+  MapController? _controller;
   bool _showHistory = false;
   bool _showRoute = false;
   List<LatLng> _routePoints = [];
@@ -63,9 +64,7 @@ class _MapPageState extends State<MapPage> {
     final location = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high);
     // 移动地图到当前位置
-    _controller?.animateCamera(CameraUpdate.newLatLng(
-      LatLng(location.latitude, location.longitude),
-    ));
+    _controller?.move(LatLng(location.latitude, location.longitude), 15);
   }
 
   Future<void> _loadRouteData() async {
@@ -129,39 +128,50 @@ class _MapPageState extends State<MapPage> {
           ),
         ],
       ),
-      body: GoogleMap(
-        initialCameraPosition: const CameraPosition(
-          target: LatLng(37.7749, -122.4194), // Example coordinates
-          zoom: 10,
+      body: FlutterMap(
+        options: MapOptions(
+          initialCenter: LatLng(37.7749, -122.4194),
+          initialZoom: 10,
+          onTap: (tapPosition, point) => print(point),
         ),
-        onMapCreated: (controller) {
-          _controller = controller;
-        },
-        polylines: {
+        mapController: _controller,
+        children: [
+          TileLayer(
+            urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            subdomains: const ['a', 'b', 'c'],
+          ),
           if (_showRoute)
-            Polyline(
-              polylineId: const PolylineId('route'),
-              points: _routePoints,
-              color: Colors.blue,
-              width: 5,
+            PolylineLayer(
+              polylines: [
+                Polyline(
+                  points: _routePoints,
+                  color: Colors.blue,
+                  strokeWidth: 5,
+                ),
+              ],
             ),
           if (_showHistory)
-            Polyline(
-              polylineId: const PolylineId('history'),
-              points: _historyPoints,
-              color: Colors.red,
-              width: 5,
+            PolylineLayer(
+              polylines: [
+                Polyline(
+                  points: _historyPoints,
+                  color: Colors.red,
+                  strokeWidth: 5,
+                ),
+              ],
             ),
-        },
-        markers: {
-          if (_showHistory)
-            Marker(
-              markerId: const MarkerId('history'),
-              position: _historyPoints.last,
-              icon: BitmapDescriptor.defaultMarkerWithHue(
-                  BitmapDescriptor.hueRed),
+          if (_showHistory && _historyPoints.isNotEmpty)
+            MarkerLayer(
+              markers: [
+                Marker(
+                    point: _historyPoints.last,
+                    child: const Icon(
+                      Icons.location_on,
+                      color: Colors.red,
+                    )),
+              ],
             ),
-        },
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _locatePosition,
