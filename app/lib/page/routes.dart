@@ -53,9 +53,7 @@ class RoutesPageState extends State<RoutesPage> {
               ),
               children: [
                 TileLayer(
-                  urlTemplate:
-                      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-                  subdomains: const ['a', 'b', 'c'],
+                  urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
                 ),
                 PolylineLayer(
                   polylines: polylines.toList(),
@@ -134,8 +132,7 @@ class RoutePreviewPage extends StatelessWidget {
                     children: [
                       TileLayer(
                         urlTemplate:
-                            'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        subdomains: const ['a', 'b', 'c'],
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       ),
                       PolylineLayer(polylines: [polyline]),
                     ],
