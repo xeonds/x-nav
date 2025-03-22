@@ -1,14 +1,15 @@
+import 'package:app/utils/gpx_parser.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:path_provider/path_provider.dart';
 import 'dart:io';
-import 'package:gpx/gpx.dart'; // 添加 gpx 解析库
+import 'package:gpx/gpx.dart';
 import "package:app/utils/storage.dart";
 
 class RoutesPage extends StatefulWidget {
-  const RoutesPage({super.key});
+  const RoutesPage({super.key, this.onFullScreenToggle});
+  final ValueChanged<bool>? onFullScreenToggle;
 
   @override
   State<RoutesPage> createState() => RoutesPageState();
@@ -16,7 +17,8 @@ class RoutesPage extends StatefulWidget {
 
 class RoutesPageState extends State<RoutesPage> {
   List<File> gpxFiles = [];
-  Set<Polyline> polylines = {};
+  List<List<LatLng>> polylines = [];
+  bool _isFullScreen = false;
 
   @override
   void initState() {
@@ -35,47 +37,124 @@ class RoutesPageState extends State<RoutesPage> {
   void _parseGpxFiles() {
     // 解析gpx文件并生成polylines
     // 这里需要添加具体的解析逻辑
+    setState(() {
+      polylines = gpxFiles.map((file) {
+        final gpx = File(file.path); // 从文件中读取gpx数据
+        final gpxData = gpx.readAsStringSync();
+        return parseGpxToPath(gpxData);
+      }).toList();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Routes'),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: FlutterMap(
-              options: const MapOptions(
-                initialCenter: LatLng(0, 0),
-                initialZoom: 2,
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                ),
-                PolylineLayer(
-                  polylines: polylines.toList(),
-                ),
-              ],
+      appBar: _isFullScreen
+          ? null
+          : AppBar(
+              title: const Text('Routes'),
             ),
+      body: Stack(
+        children: [
+          FlutterMap(
+            options: const MapOptions(
+              initialCenter: LatLng(34.1301578, 108.8277069),
+              initialZoom: 5,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+              ),
+              PolylineLayer(
+                polylines: polylines.isEmpty
+                    ? <Polyline>[]
+                    : polylines
+                        .map((points) => Polyline(
+                              points: points,
+                              color: Colors.deepOrange,
+                              strokeWidth: 5,
+                            ))
+                        .toList(),
+              ),
+            ],
           ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: gpxFiles.length,
-              itemBuilder: (context, index) {
-                final file = gpxFiles[index];
-                return Card(
-                  child: ListTile(
-                    title: Text(file.path.split('/').last),
-                    onTap: () {
-                      // 点击后的反应之后再说
-                    },
+          if (!_isFullScreen)
+            DraggableScrollableSheet(
+              initialChildSize: 0.3,
+              minChildSize: 0.2,
+              maxChildSize: 0.6,
+              builder:
+                  (BuildContext context, ScrollController scrollController) {
+                return Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(16)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 10,
+                        spreadRadius: 5,
+                      ),
+                    ],
+                  ),
+                  child: RefreshIndicator(
+                    onRefresh: _loadGpxFiles,
+                    child: gpxFiles.isEmpty
+                        ? const Center(
+                            child: Text('无路书'),
+                          )
+                        : ListView.builder(
+                            controller: scrollController,
+                            itemCount: gpxFiles.length,
+                            itemBuilder: (context, index) {
+                              final file = gpxFiles[index];
+                              return Card(
+                                child: ListTile(
+                                  title: Text(file.path.split('/').last),
+                                  onTap: () {
+                                    // 点击后的反应之后再说
+                                  },
+                                ),
+                              );
+                            },
+                          ),
                   ),
                 );
               },
             ),
+        ],
+      ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            onPressed: () async {
+              final file = await FilePicker.platform.pickFiles(
+                type: FileType.any,
+              );
+              if (file != null) {
+                final path = file.files.single.path!;
+                final gpxFile = File(path);
+                await Storage().saveGpxFile(
+                  path.split('/').last,
+                  await gpxFile.readAsBytes(),
+                );
+                _loadGpxFiles();
+              }
+            },
+            child: const Icon(Icons.add),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            onPressed: () {
+              setState(() {
+                _isFullScreen = !_isFullScreen;
+                widget.onFullScreenToggle?.call(_isFullScreen);
+              });
+            },
+            child:
+                Icon(_isFullScreen ? Icons.fullscreen_exit : Icons.fullscreen),
           ),
         ],
       ),
@@ -98,15 +177,15 @@ class RoutePreviewPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Preview Route'),
+        title: const Text('Preview Route'),
       ),
       body: FutureBuilder<Gpx>(
         future: _loadGpx('/home/xeonds/code/x-nav/appdir/route/$route'),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
-            return Center(child: Text('Error loading GPX file'));
+            return const Center(child: Text('Error loading GPX file'));
           } else {
             final gpx = snapshot.data!;
             final points = gpx.trks
@@ -126,7 +205,7 @@ class RoutePreviewPage extends StatelessWidget {
                   child: FlutterMap(
                     options: MapOptions(
                       initialCenter:
-                          points.isNotEmpty ? points.first : LatLng(0, 0),
+                          points.isNotEmpty ? points.first : const LatLng(0, 0),
                       initialZoom: 14,
                     ),
                     children: [
@@ -174,7 +253,7 @@ class RouteEditPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Edit Route'),
+        title: const Text('Edit Route'),
       ),
       body: Center(
         child: Text('Editing $route'),

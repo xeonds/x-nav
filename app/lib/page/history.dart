@@ -1,20 +1,20 @@
 import 'package:app/utils/fit_parser.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'dart:io';
-import 'package:shared_preferences/shared_preferences.dart'; // 添加此行以使用SharedPreferences
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app/utils/storage.dart';
 
 class RideHistory extends StatefulWidget {
-  const RideHistory({Key? key}) : super(key: key);
+  const RideHistory({super.key});
 
   @override
-  _RideHistoryState createState() => _RideHistoryState();
+  State<RideHistory> createState() => _RideHistoryState();
 }
 
 class _RideHistoryState extends State<RideHistory> {
-  List<File> fitFiles = [];
+  List<dynamic> histories = [];
 
   @override
   void initState() {
@@ -22,10 +22,21 @@ class _RideHistoryState extends State<RideHistory> {
     _loadFitFiles();
   }
 
+  // TODO: 修复fit文件解析错误
   Future<void> _loadFitFiles() async {
     final files = await Storage().getFitFiles();
     setState(() {
-      fitFiles = files;
+      histories = files.map((file) {
+        try {
+          return {"path": file.path, ...parseFitFile(file.path)};
+        } catch (e) {
+          // 记录错误并返回一个空的 Map 以避免异常
+          if (kDebugMode) {
+            print('Error parsing file ${file.path}: $e');
+          }
+          return {"path": file.path};
+        }
+      }).toList();
     });
   }
 
@@ -33,50 +44,30 @@ class _RideHistoryState extends State<RideHistory> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('骑行记录')),
-      body: ListView.builder(
-        itemCount: fitFiles.length,
-        itemBuilder: (context, index) {
-          final file = fitFiles[index];
-          return Card(
-            child: ListTile(
-              title: Text(file.path.split('/').last),
-              onTap: () {
-                // 点击后的反应之后再说
-              },
+      body: Column(
+        children: [
+          const RideSummary(),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _loadFitFiles,
+              child: RideHistoryList(history: histories),
             ),
-          );
-        },
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          // 导入fit文件并存储在./history/下的逻辑
-          final result = await FilePicker.platform.pickFiles(
+          final file = await FilePicker.platform.pickFiles(
             type: FileType.any,
-            // allowedExtensions: ['fit'], // Ensure no dot in the extension
           );
-
-          if (result != null) {
-            final file = File(result.files.single.path!);
-            final appDir = await getApplicationDocumentsDirectory();
-            final directory = Directory('${appDir.path}/history');
-            if (!await directory.exists()) {
-              await directory.create(recursive: true);
-            }
-            final newFile = await file.copy(
-              '${directory.path}/${result.files.single.name}',
+          if (file != null) {
+            final path = File(file.files.single.path!);
+            final fitFile = await path.readAsBytes();
+            await Storage().saveFitFile(
+              path.path.split('/').last,
+              fitFile,
             );
-
-            // 解析fit文件并更新数据
-            final fitData = FitParser.parseFitFile(newFile.path);
-            await updateRideData(fitData);
-
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('文件已导入: ${newFile.path}')));
-          } else {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('未选择文件')));
+            _loadFitFiles();
           }
         },
         child: const Icon(Icons.file_upload),
@@ -144,66 +135,85 @@ class RideSummary extends StatelessWidget {
 }
 
 class RideHistoryList extends StatefulWidget {
-  const RideHistoryList({super.key});
+  final List<dynamic> history;
+  const RideHistoryList({super.key, required this.history});
 
   @override
-  _RideHistoryListState createState() => _RideHistoryListState();
+  State<RideHistoryList> createState() => RideHistoryListState();
 }
 
-class _RideHistoryListState extends State<RideHistoryList> {
-  List<Map<String, dynamic>> _rideHistory = [];
-
+class RideHistoryListState extends State<RideHistoryList> {
   @override
   void initState() {
     super.initState();
-    _loadRideHistory();
-  }
-
-  Future<void> _loadRideHistory() async {
-    final directory = await getApplicationDocumentsDirectory();
-    final historyDir = Directory('${directory.path}/history');
-    if (await historyDir.exists()) {
-      final files =
-          historyDir
-              .listSync()
-              .where((file) => file.path.endsWith('.fit'))
-              .map((file) => file.path)
-              .toList();
-      final List<Map<String, dynamic>> history = [];
-      for (var path in files) {
-        final fitData = FitParser.parseFitFile(path);
-        history.add(fitData);
-      }
-      setState(() {
-        _rideHistory = history;
-      });
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return _rideHistory.isEmpty
+    return widget.history.isEmpty
         ? const Center(child: Text('没有骑行记录'))
         : ListView.builder(
-          itemCount: _rideHistory.length,
-          itemBuilder: (context, index) {
-            final ride = _rideHistory[index];
-            return Card(
-              child: ListTile(
-                leading: Image.asset('path/to/thumbnail'), // 替换为实际路径
-                title: Text('骑行标题: ${ride['title']}'), // 替换为实际数据
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('日期时间: ${ride['date']}'), // 替换为实际数据
-                    Text(
-                      '里程: ${ride['distance']} km 耗时: ${ride['time']} 分钟 均速: ${ride['speed']} km/h',
-                    ), // 替换为实际数据
-                  ],
+            itemCount: widget.history.length,
+            itemBuilder: (context, index) {
+              final ride = widget.history[index];
+              return Card(
+                child: ListTile(
+                  leading: Image.asset('path/to/thumbnail'), // 替换为实际路径
+                  title: Text('骑行标题: ${ride['title']}'), // 替换为实际数据
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('日期时间: ${ride['date']}'), // 替换为实际数据
+                      Text(
+                        '里程: ${ride['distance']} km 耗时: ${ride['time']} 分钟 均速: ${ride['speed']} km/h',
+                      ), // 替换为实际数据
+                    ],
+                  ),
+                  onLongPress: () {
+                    showMenu(
+                      context: context,
+                      position: const RelativeRect.fromLTRB(100, 100, 0, 0),
+                      items: [
+                        PopupMenuItem(
+                          child: const Text('删除'),
+                          onTap: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (context) {
+                                return AlertDialog(
+                                  title: const Text('确认删除'),
+                                  content: const Text('确定要删除这条骑行记录吗？'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(false),
+                                      child: const Text('取消'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(true),
+                                      child: const Text('删除'),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                            if (confirm == true) {
+                              // delete file by path
+                              final file = File(ride['path']);
+                              await file.delete();
+                              setState(() {
+                                widget.history.removeAt(index);
+                              });
+                            }
+                          },
+                        ),
+                      ],
+                    );
+                  },
                 ),
-              ),
-            );
-          },
-        );
+              );
+            },
+          );
   }
 }

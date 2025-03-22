@@ -1,26 +1,38 @@
 import 'dart:io';
+import 'package:app/utils/fit_parser.dart';
+import 'package:app/utils/gpx_parser.dart';
+import 'package:app/utils/storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:xml/xml.dart' as xml;
-import 'package:fit_parser/fit_parser.dart';
 
 class MapPage extends StatefulWidget {
-  const MapPage({super.key});
+  const MapPage({super.key, this.onFullScreenToggle});
+  // 一个有bool参数的回调函数
+  final ValueChanged<bool>? onFullScreenToggle;
 
   @override
   State<MapPage> createState() => MapPageState();
 }
 
 class MapPageState extends State<MapPage> {
-  MapController? _controller;
+  late MapController _controller;
   bool _showHistory = false;
   bool _showRoute = false;
-  List<LatLng> _routePoints = [];
-  List<LatLng> _historyPoints = [];
+  List<List<LatLng>> _routes = [];
+  List<List<LatLng>> _histories = [];
+  LatLng _currentPosition = const LatLng(37.7749, -122.4194);
+  Marker selectedMarker = const Marker(
+    point: LatLng(34.1301578, 108.8277069),
+    child: Icon(
+      Icons.location_on,
+      size: 80.0,
+      color: Colors.red,
+    ),
+  );
+  bool _isFullScreen = false;
 
   @override
   void initState() {
@@ -28,6 +40,7 @@ class MapPageState extends State<MapPage> {
     _loadPreferences();
     _loadRouteData();
     _loadHistoryData();
+    _controller = MapController();
   }
 
   Future<void> _loadPreferences() async {
@@ -59,81 +72,86 @@ class MapPageState extends State<MapPage> {
   }
 
   void _locatePosition() async {
-    // 实现定位到当前位置的逻辑
-    // 获取当前位置
-    final location = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high);
-    // 移动地图到当前位置
-    _controller?.move(LatLng(location.latitude, location.longitude), 15);
+    final location = await Geolocator.getCurrentPosition();
+    setState(() {
+      _currentPosition = LatLng(location.latitude, location.longitude);
+      _controller.move(_currentPosition, 15);
+      selectedMarker = Marker(
+        width: 80.0,
+        height: 80.0,
+        point: _currentPosition,
+        child: const Icon(
+          Icons.location_on,
+          size: 80.0,
+          color: Colors.red,
+        ),
+      );
+    });
   }
 
   Future<void> _loadRouteData() async {
-    final directory = await getApplicationDocumentsDirectory();
-    final file = File('${directory.path}/route.gpx');
-    if (await file.exists()) {
-      final document = xml.XmlDocument.parse(await file.readAsString());
-      final points = document.findAllElements('trkpt');
-      setState(() {
-        _routePoints = points.map((point) {
-          final lat = double.parse(point.getAttribute('lat')!);
-          final lon = double.parse(point.getAttribute('lon')!);
-          return LatLng(lat, lon);
-        }).toList();
-      });
-    }
+    final files = await Storage().getGpxFiles();
+    _routes = files.map((file) {
+      final gpx = File(file.path); // 从文件中读取gpx数据
+      final gpxData = gpx.readAsStringSync();
+      return parseGpxToPath(gpxData);
+    }).toList();
   }
 
   Future<void> _loadHistoryData() async {
-    final directory = await getApplicationDocumentsDirectory();
-    final path = '${directory.path}/history.fit';
-    final fitFile = FitFile(path: path).parse();
-    final records =
-        fitFile.dataMessages.where((msg) => msg.get('record') != null);
-    setState(() {
-      _historyPoints = records.map((record) {
-        final lat = record.get('position_lat')! / 1e7;
-        final lon = record.get('position_long')! / 1e7;
-        return LatLng(lat, lon);
-      }).toList();
-    });
+    final files = await Storage().getFitFiles();
+    final fit = files.map((item) {
+      return parseFitFile(item.path);
+    }).toList();
+    _histories = fit.map((item) {
+      return (item['points'] as List)
+          .map((point) => LatLng(point['lat'], point['lon']))
+          .toList();
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('地图页面'),
-        actions: [
-          PopupMenuButton(
-            icon: const Icon(Icons.layers),
-            itemBuilder: (context) => [
-              CheckedPopupMenuItem(
-                value: 'showHistory',
-                checked: _showHistory,
-                child: const Text('显示历史活动'),
-              ),
-              CheckedPopupMenuItem(
-                value: 'showRoute',
-                checked: _showRoute,
-                child: const Text('显示路书'),
-              ),
-            ],
-            onSelected: (value) {
-              if (value == 'showHistory') {
-                _toggleHistory(!_showHistory);
-              } else if (value == 'showRoute') {
-                _toggleRoute(!_showRoute);
-              }
-            },
-          ),
-        ],
-      ),
+      appBar: _isFullScreen
+          ? null
+          : AppBar(
+              title: const Text('地图页面'),
+              actions: [
+                PopupMenuButton(
+                  icon: const Icon(Icons.layers),
+                  itemBuilder: (context) => [
+                    CheckedPopupMenuItem(
+                      value: 'showHistory',
+                      checked: _showHistory,
+                      child: const Text('显示历史活动'),
+                    ),
+                    CheckedPopupMenuItem(
+                      value: 'showRoute',
+                      checked: _showRoute,
+                      child: const Text('显示路书'),
+                    ),
+                  ],
+                  onSelected: (value) {
+                    if (value == 'showHistory') {
+                      _toggleHistory(!_showHistory);
+                    } else if (value == 'showRoute') {
+                      _toggleRoute(!_showRoute);
+                    }
+                  },
+                ),
+              ],
+            ),
       body: FlutterMap(
         options: MapOptions(
-          initialCenter: LatLng(37.7749, -122.4194),
-          initialZoom: 10,
-          onTap: (tapPosition, point) => print(point),
-        ),
+            initialCenter: const LatLng(34.1301578, 108.8277069),
+            initialZoom: 10,
+            onTap: (tapPosition, point) {
+              selectedMarker = Marker(
+                child: const Icon(Icons.location_on),
+                point: point,
+              );
+            }),
         mapController: _controller,
         children: [
           TileLayer(
@@ -141,40 +159,57 @@ class MapPageState extends State<MapPage> {
           ),
           if (_showRoute)
             PolylineLayer(
-              polylines: [
-                Polyline(
-                  points: _routePoints,
-                  color: Colors.blue,
-                  strokeWidth: 5,
-                ),
-              ],
+              polylines: () {
+                final polylines = <Polyline>[];
+                for (var route in _routes) {
+                  polylines.add(Polyline(
+                    points: route,
+                    color: Colors.deepOrange,
+                    strokeWidth: 5,
+                  ));
+                }
+                return polylines;
+              }(),
             ),
           if (_showHistory)
             PolylineLayer(
-              polylines: [
-                Polyline(
-                  points: _historyPoints,
-                  color: Colors.red,
-                  strokeWidth: 5,
-                ),
-              ],
+              polylines: () {
+                final polylines = <Polyline>[];
+                for (var history in _histories) {
+                  polylines.add(Polyline(
+                    points: history,
+                    color: Colors.orange,
+                    strokeWidth: 5,
+                  ));
+                }
+                return polylines;
+              }(),
             ),
-          if (_showHistory && _historyPoints.isNotEmpty)
+          if (_showHistory && _histories.isNotEmpty)
             MarkerLayer(
-              markers: [
-                Marker(
-                    point: _historyPoints.last,
-                    child: const Icon(
-                      Icons.location_on,
-                      color: Colors.red,
-                    )),
-              ],
+              markers: [selectedMarker],
             ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _locatePosition,
-        child: const Icon(Icons.my_location),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            onPressed: _locatePosition,
+            child: const Icon(Icons.my_location),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            onPressed: () {
+              setState(() {
+                _isFullScreen = !_isFullScreen;
+                widget.onFullScreenToggle?.call(_isFullScreen);
+              });
+            },
+            child:
+                Icon(_isFullScreen ? Icons.fullscreen_exit : Icons.fullscreen),
+          ),
+        ],
       ),
     );
   }

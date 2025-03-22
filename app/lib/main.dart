@@ -8,10 +8,12 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'dart:async';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -23,70 +25,91 @@ class MyApp extends StatelessWidget {
           headlineMedium: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
       ),
-      home: AppMainPages(),
+      home: const AppMainPages(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
 class AppMainPages extends StatefulWidget {
+  const AppMainPages({super.key});
+
   @override
-  _AppMainPagesState createState() => _AppMainPagesState();
+  State<AppMainPages> createState() => _AppMainPagesState();
 }
 
 class _AppMainPagesState extends State<AppMainPages> {
   int _selectedIndex = 0;
+  bool _isFullScreen = false;
+  List<int> _supportFullScreenPages = <int>[1, 2];
+  late List<Widget> _widgetOptions;
 
-  static final List<Widget> _widgetOptions = <Widget>[
-    HomePage(),
-    const MapPage(),
-    RoutesPage(),
-    const RideHistory(),
-    UserPage(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _widgetOptions = <Widget>[
+      HomePage(),
+      MapPage(
+        onFullScreenToggle: _toggleFullScreen,
+      ),
+      RoutesPage(
+        onFullScreenToggle: _toggleFullScreen,
+      ),
+      const RideHistory(),
+      UserPage(),
+    ];
+  }
 
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
+      _isFullScreen = false;
+    });
+  }
+
+  void _toggleFullScreen(bool isFullScreen) {
+    setState(() {
+      if (_supportFullScreenPages.contains(_selectedIndex)) {
+        _isFullScreen = isFullScreen;
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // appBar: AppBar(
-      //   title: const Text(''),
-      // ),
       body: Center(
         child: _widgetOptions.elementAt(_selectedIndex),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: _onItemTapped,
-        backgroundColor: Theme.of(context).colorScheme.surfaceBright,
-        destinations: const <NavigationDestination>[
-          NavigationDestination(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.map),
-            label: 'Map',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.directions),
-            label: 'Routes',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.history),
-            label: 'History',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person),
-            label: 'Me',
-          ),
-        ],
-      ),
+      bottomNavigationBar: _isFullScreen
+          ? null
+          : NavigationBar(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: _onItemTapped,
+              backgroundColor: Theme.of(context).colorScheme.surfaceBright,
+              destinations: const <NavigationDestination>[
+                NavigationDestination(
+                  icon: Icon(Icons.home),
+                  label: 'Home',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.map),
+                  label: 'Map',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.directions),
+                  label: 'Routes',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.history),
+                  label: 'History',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.person),
+                  label: 'Me',
+                ),
+              ],
+            ),
     );
   }
 }
