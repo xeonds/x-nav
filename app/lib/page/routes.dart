@@ -35,14 +35,10 @@ class RoutesPageState extends State<RoutesPage> {
   }
 
   void _parseGpxFiles() {
-    // 解析gpx文件并生成polylines
-    // 这里需要添加具体的解析逻辑
     setState(() {
-      polylines = gpxFiles.map((file) {
-        final gpx = File(file.path); // 从文件中读取gpx数据
-        final gpxData = gpx.readAsStringSync();
-        return parseGpxToPath(gpxData);
-      }).toList();
+      polylines = gpxFiles
+          .map((file) => parseGpxToPath(file.readAsStringSync()))
+          .toList();
     });
   }
 
@@ -89,6 +85,9 @@ class RoutesPageState extends State<RoutesPage> {
               initialChildSize: 0.1,
               minChildSize: 0.1,
               maxChildSize: 1.0,
+              shouldCloseOnMinExtent: true,
+              snap: true,
+              snapSizes: const [0.2, 0.5, 1.0],
               builder:
                   (BuildContext context, ScrollController scrollController) {
                 return Container(
@@ -129,7 +128,22 @@ class RoutesPageState extends State<RoutesPage> {
                                     child: ListTile(
                                       title: Text(file.path.split('/').last),
                                       onTap: () {
-                                        // 点击后的反应之后再说
+                                        showModalBottomSheet(
+                                          context: context,
+                                          isScrollControlled: true,
+                                          builder: (context) {
+                                            return SizedBox(
+                                              height: MediaQuery.of(context)
+                                                      .size
+                                                      .height *
+                                                  0.8,
+                                              child: RoutePreview(
+                                                gpxData:
+                                                    file.readAsStringSync(),
+                                              ),
+                                            );
+                                          },
+                                        );
                                       },
                                     ),
                                   );
@@ -145,8 +159,9 @@ class RoutesPageState extends State<RoutesPage> {
       ),
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          FloatingActionButton(
+          FloatingActionButton.extended(
             onPressed: () async {
               final file = await FilePicker.platform.pickFiles(
                 type: FileType.any,
@@ -161,17 +176,31 @@ class RoutesPageState extends State<RoutesPage> {
                 _loadGpxFiles();
               }
             },
-            child: const Icon(Icons.add),
+            label: const Text('导入'),
+            icon: const Icon(Icons.upload_file),
           ),
           const SizedBox(height: 16),
-          FloatingActionButton(
+          FloatingActionButton.extended(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => RouteEditPage(route: 'new_route'),
+                ),
+              );
+            },
+            label: const Text('创建'),
+            icon: const Icon(Icons.create),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton.extended(
             onPressed: () {
               setState(() {
                 _isFullScreen = !_isFullScreen;
                 widget.onFullScreenToggle?.call(_isFullScreen);
               });
             },
-            child:
+            label: Text(_isFullScreen ? '退出全屏' : '全屏'),
+            icon:
                 Icon(_isFullScreen ? Icons.fullscreen_exit : Icons.fullscreen),
           ),
         ],
@@ -180,15 +209,12 @@ class RoutesPageState extends State<RoutesPage> {
   }
 }
 
-class RoutePreviewPage extends StatelessWidget {
-  final String route;
+class RoutePreview extends StatelessWidget {
+  final String gpxData;
+  const RoutePreview({super.key, required this.gpxData});
 
-  RoutePreviewPage({required this.route});
-
-  Future<Gpx> _loadGpx(String path) async {
-    final file = File(path);
-    final xmlString = await file.readAsString();
-    return GpxReader().fromString(xmlString);
+  Future<Gpx> _loadGpx(String data) async {
+    return GpxReader().fromString(data);
   }
 
   @override
@@ -198,7 +224,7 @@ class RoutePreviewPage extends StatelessWidget {
         title: const Text('Preview Route'),
       ),
       body: FutureBuilder<Gpx>(
-        future: _loadGpx('/home/xeonds/code/x-nav/appdir/route/$route'),
+        future: _loadGpx(gpxData),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -240,7 +266,7 @@ class RoutePreviewPage extends StatelessWidget {
                   child: ListView(
                     children: [
                       ListTile(
-                        title: Text('Route: $route'),
+                        title: Text('Route: $gpxData'),
                       ),
                       ListTile(
                         title: Text(
@@ -262,19 +288,209 @@ class RoutePreviewPage extends StatelessWidget {
   }
 }
 
-class RouteEditPage extends StatelessWidget {
+class RouteEditPage extends StatefulWidget {
   final String route;
 
   RouteEditPage({required this.route});
+
+  @override
+  State<RouteEditPage> createState() => _RouteEditPageState();
+}
+
+class _RouteEditPageState extends State<RouteEditPage> {
+  List<LatLng> waypoints = [];
+  List<LatLng> routePath = [];
+  final TextEditingController _titleController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController.text =
+        "${waypoints.isNotEmpty ? waypoints.first : '起点'}-${waypoints.isNotEmpty ? waypoints.last : '终点'} 的路线";
+  }
+
+  void _addWaypoint(LatLng point) {
+    setState(() {
+      waypoints.add(point);
+      _updateRoute();
+    });
+  }
+
+  void _removeWaypoint(int index) {
+    setState(() {
+      waypoints.removeAt(index);
+      _updateRoute();
+    });
+  }
+
+  Future<void> _updateRoute() async {
+    // Call your route planning API here with the waypoints
+    // For now, we'll just use the waypoints as the route path
+    setState(() {
+      routePath = List.from(waypoints);
+    });
+  }
+
+  Future<void> _saveRoute() async {
+    final gpx = Gpx();
+    gpx.trks = [
+      Trk(
+        trksegs: [
+          Trkseg(
+            trkpts: routePath
+                .map((point) => Wpt(lat: point.latitude, lon: point.longitude))
+                .toList(),
+          ),
+        ],
+      ),
+    ];
+    final gpxString = GpxWriter().asString(gpx);
+    final fileName = "${DateTime.now().millisecondsSinceEpoch}.gpx";
+    await Storage().saveGpxFile(fileName, gpxString.codeUnits);
+    Navigator.of(context).pop();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Edit Route'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: () async {
+              final title = await showDialog<String>(
+                context: context,
+                builder: (context) {
+                  return AlertDialog(
+                    title: const Text('Save Route'),
+                    content: TextField(
+                      controller: _titleController,
+                      decoration:
+                          const InputDecoration(labelText: 'Route Title'),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () =>
+                            Navigator.of(context).pop(_titleController.text),
+                        child: const Text('Save'),
+                      ),
+                    ],
+                  );
+                },
+              );
+              if (title != null) {
+                _saveRoute();
+              }
+            },
+          ),
+        ],
       ),
-      body: Center(
-        child: Text('Editing $route'),
+      body: Stack(
+        children: [
+          FlutterMap(
+            options: MapOptions(
+              initialCenter: waypoints.isNotEmpty
+                  ? waypoints.first
+                  : const LatLng(34.1301578, 108.8277069),
+              initialZoom: 14,
+              onTap: (tapPosition, point) {
+                // Add waypoint at tapped position
+                _addWaypoint(point);
+              },
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+              ),
+              if (routePath.isNotEmpty)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: routePath,
+                      color: Colors.blue,
+                      strokeWidth: 5,
+                    ),
+                  ],
+                ),
+              MarkerLayer(
+                markers: waypoints
+                    .map((point) => Marker(
+                          point: point,
+                          child: const Icon(
+                            Icons.location_on,
+                            color: Colors.red,
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ],
+          ),
+          DraggableScrollableSheet(
+            initialChildSize: 0.2,
+            minChildSize: 0.1,
+            maxChildSize: 0.5,
+            builder: (context, scrollController) {
+              return Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 10,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      height: 4,
+                      width: 40,
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        controller: scrollController,
+                        itemCount: waypoints.length,
+                        itemBuilder: (context, index) {
+                          final point = waypoints[index];
+                          return ListTile(
+                            title: Text(
+                                'Point ${index + 1}: (${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)})'),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete),
+                              onPressed: () => _removeWaypoint(index),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        final center = routePath.isNotEmpty
+                            ? routePath.last
+                            : const LatLng(34.1301578, 108.8277069);
+                        _addWaypoint(center);
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('新增途径点'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

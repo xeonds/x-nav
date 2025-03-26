@@ -1,4 +1,5 @@
 import 'package:app/utils/fit_parser.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:latlong2/latlong.dart' show LatLng;
@@ -22,7 +23,6 @@ class _RideHistoryState extends State<RideHistory> {
     _loadFitFiles();
   }
 
-  // TODO: 修复fit文件解析错误
   Future<void> _loadFitFiles() async {
     final files = await Storage().getFitFiles();
     setState(() {
@@ -100,7 +100,7 @@ class RideSummary extends StatelessWidget {
 
           return Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Column(
+            child: Row(
               children: [
                 Text('总里程: $totalDistance km'),
                 Text('总次数: $totalRides 次'),
@@ -114,16 +114,22 @@ class RideSummary extends StatelessWidget {
   }
 
   Future<Map<String, dynamic>> _loadRideData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final totalDistance = prefs.getDouble('totalDistance') ?? 0.0;
-    final totalRides = prefs.getInt('totalRides') ?? 0;
-    final totalTime = prefs.getInt('totalTime') ?? 0;
-
-    return {
-      'totalDistance': totalDistance,
-      'totalRides': totalRides,
-      'totalTime': totalTime,
-    };
+    final files = await Storage().getFitFiles();
+    final res = files
+        .map((file) =>
+            {"path": file.path, ...parseFitFile(file.readAsBytesSync())})
+        .map((e) => parseFitDataToSummary(e))
+        .reduce((value, element) => {
+              'totalDistance':
+                  value['totalDistance'] + element['total_distance'],
+              'totalRides': value['totalRides'] + 1,
+              'totalTime': value['totalTime'] + element['total_elapsed_time'],
+            })
+        .cast<String, dynamic>();
+    if (kDebugMode) {
+      print(res);
+    }
+    return res;
   }
 }
 
@@ -208,23 +214,26 @@ class RideHistoryListState extends State<RideHistoryList> {
         : ListView.builder(
             itemCount: widget.history.length,
             itemBuilder: (context, index) {
-              final ride = widget.history[index];
+              final summary = parseFitDataToSummary(widget.history[index]);
               return Card(
                 child: ListTile(
                   leading: SizedBox(
                     width: 50,
                     height: 50,
                     child: CustomPaint(
-                      painter: RidePathPainter(parseFitDataToRoute(ride)),
+                      painter: RidePathPainter(
+                          parseFitDataToRoute(widget.history[index])),
                     ),
                   ),
-                  title: Text('骑行标题: ${ride['title']}'), // 替换为实际数据
+                  title: Text('骑行标题: ${summary['title']}'), // 替换为实际数据
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('日期时间: ${ride['date']}'), // 替换为实际数据
                       Text(
-                        '里程: ${ride['distance']} km 耗时: ${ride['time']} 分钟 均速: ${ride['speed']} km/h',
+                        '日期时间: ${DateTime.fromMillisecondsSinceEpoch((summary['start_time'] * 1000).toInt()).toLocal().toString().replaceFirst('T', ' ')}',
+                      ), // 替换为实际数据
+                      Text(
+                        '里程: ${summary['total_distance'] / 1000.0} km 耗时: ${summary['total_elapsed_time'] / 60} 分钟 均速: ${summary['avg_speed'] * 3.6} km/h',
                       ), // 替换为实际数据
                     ],
                   ),
@@ -259,7 +268,7 @@ class RideHistoryListState extends State<RideHistoryList> {
                             );
                             if (confirm == true) {
                               // delete file by path
-                              final file = File(ride['path']);
+                              final file = File(summary['path']);
                               await file.delete();
                               setState(() {
                                 widget.history.removeAt(index);
