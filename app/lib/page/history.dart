@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:latlong2/latlong.dart' show LatLng;
 import 'dart:io';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app/utils/storage.dart';
 
 class RideHistory extends StatefulWidget {
@@ -83,17 +82,6 @@ class _RideHistoryState extends State<RideHistory> {
         child: const Icon(Icons.file_upload),
       ),
     );
-  }
-
-  Future<void> updateRideData(Map<String, dynamic> fitData) async {
-    final prefs = await SharedPreferences.getInstance();
-    final totalDistance = prefs.getDouble('totalDistance') ?? 0.0;
-    final totalRides = prefs.getInt('totalRides') ?? 0;
-    final totalTime = prefs.getInt('totalTime') ?? 0;
-
-    await prefs.setDouble('totalDistance', totalDistance + fitData['distance']);
-    await prefs.setInt('totalRides', totalRides + 1);
-    await prefs.setInt('totalTime', totalTime + (fitData['time'] as int));
   }
 }
 
