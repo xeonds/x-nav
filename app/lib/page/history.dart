@@ -120,9 +120,9 @@ class RideSummaryState extends State<RideSummary> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          Text('总里程: ${totalDistance / 1000} km'),
+          Text('总里程: ${(totalDistance ?? 0.0) / 1000} km'),
           Text('总次数: $totalRides 次'),
-          Text('总时间: ${totalTime / 60} 分钟'),
+          Text('总时间: ${(totalTime ?? 0) / 60} 分钟'),
         ],
       ),
     );
