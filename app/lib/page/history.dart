@@ -4,6 +4,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:latlong2/latlong.dart' show LatLng;
 import 'dart:io';
 import 'package:app/utils/storage.dart';
+import 'package:fl_chart/fl_chart.dart'; // 用于图表
+import 'package:flutter_map/flutter_map.dart'; // 用于地图
 
 class RideHistory extends StatefulWidget {
   const RideHistory({super.key});
@@ -227,6 +229,15 @@ class RideHistoryListState extends State<RideHistoryList> {
                       ), // 替换为实际数据
                     ],
                   ),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => RideDetailPage(
+                          rideData: sortedHistory[index],
+                        ),
+                      ),
+                    );
+                  },
                   onLongPress: () {
                     showMenu(
                       context: context,
@@ -273,5 +284,147 @@ class RideHistoryListState extends State<RideHistoryList> {
               );
             },
           );
+  }
+}
+
+class RideDetailPage extends StatelessWidget {
+  final Map<String, dynamic> rideData;
+
+  const RideDetailPage({super.key, required this.rideData});
+
+  @override
+  Widget build(BuildContext context) {
+    final routePoints = parseFitDataToRoute(rideData);
+    final summary = parseFitDataToSummary(rideData);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('骑行详情')),
+      body: Column(
+        children: [
+          // 地图展示
+          Expanded(
+            flex: 2,
+            child: FlutterMap(
+              options: MapOptions(
+                initialCenter: routePoints.isNotEmpty
+                    ? LatLng(routePoints[0].latitude, routePoints[0].longitude)
+                    : const LatLng(0, 0),
+                initialZoom: 13.0,
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                ),
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: routePoints,
+                      strokeWidth: 4.0,
+                      color: Colors.blue,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // 数据展示
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '骑行标题: ${summary['title'] ?? '未知'}',
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '日期时间: ${DateTime.fromMillisecondsSinceEpoch((summary['start_time'] * 1000 + 631065600000).toInt()).toLocal()}',
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '总里程: ${(summary['total_distance'] / 1000.0).toStringAsFixed(2)} km\n'
+                      '总耗时: ${(summary['total_elapsed_time'] / 60).toStringAsFixed(2)} 分钟\n'
+                      '均速: ${(summary['avg_speed'] * 3.6).toStringAsFixed(2)} km/h\n'
+                      '最大速度: ${(summary['max_speed'] * 3.6).toStringAsFixed(2)} km/h\n'
+                      '总爬升: ${summary['total_ascent']} m\n'
+                      '总下降: ${summary['total_descent']} m\n'
+                      '平均心率: ${summary['avg_heart_rate'] ?? '未知'} bpm\n'
+                      '最大心率: ${summary['max_heart_rate'] ?? '未知'} bpm\n'
+                      '平均功率: ${summary['avg_power'] ?? '未知'} W\n'
+                      '最大功率: ${summary['max_power'] ?? '未知'} W\n'
+                      '总卡路里: ${summary['total_calories'] ?? '未知'} kcal',
+                    ),
+                    const SizedBox(height: 20),
+                    // 图表展示
+                    const Text(
+                      '速度变化图',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(
+                      height: 200,
+                      child: LineChart(
+                        LineChartData(
+                          lineBarsData: [
+                            LineChartBarData(
+                              spots: routePoints
+                                  .asMap()
+                                  .entries
+                                  .map((e) => FlSpot(e.key.toDouble(),
+                                      summary['avg_speed'] * 3.6))
+                                  .toList(),
+                              isCurved: true,
+                              color: Colors.orange,
+                              barWidth: 4,
+                            ),
+                          ],
+                          titlesData: FlTitlesData(show: false),
+                          borderData: FlBorderData(show: false),
+                          gridData: FlGridData(show: false),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      '海拔变化图',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(
+                      height: 200,
+                      child: LineChart(
+                        LineChartData(
+                          lineBarsData: [
+                            LineChartBarData(
+                              spots: routePoints
+                                  .asMap()
+                                  .entries
+                                  .map((e) => FlSpot(e.key.toDouble(),
+                                      summary['avg_altitude'] ?? 0.0))
+                                  .toList(),
+                              isCurved: true,
+                              color: Colors.blue,
+                              barWidth: 4,
+                            ),
+                          ],
+                          titlesData: FlTitlesData(show: false),
+                          borderData: FlBorderData(show: false),
+                          gridData: FlGridData(show: false),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
