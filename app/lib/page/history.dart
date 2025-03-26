@@ -1,5 +1,4 @@
 import 'package:app/utils/fit_parser.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:latlong2/latlong.dart' show LatLng;
@@ -16,6 +15,7 @@ class RideHistory extends StatefulWidget {
 
 class _RideHistoryState extends State<RideHistory> {
   List<dynamic> histories = [];
+  Map<String, dynamic> rideData = {};
 
   @override
   void initState() {
@@ -30,6 +30,20 @@ class _RideHistoryState extends State<RideHistory> {
           .map((file) =>
               {"path": file.path, ...parseFitFile(file.readAsBytesSync())})
           .toList();
+      rideData = histories
+          .map((e) => parseFitDataToSummary(e))
+          .fold<Map<String, dynamic>>(
+        {'totalDistance': 0.0, 'totalRides': 0, 'totalTime': 0},
+        (value, element) {
+          return {
+            'totalDistance':
+                value['totalDistance'] + (element['total_distance'] ?? 0.0),
+            'totalRides': value['totalRides'] + 1,
+            'totalTime':
+                value['totalTime'] + (element['total_elapsed_time'] ?? 0),
+          };
+        },
+      );
     });
   }
 
@@ -39,7 +53,7 @@ class _RideHistoryState extends State<RideHistory> {
       appBar: AppBar(title: const Text('骑行记录')),
       body: Column(
         children: [
-          const RideSummary(),
+          RideSummary(rideData: rideData),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _loadFitFiles,
@@ -80,56 +94,37 @@ class _RideHistoryState extends State<RideHistory> {
   }
 }
 
-class RideSummary extends StatelessWidget {
-  const RideSummary({super.key});
+class RideSummary extends StatefulWidget {
+  final Map<String, dynamic> rideData;
+  const RideSummary({super.key, required this.rideData});
+
+  State<RideSummary> createState() => RideSummaryState();
+}
+
+class RideSummaryState extends State<RideSummary> {
+  @override
+  void initState() {
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: _loadRideData(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const CircularProgressIndicator();
-        } else if (snapshot.hasError) {
-          return const Text('加载数据出错');
-        } else {
-          final data = snapshot.data as Map<String, dynamic>;
-          final totalDistance = data['totalDistance'];
-          final totalRides = data['totalRides'];
-          final totalTime = data['totalTime'];
+    final data = widget.rideData;
+    final totalDistance = data['totalDistance'];
+    final totalRides = data['totalRides'];
+    final totalTime = data['totalTime'];
 
-          return Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              children: [
-                Text('总里程: $totalDistance km'),
-                Text('总次数: $totalRides 次'),
-                Text('总时间: $totalTime 分钟'),
-              ],
-            ),
-          );
-        }
-      },
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          Text('总里程: ${totalDistance / 1000} km'),
+          Text('总次数: $totalRides 次'),
+          Text('总时间: ${totalTime / 60} 分钟'),
+        ],
+      ),
     );
-  }
-
-  Future<Map<String, dynamic>> _loadRideData() async {
-    final files = await Storage().getFitFiles();
-    final res = files
-        .map((file) =>
-            {"path": file.path, ...parseFitFile(file.readAsBytesSync())})
-        .map((e) => parseFitDataToSummary(e))
-        .reduce((value, element) => {
-              'totalDistance':
-                  value['totalDistance'] + element['total_distance'],
-              'totalRides': value['totalRides'] + 1,
-              'totalTime': value['totalTime'] + element['total_elapsed_time'],
-            })
-        .cast<String, dynamic>();
-    if (kDebugMode) {
-      print(res);
-    }
-    return res;
   }
 }
 
@@ -204,8 +199,6 @@ class RideHistoryListState extends State<RideHistoryList> {
   void initState() {
     super.initState();
   }
-
-  // 实现RidePathPainter
 
   @override
   Widget build(BuildContext context) {

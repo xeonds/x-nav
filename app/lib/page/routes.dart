@@ -82,8 +82,8 @@ class RoutesPageState extends State<RoutesPage> {
           ),
           if (!_isFullScreen)
             DraggableScrollableSheet(
-              initialChildSize: 0.1,
-              minChildSize: 0.1,
+              initialChildSize: 0.2,
+              minChildSize: 0.2,
               maxChildSize: 1.0,
               shouldCloseOnMinExtent: true,
               snap: true,
