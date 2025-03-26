@@ -53,6 +53,12 @@ class RoutesPageState extends State<RoutesPage> {
           ? null
           : AppBar(
               title: const Text('Routes'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadGpxFiles,
+                ),
+              ],
             ),
       body: Stack(
         children: [
@@ -80,9 +86,9 @@ class RoutesPageState extends State<RoutesPage> {
           ),
           if (!_isFullScreen)
             DraggableScrollableSheet(
-              initialChildSize: 0.3,
-              minChildSize: 0.2,
-              maxChildSize: 0.6,
+              initialChildSize: 0.1,
+              minChildSize: 0.1,
+              maxChildSize: 1.0,
               builder:
                   (BuildContext context, ScrollController scrollController) {
                 return Container(
@@ -98,27 +104,39 @@ class RoutesPageState extends State<RoutesPage> {
                       ),
                     ],
                   ),
-                  child: RefreshIndicator(
-                    onRefresh: _loadGpxFiles,
-                    child: gpxFiles.isEmpty
-                        ? const Center(
-                            child: Text('无路书'),
-                          )
-                        : ListView.builder(
-                            controller: scrollController,
-                            itemCount: gpxFiles.length,
-                            itemBuilder: (context, index) {
-                              final file = gpxFiles[index];
-                              return Card(
-                                child: ListTile(
-                                  title: Text(file.path.split('/').last),
-                                  onTap: () {
-                                    // 点击后的反应之后再说
-                                  },
-                                ),
-                              );
-                            },
-                          ),
+                  child: Column(
+                    children: [
+                      Container(
+                        height: 4,
+                        width: 40,
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      Expanded(
+                        child: gpxFiles.isEmpty
+                            ? const Center(
+                                child: Text('无路书'),
+                              )
+                            : ListView.builder(
+                                controller: scrollController,
+                                itemCount: gpxFiles.length,
+                                itemBuilder: (context, index) {
+                                  final file = gpxFiles[index];
+                                  return Card(
+                                    child: ListTile(
+                                      title: Text(file.path.split('/').last),
+                                      onTap: () {
+                                        // 点击后的反应之后再说
+                                      },
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
                   ),
                 );
               },

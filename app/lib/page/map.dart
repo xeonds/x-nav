@@ -26,11 +26,7 @@ class MapPageState extends State<MapPage> {
   LatLng _currentPosition = const LatLng(37.7749, -122.4194);
   Marker selectedMarker = const Marker(
     point: LatLng(34.1301578, 108.8277069),
-    child: Icon(
-      Icons.location_on,
-      size: 80.0,
-      color: Colors.red,
-    ),
+    child: Icon(Icons.location_on),
   );
   bool _isFullScreen = false;
 
@@ -77,14 +73,8 @@ class MapPageState extends State<MapPage> {
       _currentPosition = LatLng(location.latitude, location.longitude);
       _controller.move(_currentPosition, 15);
       selectedMarker = Marker(
-        width: 80.0,
-        height: 80.0,
         point: _currentPosition,
-        child: const Icon(
-          Icons.location_on,
-          size: 80.0,
-          color: Colors.red,
-        ),
+        child: const Icon(Icons.location_on),
       );
     });
   }
@@ -100,14 +90,10 @@ class MapPageState extends State<MapPage> {
 
   Future<void> _loadHistoryData() async {
     final files = await Storage().getFitFiles();
-    final fit = files.map((item) {
-      return parseFitFile(item.path);
-    }).toList();
-    _histories = fit.map((item) {
-      return (item['points'] as List)
-          .map((point) => LatLng(point['lat'], point['lon']))
-          .toList();
-    }).toList();
+    _histories = files
+        .map((item) => parseFitFile(item.readAsBytesSync()))
+        .map((item) => parseFitDataToRoute(item))
+        .toList();
   }
 
   @override
@@ -147,10 +133,12 @@ class MapPageState extends State<MapPage> {
             initialCenter: const LatLng(34.1301578, 108.8277069),
             initialZoom: 10,
             onTap: (tapPosition, point) {
-              selectedMarker = Marker(
-                child: const Icon(Icons.location_on),
-                point: point,
-              );
+              setState(() {
+                selectedMarker = Marker(
+                  child: const Icon(Icons.location_on),
+                  point: point,
+                );
+              });
             }),
         mapController: _controller,
         children: [
@@ -185,10 +173,10 @@ class MapPageState extends State<MapPage> {
                 return polylines;
               }(),
             ),
-          if (_showHistory && _histories.isNotEmpty)
-            MarkerLayer(
-              markers: [selectedMarker],
-            ),
+          // if (_showHistory && _histories.isNotEmpty)
+          MarkerLayer(
+            markers: [selectedMarker],
+          ),
         ],
       ),
       floatingActionButton: Column(

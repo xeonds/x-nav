@@ -1,7 +1,7 @@
 import 'package:app/utils/fit_parser.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:latlong2/latlong.dart' show LatLng;
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app/utils/storage.dart';
@@ -26,17 +26,10 @@ class _RideHistoryState extends State<RideHistory> {
   Future<void> _loadFitFiles() async {
     final files = await Storage().getFitFiles();
     setState(() {
-      histories = files.map((file) {
-        try {
-          return {"path": file.path, ...parseFitFile(file.path)};
-        } catch (e) {
-          // 记录错误并返回一个空的 Map 以避免异常
-          if (kDebugMode) {
-            print('Error parsing file ${file.path}: $e');
-          }
-          return {"path": file.path};
-        }
-      }).toList();
+      histories = files
+          .map((file) =>
+              {"path": file.path, ...parseFitFile(file.readAsBytesSync())})
+          .toList();
     });
   }
 
@@ -134,6 +127,64 @@ class RideSummary extends StatelessWidget {
   }
 }
 
+class RidePathPainter extends CustomPainter {
+  final List<LatLng> points;
+
+  RidePathPainter(this.points);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.deepOrange
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke;
+
+    if (points.isNotEmpty) {
+      final path = Path();
+
+      // 获取经纬度的最小值和最大值
+      final minLat =
+          points.map((p) => p.latitude).reduce((a, b) => a < b ? a : b);
+      final maxLat =
+          points.map((p) => p.latitude).reduce((a, b) => a > b ? a : b);
+      final minLng =
+          points.map((p) => p.longitude).reduce((a, b) => a < b ? a : b);
+      final maxLng =
+          points.map((p) => p.longitude).reduce((a, b) => a > b ? a : b);
+
+      // 计算缩放比例
+      final scaleX = size.width / (maxLng - minLng);
+      final scaleY = size.height / (maxLat - minLat);
+      final scale = scaleX < scaleY ? scaleX : scaleY;
+
+      // 计算偏移量
+      final offsetX = (size.width - (maxLng - minLng) * scale) / 2;
+      final offsetY = (size.height - (maxLat - minLat) * scale) / 2;
+
+      // 移动到起点
+      path.moveTo(
+        (points[0].longitude - minLng) * scale + offsetX,
+        (maxLat - points[0].latitude) * scale + offsetY,
+      );
+
+      // 绘制路径
+      for (var point in points) {
+        path.lineTo(
+          (point.longitude - minLng) * scale + offsetX,
+          (maxLat - point.latitude) * scale + offsetY,
+        );
+      }
+
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true; // 数据变化时触发重绘
+  }
+}
+
 class RideHistoryList extends StatefulWidget {
   final List<dynamic> history;
   const RideHistoryList({super.key, required this.history});
@@ -148,6 +199,8 @@ class RideHistoryListState extends State<RideHistoryList> {
     super.initState();
   }
 
+  // 实现RidePathPainter
+
   @override
   Widget build(BuildContext context) {
     return widget.history.isEmpty
@@ -158,7 +211,13 @@ class RideHistoryListState extends State<RideHistoryList> {
               final ride = widget.history[index];
               return Card(
                 child: ListTile(
-                  leading: Image.asset('path/to/thumbnail'), // 替换为实际路径
+                  leading: SizedBox(
+                    width: 50,
+                    height: 50,
+                    child: CustomPaint(
+                      painter: RidePathPainter(parseFitDataToRoute(ride)),
+                    ),
+                  ),
                   title: Text('骑行标题: ${ride['title']}'), // 替换为实际数据
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
