@@ -123,9 +123,10 @@ class RideSummaryState extends State<RideSummary> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          Text('总里程: ${(totalDistance ?? 0.0) / 1000} km'),
+          Text(
+              '总里程: ${((totalDistance ?? 0.0) / 1000.0).toStringAsFixed(2)} km'),
           Text('总次数: $totalRides 次'),
-          Text('总时间: ${(totalTime ?? 0) / 60} 分钟'),
+          Text('总时间: ${((totalTime ?? 0) / 60.0).toStringAsFixed(2)} 分钟'),
         ],
       ),
     );
@@ -234,7 +235,7 @@ class RideHistoryListState extends State<RideHistoryList> {
                         '日期时间: ${DateTime.fromMillisecondsSinceEpoch((summary['start_time'] * 1000 + 631065600000).toInt()).toLocal().toString().replaceFirst('T', ' ')}',
                       ), // 替换为实际数据
                       Text(
-                        '里程: ${summary['total_distance'] / 1000.0} km 耗时: ${summary['total_elapsed_time'] / 60} 分钟 均速: ${summary['avg_speed'] * 3.6} km/h',
+                        '里程: ${(summary['total_distance'] / 1000.0).toStringAsFixed(2)} km 耗时: ${(summary['total_elapsed_time'] / 60).toStringAsFixed(2)} 分钟 均速: ${(summary['avg_speed'] * 3.6).toStringAsFixed(2)} km/h',
                       ), // 替换为实际数据
                     ],
                   ),
