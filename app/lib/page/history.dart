@@ -98,6 +98,7 @@ class RideSummary extends StatefulWidget {
   final Map<String, dynamic> rideData;
   const RideSummary({super.key, required this.rideData});
 
+  @override
   State<RideSummary> createState() => RideSummaryState();
 }
 
