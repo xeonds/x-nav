@@ -19,6 +19,9 @@ class RoutesPageState extends State<RoutesPage> {
   List<File> gpxFiles = [];
   List<List<LatLng>> polylines = [];
   bool _isFullScreen = false;
+  String? _selectedGpxData;
+  List<LatLng> _previewPath = [];
+  Gpx? _previewGpx;
 
   @override
   void initState() {
@@ -68,15 +71,19 @@ class RoutesPageState extends State<RoutesPage> {
                 urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
               ),
               PolylineLayer(
-                polylines: polylines.isEmpty
-                    ? <Polyline>[]
-                    : polylines
-                        .map((points) => Polyline(
-                              points: points,
-                              color: Colors.deepOrange,
-                              strokeWidth: 5,
-                            ))
-                        .toList(),
+                polylines: [
+                  ...polylines.map((points) => Polyline(
+                        points: points,
+                        color: Colors.deepOrange,
+                        strokeWidth: 5,
+                      )),
+                  if (_previewPath.isNotEmpty)
+                    Polyline(
+                      points: _previewPath,
+                      color: Colors.blue,
+                      strokeWidth: 5,
+                    ),
+                ],
               ),
             ],
           ),
@@ -95,63 +102,101 @@ class RoutesPageState extends State<RoutesPage> {
                     color: Colors.white,
                     borderRadius:
                         BorderRadius.vertical(top: Radius.circular(16)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black26,
-                        blurRadius: 10,
-                        spreadRadius: 5,
-                      ),
-                    ],
                   ),
-                  child: Column(
-                    children: [
-                      Container(
-                        height: 4,
-                        width: 40,
-                        margin: const EdgeInsets.symmetric(vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      Expanded(
-                        child: gpxFiles.isEmpty
-                            ? const Center(
-                                child: Text('无路书'),
-                              )
-                            : ListView.builder(
-                                controller: scrollController,
-                                itemCount: gpxFiles.length,
-                                itemBuilder: (context, index) {
-                                  final file = gpxFiles[index];
-                                  return Card(
-                                    child: ListTile(
-                                      title: Text(file.path.split('/').last),
-                                      onTap: () {
-                                        showModalBottomSheet(
-                                          context: context,
-                                          isScrollControlled: true,
-                                          builder: (context) {
-                                            return SizedBox(
-                                              height: MediaQuery.of(context)
-                                                      .size
-                                                      .height *
-                                                  0.8,
-                                              child: RoutePreview(
-                                                gpxData:
-                                                    file.readAsStringSync(),
-                                              ),
-                                            );
-                                          },
+                  child: _selectedGpxData == null
+                      ? Column(
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'Routes List',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: gpxFiles.isEmpty
+                                  ? const Center(
+                                      child: Text('无路书'),
+                                    )
+                                  : ListView.builder(
+                                      controller: scrollController,
+                                      itemCount: gpxFiles.length,
+                                      itemBuilder: (context, index) {
+                                        final file = gpxFiles[index];
+                                        return Card(
+                                          child: ListTile(
+                                            title:
+                                                Text(file.path.split('/').last),
+                                            onTap: () async {
+                                              final gpxData =
+                                                  file.readAsStringSync();
+                                              final gpx = await GpxReader()
+                                                  .fromString(gpxData);
+                                              final points = gpx.trks
+                                                  .expand((trk) => trk.trksegs)
+                                                  .expand(
+                                                      (trkseg) => trkseg.trkpts)
+                                                  .map((trkpt) => LatLng(
+                                                      trkpt.lat!, trkpt.lon!))
+                                                  .toList();
+                                              setState(() {
+                                                _selectedGpxData = gpxData;
+                                                _previewGpx = gpx;
+                                                _previewPath = points;
+                                              });
+                                            },
+                                          ),
                                         );
                                       },
                                     ),
-                                  );
+                            ),
+                          ],
+                        )
+                      : Column(
+                          children: [
+                            ListTile(
+                              leading: IconButton(
+                                icon: const Icon(Icons.arrow_back),
+                                onPressed: () {
+                                  setState(() {
+                                    _selectedGpxData = null;
+                                    _previewPath = [];
+                                    _previewGpx = null;
+                                  });
                                 },
                               ),
-                      ),
-                    ],
-                  ),
+                              title: const Text('Preview Route'),
+                            ),
+                            Expanded(
+                              child: ListView(
+                                controller: scrollController,
+                                children: [
+                                  // ListTile(
+                                  //   title: Text(
+                                  //       'Route: ${_selectedGpxData ?? ''}'),
+                                  // ),
+                                  if (_previewGpx != null)
+                                    ListTile(
+                                      title: Text(
+                                          'Length: ${_previewGpx!.trks.first.trksegs.first.trkpts.length} points'),
+                                    ),
+                                  if (_previewGpx?.metadata?.time != null)
+                                    ListTile(
+                                      title: Text(
+                                          'Time: ${_previewGpx!.metadata!.time}'),
+                                    ),
+                                  // 添加更多路书信息
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                 );
               },
             ),
@@ -204,85 +249,6 @@ class RoutesPageState extends State<RoutesPage> {
                 Icon(_isFullScreen ? Icons.fullscreen_exit : Icons.fullscreen),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class RoutePreview extends StatelessWidget {
-  final String gpxData;
-  const RoutePreview({super.key, required this.gpxData});
-
-  Future<Gpx> _loadGpx(String data) async {
-    return GpxReader().fromString(data);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Preview Route'),
-      ),
-      body: FutureBuilder<Gpx>(
-        future: _loadGpx(gpxData),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return const Center(child: Text('Error loading GPX file'));
-          } else {
-            final gpx = snapshot.data!;
-            final points = gpx.trks
-                .expand((trk) => trk.trksegs)
-                .expand((trkseg) => trkseg.trkpts)
-                .map((trkpt) => LatLng(trkpt.lat!, trkpt.lon!))
-                .toList();
-            final polyline = Polyline(
-              points: points,
-              color: Colors.blue,
-              strokeWidth: 5,
-            );
-            return Column(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: FlutterMap(
-                    options: MapOptions(
-                      initialCenter:
-                          points.isNotEmpty ? points.first : const LatLng(0, 0),
-                      initialZoom: 14,
-                    ),
-                    children: [
-                      TileLayer(
-                        urlTemplate:
-                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      ),
-                      PolylineLayer(polylines: [polyline]),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  flex: 1,
-                  child: ListView(
-                    children: [
-                      ListTile(
-                        title: Text('Route: $gpxData'),
-                      ),
-                      ListTile(
-                        title: Text(
-                            'Length: ${gpx.trks.first.trksegs.first.trkpts.length} points'),
-                      ),
-                      ListTile(
-                        title: Text('Time: ${gpx.metadata?.time}'),
-                      ),
-                      // 添加更多路书信息
-                    ],
-                  ),
-                ),
-              ],
-            );
-          }
-        },
       ),
     );
   }
