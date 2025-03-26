@@ -64,16 +64,19 @@ class _RideHistoryState extends State<RideHistory> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          final file = await FilePicker.platform.pickFiles(
+          final result = await FilePicker.platform.pickFiles(
             type: FileType.any,
+            allowMultiple: true,
           );
-          if (file != null) {
-            final path = File(file.files.single.path!);
-            final fitFile = await path.readAsBytes();
-            await Storage().saveFitFile(
-              path.path.split('/').last,
-              fitFile,
-            );
+          if (result != null) {
+            for (var file in result.files) {
+              final path = File(file.path!);
+              final fitFile = await path.readAsBytes();
+              await Storage().saveFitFile(
+                path.path.split('/').last,
+                fitFile,
+              );
+            }
             _loadFitFiles();
           }
         },
@@ -203,12 +206,16 @@ class RideHistoryListState extends State<RideHistoryList> {
 
   @override
   Widget build(BuildContext context) {
-    return widget.history.isEmpty
+    final sortedHistory = List.from(widget.history)
+      ..sort((a, b) => (parseFitDataToSummary(b)['start_time'] ?? 0)
+          .compareTo(parseFitDataToSummary(a)['start_time'] ?? 0));
+
+    return sortedHistory.isEmpty
         ? const Center(child: Text('没有骑行记录'))
         : ListView.builder(
-            itemCount: widget.history.length,
+            itemCount: sortedHistory.length,
             itemBuilder: (context, index) {
-              final summary = parseFitDataToSummary(widget.history[index]);
+              final summary = parseFitDataToSummary(sortedHistory[index]);
               return Card(
                 child: ListTile(
                   leading: SizedBox(
@@ -216,7 +223,7 @@ class RideHistoryListState extends State<RideHistoryList> {
                     height: 50,
                     child: CustomPaint(
                       painter: RidePathPainter(
-                          parseFitDataToRoute(widget.history[index])),
+                          parseFitDataToRoute(sortedHistory[index])),
                     ),
                   ),
                   title: Text('骑行标题: ${summary['title']}'), // 替换为实际数据
@@ -224,7 +231,7 @@ class RideHistoryListState extends State<RideHistoryList> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '日期时间: ${DateTime.fromMillisecondsSinceEpoch((summary['start_time'] * 1000).toInt()).toLocal().toString().replaceFirst('T', ' ')}',
+                        '日期时间: ${DateTime.fromMillisecondsSinceEpoch((summary['start_time'] * 1000 + 631065600000).toInt()).toLocal().toString().replaceFirst('T', ' ')}',
                       ), // 替换为实际数据
                       Text(
                         '里程: ${summary['total_distance'] / 1000.0} km 耗时: ${summary['total_elapsed_time'] / 60} 分钟 均速: ${summary['avg_speed'] * 3.6} km/h',
@@ -262,7 +269,7 @@ class RideHistoryListState extends State<RideHistoryList> {
                             );
                             if (confirm == true) {
                               // delete file by path
-                              final file = File(summary['path']);
+                              final file = File(sortedHistory[index]['path']);
                               await file.delete();
                               setState(() {
                                 widget.history.removeAt(index);

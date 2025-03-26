@@ -136,7 +136,7 @@ class RoutesPageState extends State<RoutesPage> {
                                             onTap: () async {
                                               final gpxData =
                                                   file.readAsStringSync();
-                                              final gpx = await GpxReader()
+                                              final gpx = GpxReader()
                                                   .fromString(gpxData);
                                               final points = gpx.trks
                                                   .expand((trk) => trk.trksegs)
@@ -177,10 +177,6 @@ class RoutesPageState extends State<RoutesPage> {
                               child: ListView(
                                 controller: scrollController,
                                 children: [
-                                  // ListTile(
-                                  //   title: Text(
-                                  //       'Route: ${_selectedGpxData ?? ''}'),
-                                  // ),
                                   if (_previewGpx != null)
                                     ListTile(
                                       title: Text(
@@ -208,16 +204,19 @@ class RoutesPageState extends State<RoutesPage> {
         children: [
           FloatingActionButton.extended(
             onPressed: () async {
-              final file = await FilePicker.platform.pickFiles(
+              final result = await FilePicker.platform.pickFiles(
                 type: FileType.any,
+                allowMultiple: true,
               );
-              if (file != null) {
-                final path = file.files.single.path!;
-                final gpxFile = File(path);
-                await Storage().saveGpxFile(
-                  path.split('/').last,
-                  await gpxFile.readAsBytes(),
-                );
+              if (result != null) {
+                for (final file in result.files) {
+                  final path = file.path!;
+                  final gpxFile = File(path);
+                  await Storage().saveGpxFile(
+                    path.split('/').last,
+                    await gpxFile.readAsBytes(),
+                  );
+                }
                 _loadGpxFiles();
               }
             },
@@ -229,7 +228,7 @@ class RoutesPageState extends State<RoutesPage> {
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => RouteEditPage(route: 'new_route'),
+                  builder: (context) => const RouteEditPage(route: 'new_route'),
                 ),
               );
             },
@@ -257,7 +256,7 @@ class RoutesPageState extends State<RoutesPage> {
 class RouteEditPage extends StatefulWidget {
   final String route;
 
-  RouteEditPage({required this.route});
+  const RouteEditPage({super.key, required this.route});
 
   @override
   State<RouteEditPage> createState() => _RouteEditPageState();

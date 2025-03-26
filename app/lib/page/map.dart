@@ -21,6 +21,7 @@ class MapPageState extends State<MapPage> {
   late MapController _controller;
   bool _showHistory = false;
   bool _showRoute = false;
+  bool _showMap = false;
   List<List<LatLng>> _routes = [];
   List<List<LatLng>> _histories = [];
   LatLng _currentPosition = const LatLng(37.7749, -122.4194);
@@ -44,6 +45,7 @@ class MapPageState extends State<MapPage> {
     setState(() {
       _showHistory = prefs.getBool('showHistory') ?? false;
       _showRoute = prefs.getBool('showRoute') ?? false;
+      _showMap = prefs.getBool('showMap') ?? false;
     });
   }
 
@@ -51,6 +53,7 @@ class MapPageState extends State<MapPage> {
     final prefs = await SharedPreferences.getInstance();
     prefs.setBool('showHistory', _showHistory);
     prefs.setBool('showRoute', _showRoute);
+    prefs.setBool('showMap', _showMap);
   }
 
   void _toggleHistory(bool value) {
@@ -63,6 +66,13 @@ class MapPageState extends State<MapPage> {
   void _toggleRoute(bool value) {
     setState(() {
       _showRoute = value;
+      _savePreferences();
+    });
+  }
+
+  void _toggleMap(bool value) {
+    setState(() {
+      _showMap = value;
       _savePreferences();
     });
   }
@@ -117,12 +127,19 @@ class MapPageState extends State<MapPage> {
                       checked: _showRoute,
                       child: const Text('显示路书'),
                     ),
+                    CheckedPopupMenuItem(
+                      value: 'showMap',
+                      checked: _showMap,
+                      child: const Text('显示地图'),
+                    ),
                   ],
                   onSelected: (value) {
                     if (value == 'showHistory') {
                       _toggleHistory(!_showHistory);
                     } else if (value == 'showRoute') {
                       _toggleRoute(!_showRoute);
+                    } else if (value == 'showMap') {
+                      _toggleMap(!_showMap);
                     }
                   },
                 ),
@@ -142,9 +159,10 @@ class MapPageState extends State<MapPage> {
             }),
         mapController: _controller,
         children: [
-          TileLayer(
-            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          ),
+          if (_showMap)
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            ),
           if (_showRoute)
             PolylineLayer(
               polylines: () {
