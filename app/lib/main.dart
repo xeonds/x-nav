@@ -8,6 +8,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'dart:async';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -55,7 +56,7 @@ class _AppMainPagesState extends State<AppMainPages> {
       RoutesPage(
         onFullScreenToggle: _toggleFullScreen,
       ),
-      const RideHistory(),
+      RideHistory(),
       UserPage(),
     ];
   }

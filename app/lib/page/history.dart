@@ -11,10 +11,10 @@ class RideHistory extends StatefulWidget {
   const RideHistory({super.key});
 
   @override
-  State<RideHistory> createState() => _RideHistoryState();
+  State<RideHistory> createState() => RideHistoryState();
 }
 
-class _RideHistoryState extends State<RideHistory> {
+class RideHistoryState extends State<RideHistory> {
   List<dynamic> histories = [];
   Map<String, dynamic> rideData = {};
 
@@ -232,9 +232,8 @@ class RideHistoryListState extends State<RideHistoryList> {
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (context) => RideDetailPage(
-                          rideData: sortedHistory[index],
-                        ),
+                        builder: (context) =>
+                            RideDetailPage(rideData: sortedHistory[index]),
                       ),
                     );
                   },
