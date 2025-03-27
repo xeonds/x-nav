@@ -1,4 +1,3 @@
-import 'package:app/utils/gpx_parser.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -6,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'dart:io';
 import 'package:gpx/gpx.dart';
 import "package:app/utils/storage.dart";
+import 'package:app/utils/data_loader.dart';
 
 class RoutesPage extends StatefulWidget {
   const RoutesPage({super.key, this.onFullScreenToggle});
@@ -26,22 +26,13 @@ class RoutesPageState extends State<RoutesPage> {
   @override
   void initState() {
     super.initState();
-    _loadGpxFiles();
+    _initializeData();
   }
 
-  Future<void> _loadGpxFiles() async {
-    final files = await Storage().getGpxFiles();
+  Future<void> _initializeData() async {
+    await DataLoader().initialize();
     setState(() {
-      gpxFiles = files;
-      _parseGpxFiles();
-    });
-  }
-
-  void _parseGpxFiles() {
-    setState(() {
-      polylines = gpxFiles
-          .map((file) => parseGpxToPath(file.readAsStringSync()))
-          .toList();
+      polylines = DataLoader().routes;
     });
   }
 
@@ -55,7 +46,7 @@ class RoutesPageState extends State<RoutesPage> {
               actions: [
                 IconButton(
                   icon: const Icon(Icons.refresh),
-                  onPressed: _loadGpxFiles,
+                  onPressed: _initializeData,
                 ),
               ],
             ),
@@ -217,7 +208,7 @@ class RoutesPageState extends State<RoutesPage> {
                     await gpxFile.readAsBytes(),
                   );
                 }
-                _loadGpxFiles();
+                _initializeData();
               }
             },
             label: const Text('导入'),

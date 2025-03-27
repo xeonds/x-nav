@@ -6,9 +6,11 @@ import 'package:app/page/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'dart:async';
+import 'package:app/utils/data_loader.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await DataLoader().initialize(); // 在应用启动时初始化数据加载器
   runApp(const MyApp());
 }
 

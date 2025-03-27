@@ -1,3 +1,4 @@
+import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit_parser.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -25,26 +26,10 @@ class RideHistoryState extends State<RideHistory> {
   }
 
   Future<void> _loadFitFiles() async {
-    final files = await Storage().getFitFiles();
+    await DataLoader().initialize();
     setState(() {
-      histories = files
-          .map((file) =>
-              {"path": file.path, ...parseFitFile(file.readAsBytesSync())})
-          .toList();
-      rideData = histories
-          .map((e) => parseFitDataToSummary(e))
-          .fold<Map<String, dynamic>>(
-        {'totalDistance': 0.0, 'totalRides': 0, 'totalTime': 0},
-        (value, element) {
-          return {
-            'totalDistance':
-                value['totalDistance'] + (element['total_distance'] ?? 0.0),
-            'totalRides': value['totalRides'] + 1,
-            'totalTime':
-                value['totalTime'] + (element['total_elapsed_time'] ?? 0),
-          };
-        },
-      );
+      histories = DataLoader().fitData;
+      rideData = DataLoader().rideData;
     });
   }
 

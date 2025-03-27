@@ -1,12 +1,9 @@
-import 'dart:io';
-import 'package:app/utils/fit_parser.dart';
-import 'package:app/utils/gpx_parser.dart';
-import 'package:app/utils/storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:app/utils/data_loader.dart';
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key, this.onFullScreenToggle});
@@ -35,9 +32,16 @@ class MapPageState extends State<MapPage> {
   void initState() {
     super.initState();
     _loadPreferences();
-    _loadRouteData();
-    _loadHistoryData();
+    _initializeData();
     _controller = MapController();
+  }
+
+  Future<void> _initializeData() async {
+    await DataLoader().initialize();
+    setState(() {
+      _routes = DataLoader().routes;
+      _histories = DataLoader().histories;
+    });
   }
 
   Future<void> _loadPreferences() async {
@@ -87,23 +91,6 @@ class MapPageState extends State<MapPage> {
         child: const Icon(Icons.location_on),
       );
     });
-  }
-
-  Future<void> _loadRouteData() async {
-    final files = await Storage().getGpxFiles();
-    _routes = files.map((file) {
-      final gpx = File(file.path); // 从文件中读取gpx数据
-      final gpxData = gpx.readAsStringSync();
-      return parseGpxToPath(gpxData);
-    }).toList();
-  }
-
-  Future<void> _loadHistoryData() async {
-    final files = await Storage().getFitFiles();
-    _histories = files
-        .map((item) => parseFitFile(item.readAsBytesSync()))
-        .map((item) => parseFitDataToRoute(item))
-        .toList();
   }
 
   @override
