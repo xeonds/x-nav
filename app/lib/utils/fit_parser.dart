@@ -173,3 +173,11 @@ Map<String, dynamic> parseFitDataToSummary(Map<String, dynamic> data) {
     };
   }
 }
+
+List<double> parseFitDataToMetric(Map<String, dynamic> data, String metric) {
+  return data['records']
+      .where((msg) => msg.get(metric) != null)
+      .map((record) => record.get(metric)!)
+      .cast<double>()
+      .toList();
+}

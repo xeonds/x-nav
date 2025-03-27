@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:latlong2/latlong.dart' show LatLng;
 import 'dart:io';
+import 'dart:math'; // For log2 calculation
 import 'package:app/utils/storage.dart';
 import 'package:fl_chart/fl_chart.dart'; // 用于图表
 import 'package:flutter_map/flutter_map.dart'; // 用于地图
@@ -281,40 +282,95 @@ class RideDetailPage extends StatelessWidget {
     final routePoints = parseFitDataToRoute(rideData);
     final summary = parseFitDataToSummary(rideData);
 
+    List<double> speeds =
+        parseFitDataToMetric(rideData, "speed").map((e) => e * 3.6).toList();
+    List<double> distances = parseFitDataToMetric(rideData, "distance")
+        .map((e) => e / 1000.0)
+        .toList();
+    List<double> altitudes = parseFitDataToMetric(rideData, "altitude");
+
+    // Ensure all lists are of the same length by trimming to the shortest length
+    final minLength = [speeds.length, distances.length, altitudes.length]
+        .reduce((a, b) => a < b ? a : b);
+    speeds = speeds.sublist(0, minLength);
+    distances = distances.sublist(0, minLength);
+    altitudes = altitudes.sublist(0, minLength);
     return Scaffold(
       appBar: AppBar(title: const Text('骑行详情')),
-      body: Column(
-        children: [
-          // 地图展示
-          Expanded(
-            flex: 2,
-            child: FlutterMap(
-              options: MapOptions(
-                initialCenter: routePoints.isNotEmpty
-                    ? LatLng(routePoints[0].latitude, routePoints[0].longitude)
-                    : const LatLng(0, 0),
-                initialZoom: 13.0,
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // 地图展示
+            SizedBox(
+              height: 300,
+              child: FlutterMap(
+                options: MapOptions(
+                  initialCenter: () {
+                    if (routePoints.isEmpty) {
+                      return const LatLng(0, 0);
+                    }
+                    final minLat = routePoints
+                        .map((p) => p.latitude)
+                        .reduce((a, b) => a < b ? a : b);
+                    final maxLat = routePoints
+                        .map((p) => p.latitude)
+                        .reduce((a, b) => a > b ? a : b);
+                    final minLng = routePoints
+                        .map((p) => p.longitude)
+                        .reduce((a, b) => a < b ? a : b);
+                    final maxLng = routePoints
+                        .map((p) => p.longitude)
+                        .reduce((a, b) => a > b ? a : b);
+                    return LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+                  }(),
+                  initialZoom: () {
+                    if (routePoints.isEmpty) {
+                      return 13.0;
+                    }
+                    final minLat = routePoints
+                        .map((p) => p.latitude)
+                        .reduce((a, b) => a < b ? a : b);
+                    final maxLat = routePoints
+                        .map((p) => p.latitude)
+                        .reduce((a, b) => a > b ? a : b);
+                    final minLng = routePoints
+                        .map((p) => p.longitude)
+                        .reduce((a, b) => a < b ? a : b);
+                    final maxLng = routePoints
+                        .map((p) => p.longitude)
+                        .reduce((a, b) => a > b ? a : b);
+
+                    const worldWidth = 360.0; // Longitude range
+                    const worldHeight = 180.0; // Latitude range
+                    const tileSize = 256.0; // Tile size in pixels
+
+                    final lngZoom =
+                        (log(worldWidth / (maxLng - minLng)) / log(2));
+                    final latZoom =
+                        (log(worldHeight / (maxLat - minLat)) / log(2));
+
+                    return ((lngZoom < latZoom ? lngZoom : latZoom) + 0.5);
+                  }(),
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                  ),
+                  PolylineLayer(
+                    polylines: [
+                      Polyline(
+                        points: routePoints,
+                        strokeWidth: 4.0,
+                        color: Colors.blue,
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              children: [
-                TileLayer(
-                  urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                ),
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: routePoints,
-                      strokeWidth: 4.0,
-                      color: Colors.blue,
-                    ),
-                  ],
-                ),
-              ],
             ),
-          ),
-          // 数据展示
-          Expanded(
-            flex: 3,
-            child: Padding(
+            // 数据展示
+            Padding(
               padding: const EdgeInsets.all(8.0),
               child: SingleChildScrollView(
                 child: Column(
@@ -351,25 +407,71 @@ class RideDetailPage extends StatelessWidget {
                           TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     SizedBox(
-                      height: 200,
+                      height: 240,
                       child: LineChart(
                         LineChartData(
                           lineBarsData: [
                             LineChartBarData(
-                              spots: routePoints
-                                  .asMap()
-                                  .entries
-                                  .map((e) => FlSpot(e.key.toDouble(),
-                                      summary['avg_speed'] * 3.6))
-                                  .toList(),
-                              isCurved: true,
-                              color: Colors.orange,
-                              barWidth: 4,
+                              spots: () {
+                                // Reduce the number of points for clarity
+                                const reductionFactor = 10;
+                                return List.generate(
+                                  (speeds.length / reductionFactor).ceil(),
+                                  (index) => FlSpot(
+                                    distances[index * reductionFactor],
+                                    speeds[index * reductionFactor],
+                                  ),
+                                );
+                              }(),
+                              isCurved: false,
+                              color: Colors.deepOrange,
+                              belowBarData: BarAreaData(
+                                show: true,
+                                color: Colors.deepOrange.withOpacity(0.3),
+                              ),
+                              dotData: FlDotData(
+                                show: false, // Hide the dots
+                              ),
                             ),
                           ],
-                          titlesData: FlTitlesData(show: false),
+                          titlesData: FlTitlesData(
+                            topTitles: AxisTitles(),
+                            leftTitles: AxisTitles(),
+                            rightTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 60,
+                                getTitlesWidget: (value, meta) =>
+                                    Text('${value.toInt()} km/h'),
+                                interval: 10,
+                              ),
+                            ),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 20,
+                                interval: summary['total_distance'] / 5 / 1000,
+                                getTitlesWidget: (value, meta) =>
+                                    Text('${value.toStringAsFixed(1)} km'),
+                              ),
+                            ),
+                          ),
                           borderData: FlBorderData(show: false),
-                          gridData: FlGridData(show: false),
+                          gridData: FlGridData(
+                            show: true,
+                            drawVerticalLine: true,
+                            drawHorizontalLine: true,
+                            horizontalInterval: 10,
+                            verticalInterval: 1,
+                            getDrawingHorizontalLine: (value) => FlLine(
+                              color: Colors.grey.withOpacity(0.5),
+                              strokeWidth: 0.5,
+                            ),
+                            getDrawingVerticalLine: (value) => FlLine(
+                              color: Colors.grey.withOpacity(0.5),
+                              strokeWidth: 0.5,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -380,25 +482,71 @@ class RideDetailPage extends StatelessWidget {
                           TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     SizedBox(
-                      height: 200,
+                      height: 240,
                       child: LineChart(
                         LineChartData(
                           lineBarsData: [
                             LineChartBarData(
-                              spots: routePoints
-                                  .asMap()
-                                  .entries
-                                  .map((e) => FlSpot(e.key.toDouble(),
-                                      summary['avg_altitude'] ?? 0.0))
-                                  .toList(),
-                              isCurved: true,
-                              color: Colors.blue,
-                              barWidth: 4,
+                              spots: () {
+                                // Reduce the number of points for clarity
+                                const reductionFactor = 10;
+                                return List.generate(
+                                  (altitudes.length / reductionFactor).ceil(),
+                                  (index) => FlSpot(
+                                    distances[index * reductionFactor],
+                                    altitudes[index * reductionFactor],
+                                  ),
+                                );
+                              }(),
+                              isCurved: false,
+                              color: Colors.blueAccent,
+                              belowBarData: BarAreaData(
+                                show: true,
+                                color: Colors.blueAccent.withOpacity(0.3),
+                              ),
+                              dotData: FlDotData(
+                                show: false, // Hide the dots
+                              ),
                             ),
                           ],
-                          titlesData: FlTitlesData(show: false),
+                          titlesData: FlTitlesData(
+                            topTitles: AxisTitles(),
+                            leftTitles: AxisTitles(),
+                            rightTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 60,
+                                getTitlesWidget: (value, meta) =>
+                                    Text('${value.toInt()} m'),
+                                interval: 50,
+                              ),
+                            ),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 20,
+                                interval: summary['total_distance'] / 5 / 1000,
+                                getTitlesWidget: (value, meta) =>
+                                    Text('${value.toStringAsFixed(1)} km'),
+                              ),
+                            ),
+                          ),
                           borderData: FlBorderData(show: false),
-                          gridData: FlGridData(show: false),
+                          gridData: FlGridData(
+                            show: true,
+                            drawVerticalLine: true,
+                            drawHorizontalLine: true,
+                            horizontalInterval: 50,
+                            verticalInterval: 10,
+                            getDrawingHorizontalLine: (value) => FlLine(
+                              color: Colors.grey.withOpacity(0.5),
+                              strokeWidth: 0.5,
+                            ),
+                            getDrawingVerticalLine: (value) => FlLine(
+                              color: Colors.grey.withOpacity(0.5),
+                              strokeWidth: 0.5,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -406,8 +554,8 @@ class RideDetailPage extends StatelessWidget {
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
