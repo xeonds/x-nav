@@ -28,6 +28,17 @@ class MyApp extends StatelessWidget {
           headlineMedium: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
       ),
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.red, brightness: Brightness.dark),
+        textTheme: const TextTheme(
+          titleLarge: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          headlineMedium: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+      ),
+      themeMode:
+          ThemeMode.system, // Automatically switch based on system settings
       home: const AppMainPages(),
       debugShowCheckedModeBanner: false,
     );

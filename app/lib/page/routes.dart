@@ -97,19 +97,21 @@ class RoutesPageState extends State<RoutesPage> {
               snapSizes: const [0.2, 0.5, 1.0],
               builder:
                   (BuildContext context, ScrollController scrollController) {
+                final isDarkMode = MediaQuery.of(context).platformBrightness ==
+                    Brightness.dark;
                 return Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
+                  decoration: BoxDecoration(
+                    color: isDarkMode ? Colors.grey[900] : Colors.white,
                     borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(16)),
+                        const BorderRadius.vertical(top: Radius.circular(16)),
                   ),
                   child: _selectedGpxData == null
                       ? CustomScrollView(
                           controller: scrollController,
                           slivers: [
                             SliverToBoxAdapter(
-                              child: const Padding(
-                                padding: EdgeInsets.all(16.0),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
                                 child: Align(
                                   alignment: Alignment.centerLeft,
                                   child: Text(
@@ -117,15 +119,25 @@ class RoutesPageState extends State<RoutesPage> {
                                     style: TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
+                                      color: isDarkMode
+                                          ? Colors.white
+                                          : Colors.black,
                                     ),
                                   ),
                                 ),
                               ),
                             ),
                             gpxFiles.isEmpty
-                                ? const SliverFillRemaining(
+                                ? SliverFillRemaining(
                                     child: Center(
-                                      child: Text('无路书'),
+                                      child: Text(
+                                        '无路书',
+                                        style: TextStyle(
+                                          color: isDarkMode
+                                              ? Colors.white
+                                              : Colors.black,
+                                        ),
+                                      ),
                                     ),
                                   )
                                 : SliverList(
@@ -133,9 +145,18 @@ class RoutesPageState extends State<RoutesPage> {
                                       (context, index) {
                                         final file = gpxFiles[index];
                                         return Card(
+                                          color: isDarkMode
+                                              ? Colors.grey[800]
+                                              : Colors.white,
                                           child: ListTile(
-                                            title:
-                                                Text(file.path.split('/').last),
+                                            title: Text(
+                                              file.path.split('/').last,
+                                              style: TextStyle(
+                                                color: isDarkMode
+                                                    ? Colors.white
+                                                    : Colors.black,
+                                              ),
+                                            ),
                                             onTap: () async {
                                               final gpxData =
                                                   file.readAsStringSync();
@@ -179,7 +200,13 @@ class RoutesPageState extends State<RoutesPage> {
                                   });
                                 },
                               ),
-                              title: const Text('Preview Route'),
+                              title: Text(
+                                'Preview Route',
+                                style: TextStyle(
+                                  color:
+                                      isDarkMode ? Colors.white : Colors.black,
+                                ),
+                              ),
                               trailing: IconButton(
                                 icon: const Icon(Icons.delete),
                                 onPressed: () async {
@@ -210,12 +237,24 @@ class RoutesPageState extends State<RoutesPage> {
                                   if (_previewGpx != null)
                                     ListTile(
                                       title: Text(
-                                          'Length: ${_previewGpx!.trks.first.trksegs.first.trkpts.length} points'),
+                                        'Length: ${_previewGpx!.trks.first.trksegs.first.trkpts.length} points',
+                                        style: TextStyle(
+                                          color: isDarkMode
+                                              ? Colors.white
+                                              : Colors.black,
+                                        ),
+                                      ),
                                     ),
                                   if (_previewGpx?.metadata?.time != null)
                                     ListTile(
                                       title: Text(
-                                          'Time: ${_previewGpx!.metadata!.time}'),
+                                        'Time: ${_previewGpx!.metadata!.time}',
+                                        style: TextStyle(
+                                          color: isDarkMode
+                                              ? Colors.white
+                                              : Colors.black,
+                                        ),
+                                      ),
                                     ),
                                   // 添加更多路书信息
                                 ],
