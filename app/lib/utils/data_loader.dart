@@ -17,7 +17,7 @@ class DataLoader {
   final List<List<LatLng>> _histories = [];
   final Map<String, dynamic> _rideData = {};
   final List<Map<String, dynamic>> _summary = [];
-  bool _isInitialized = false;
+  bool isInitialized = false;
 
   List<List<LatLng>> get routes => _routes;
   List<List<LatLng>> get histories => _histories;
@@ -26,8 +26,8 @@ class DataLoader {
   List<Map<String, dynamic>> get fitData => _fitData;
 
   Future<void> initialize() async {
-    if (_isInitialized) return;
-    _isInitialized = true;
+    if (isInitialized) return;
+    isInitialized = true;
 
     await Future.wait([
       loadRouteData(),

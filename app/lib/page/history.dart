@@ -274,7 +274,6 @@ class RideHistoryListState extends State<RideHistoryList> {
 
 class RideDetailPage extends StatelessWidget {
   final Map<String, dynamic> rideData;
-
   const RideDetailPage({super.key, required this.rideData});
 
   @override
@@ -288,8 +287,6 @@ class RideDetailPage extends StatelessWidget {
         .map((e) => e / 1000.0)
         .toList();
     List<double> altitudes = parseFitDataToMetric(rideData, "altitude");
-
-    // Ensure all lists are of the same length by trimming to the shortest length
     final minLength = [speeds.length, distances.length, altitudes.length]
         .reduce((a, b) => a < b ? a : b);
     speeds = speeds.sublist(0, minLength);
@@ -342,7 +339,6 @@ class RideDetailPage extends StatelessWidget {
 
                     const worldWidth = 360.0; // Longitude range
                     const worldHeight = 180.0; // Latitude range
-                    const tileSize = 256.0; // Tile size in pixels
 
                     final lngZoom =
                         (log(worldWidth / (maxLng - minLng)) / log(2));
