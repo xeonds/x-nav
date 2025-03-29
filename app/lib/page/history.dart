@@ -1,10 +1,10 @@
 import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit_parser.dart';
+import 'package:app/utils/path_utils.dart' show initCenter, initZoom;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:latlong2/latlong.dart' show LatLng;
 import 'dart:io';
-import 'dart:math'; // For log2 calculation
 import 'package:app/utils/storage.dart';
 import 'package:fl_chart/fl_chart.dart'; // 用于图表
 import 'package:flutter_map/flutter_map.dart'; // 用于地图
@@ -302,51 +302,8 @@ class RideDetailPage extends StatelessWidget {
               height: 300,
               child: FlutterMap(
                 options: MapOptions(
-                  initialCenter: () {
-                    if (routePoints.isEmpty) {
-                      return const LatLng(0, 0);
-                    }
-                    final minLat = routePoints
-                        .map((p) => p.latitude)
-                        .reduce((a, b) => a < b ? a : b);
-                    final maxLat = routePoints
-                        .map((p) => p.latitude)
-                        .reduce((a, b) => a > b ? a : b);
-                    final minLng = routePoints
-                        .map((p) => p.longitude)
-                        .reduce((a, b) => a < b ? a : b);
-                    final maxLng = routePoints
-                        .map((p) => p.longitude)
-                        .reduce((a, b) => a > b ? a : b);
-                    return LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
-                  }(),
-                  initialZoom: () {
-                    if (routePoints.isEmpty) {
-                      return 13.0;
-                    }
-                    final minLat = routePoints
-                        .map((p) => p.latitude)
-                        .reduce((a, b) => a < b ? a : b);
-                    final maxLat = routePoints
-                        .map((p) => p.latitude)
-                        .reduce((a, b) => a > b ? a : b);
-                    final minLng = routePoints
-                        .map((p) => p.longitude)
-                        .reduce((a, b) => a < b ? a : b);
-                    final maxLng = routePoints
-                        .map((p) => p.longitude)
-                        .reduce((a, b) => a > b ? a : b);
-
-                    const worldWidth = 360.0; // Longitude range
-                    const worldHeight = 180.0; // Latitude range
-
-                    final lngZoom =
-                        (log(worldWidth / (maxLng - minLng)) / log(2));
-                    final latZoom =
-                        (log(worldHeight / (maxLat - minLat)) / log(2));
-
-                    return ((lngZoom < latZoom ? lngZoom : latZoom) + 0.5);
-                  }(),
+                  initialCenter: initCenter(routePoints),
+                  initialZoom: initZoom(routePoints),
                 ),
                 children: [
                   TileLayer(

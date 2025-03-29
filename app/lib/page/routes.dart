@@ -1,3 +1,4 @@
+import 'package:app/utils/path_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -22,6 +23,7 @@ class RoutesPageState extends State<RoutesPage> {
   String? _selectedGpxData;
   List<LatLng> _previewPath = [];
   Gpx? _previewGpx;
+  final MapController _mapController = MapController();
 
   @override
   void initState() {
@@ -33,6 +35,7 @@ class RoutesPageState extends State<RoutesPage> {
     await DataLoader().initialize();
     setState(() {
       polylines = DataLoader().routes;
+      gpxFiles = DataLoader().gpxData;
     });
   }
 
@@ -46,13 +49,19 @@ class RoutesPageState extends State<RoutesPage> {
               actions: [
                 IconButton(
                   icon: const Icon(Icons.refresh),
-                  onPressed: _initializeData,
+                  onPressed: () async {
+                    await DataLoader().loadRouteData();
+                    setState(() {
+                      _initializeData();
+                    });
+                  },
                 ),
               ],
             ),
       body: Stack(
         children: [
           FlutterMap(
+            mapController: _mapController,
             options: const MapOptions(
               initialCenter: LatLng(34.1301578, 108.8277069),
               initialZoom: 5,
@@ -95,30 +104,33 @@ class RoutesPageState extends State<RoutesPage> {
                         BorderRadius.vertical(top: Radius.circular(16)),
                   ),
                   child: _selectedGpxData == null
-                      ? Column(
-                          children: [
-                            const Padding(
-                              padding: EdgeInsets.all(16.0),
-                              child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  'Routes List',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
+                      ? CustomScrollView(
+                          controller: scrollController,
+                          slivers: [
+                            SliverToBoxAdapter(
+                              child: const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    'Routes List',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                            Expanded(
-                              child: gpxFiles.isEmpty
-                                  ? const Center(
+                            gpxFiles.isEmpty
+                                ? const SliverFillRemaining(
+                                    child: Center(
                                       child: Text('无路书'),
-                                    )
-                                  : ListView.builder(
-                                      controller: scrollController,
-                                      itemCount: gpxFiles.length,
-                                      itemBuilder: (context, index) {
+                                    ),
+                                  )
+                                : SliverList(
+                                    delegate: SliverChildBuilderDelegate(
+                                      (context, index) {
                                         final file = gpxFiles[index];
                                         return Card(
                                           child: ListTile(
@@ -136,6 +148,10 @@ class RoutesPageState extends State<RoutesPage> {
                                                   .map((trkpt) => LatLng(
                                                       trkpt.lat!, trkpt.lon!))
                                                   .toList();
+                                              _mapController.move(
+                                                initCenter(points),
+                                                initZoom(points),
+                                              );
                                               setState(() {
                                                 _selectedGpxData = gpxData;
                                                 _previewGpx = gpx;
@@ -145,8 +161,9 @@ class RoutesPageState extends State<RoutesPage> {
                                           ),
                                         );
                                       },
+                                      childCount: gpxFiles.length,
                                     ),
-                            ),
+                                  ),
                           ],
                         )
                       : Column(
@@ -163,6 +180,28 @@ class RoutesPageState extends State<RoutesPage> {
                                 },
                               ),
                               title: const Text('Preview Route'),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete),
+                                onPressed: () async {
+                                  if (_selectedGpxData != null) {
+                                    final file = gpxFiles.firstWhere(
+                                      (f) =>
+                                          f.readAsStringSync() ==
+                                          _selectedGpxData,
+                                      orElse: () => File(''),
+                                    );
+                                    if (file.existsSync()) {
+                                      await file.delete();
+                                      setState(() {
+                                        _selectedGpxData = null;
+                                        _previewPath = [];
+                                        _previewGpx = null;
+                                      });
+                                      _initializeData();
+                                    }
+                                  }
+                                },
+                              ),
                             ),
                             Expanded(
                               child: ListView(
@@ -193,7 +232,7 @@ class RoutesPageState extends State<RoutesPage> {
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          FloatingActionButton.extended(
+          FloatingActionButton(
             onPressed: () async {
               final result = await FilePicker.platform.pickFiles(
                 type: FileType.any,
@@ -211,11 +250,10 @@ class RoutesPageState extends State<RoutesPage> {
                 _initializeData();
               }
             },
-            label: const Text('导入'),
-            icon: const Icon(Icons.upload_file),
+            child: const Icon(Icons.upload_file),
           ),
           const SizedBox(height: 16),
-          FloatingActionButton.extended(
+          FloatingActionButton(
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
@@ -223,19 +261,17 @@ class RoutesPageState extends State<RoutesPage> {
                 ),
               );
             },
-            label: const Text('创建'),
-            icon: const Icon(Icons.create),
+            child: const Icon(Icons.create),
           ),
           const SizedBox(height: 16),
-          FloatingActionButton.extended(
+          FloatingActionButton(
             onPressed: () {
               setState(() {
                 _isFullScreen = !_isFullScreen;
                 widget.onFullScreenToggle?.call(_isFullScreen);
               });
             },
-            label: Text(_isFullScreen ? '退出全屏' : '全屏'),
-            icon:
+            child:
                 Icon(_isFullScreen ? Icons.fullscreen_exit : Icons.fullscreen),
           ),
         ],

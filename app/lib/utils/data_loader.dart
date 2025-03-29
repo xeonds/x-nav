@@ -14,6 +14,7 @@ class DataLoader {
 
   final List<List<LatLng>> _routes = [];
   final List<Map<String, dynamic>> _fitData = [];
+  final List<File> _gpxFile = [];
   final List<List<LatLng>> _histories = [];
   final Map<String, dynamic> _rideData = {};
   final List<Map<String, dynamic>> _summary = [];
@@ -24,6 +25,7 @@ class DataLoader {
   Map<String, dynamic> get rideData => _rideData;
   List<Map<String, dynamic>> get summaryList => _summary;
   List<Map<String, dynamic>> get fitData => _fitData;
+  List<File> get gpxData => _gpxFile;
 
   Future<void> initialize() async {
     if (isInitialized) return;
@@ -41,15 +43,23 @@ class DataLoader {
   }
 
   Future<void> loadRouteData() async {
+    _gpxFile.clear(); // 清空现有 GPX 文件列表
+    _routes.clear(); // 清空现有路线列表
+
     final files = await Storage().getGpxFiles();
+    print('GPX files: ${files.length}');
     for (var file in files) {
       final gpx = File(file.path);
       final gpxData = await gpx.readAsString();
+      _gpxFile.add(gpx);
       _routes.add(parseGpxToPath(gpxData));
     }
   }
 
   Future<void> loadHistoryData() async {
+    _fitData.clear(); // 清空现有 FIT 数据列表
+    _histories.clear(); // 清空现有历史路线列表
+
     final files = await Storage().getFitFiles();
     for (var file in files) {
       final fitData = parseFitFile(await file.readAsBytes());
@@ -73,10 +83,10 @@ class DataLoader {
     ).forEach((key, value) {
       _rideData[key] = value;
     });
-    print(_rideData);
   }
 
   Future<void> loadSummaryData() async {
+    _summary.clear(); // 清空现有摘要列表
     _fitData.map((e) => parseFitDataToSummary(e)).forEach((element) {
       _summary.add(element);
     });
