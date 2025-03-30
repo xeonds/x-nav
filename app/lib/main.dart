@@ -55,7 +55,7 @@ class AppMainPages extends StatefulWidget {
 class _AppMainPagesState extends State<AppMainPages> {
   int _selectedIndex = 0;
   bool _isFullScreen = false;
-  List<int> _supportFullScreenPages = <int>[1, 2];
+  final List<int> _supportFullScreenPages = <int>[1, 2];
   late List<Widget> _widgetOptions;
 
   @override

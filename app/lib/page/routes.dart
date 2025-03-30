@@ -1,12 +1,17 @@
 import 'package:app/utils/path_utils.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:io';
 import 'package:gpx/gpx.dart';
 import "package:app/utils/storage.dart";
 import 'package:app/utils/data_loader.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 
 class RoutesPage extends StatefulWidget {
   const RoutesPage({super.key, this.onFullScreenToggle});
@@ -325,13 +330,19 @@ class RouteEditPage extends StatefulWidget {
   const RouteEditPage({super.key, required this.route});
 
   @override
-  State<RouteEditPage> createState() => _RouteEditPageState();
+  State<RouteEditPage> createState() => RouteEditPageState();
 }
 
-class _RouteEditPageState extends State<RouteEditPage> {
+class RouteEditPageState extends State<RouteEditPage> {
   List<LatLng> waypoints = [];
   List<LatLng> routePath = [];
   final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
+  bool _isSelectingPoint = false;
+  bool _isSearching = false;
+  List<Map<String, dynamic>> _searchResults = [];
+  final MapController _mapController = MapController();
+  LatLng? _centerPoint; // 地图中心点
 
   @override
   void initState() {
@@ -354,12 +365,55 @@ class _RouteEditPageState extends State<RouteEditPage> {
     });
   }
 
-  Future<void> _updateRoute() async {
-    // Call your route planning API here with the waypoints
-    // For now, we'll just use the waypoints as the route path
+  void _reorderWaypoints(int oldIndex, int newIndex) {
     setState(() {
-      routePath = List.from(waypoints);
+      final item = waypoints.removeAt(oldIndex);
+      waypoints.insert(newIndex, item);
+      _updateRoute();
     });
+  }
+
+  Future<void> _updateRoute() async {
+    if (waypoints.length < 2) return;
+    final coordinates = waypoints
+        .map((point) => '${point.longitude},${point.latitude}')
+        .join(';');
+    final url =
+        'http://router.project-osrm.org/route/v1/bike/$coordinates?overview=full&geometries=polyline';
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final route = data['routes'][0];
+      final polyline = route['geometry'];
+      final decodedPolyline = PolylinePoints().decodePolyline(polyline);
+      setState(() {
+        routePath = decodedPolyline
+            .map((point) => LatLng(point.latitude, point.longitude))
+            .toList();
+      });
+    } else {
+      if (kDebugMode) {
+        print('Failed to fetch route: ${response.statusCode}');
+      }
+    }
+  }
+
+  Future<void> _searchLocation(String query) async {
+    final url =
+        'https://nominatim.openstreetmap.org/search?q=$query&format=json';
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
+      final results = json.decode(response.body) as List;
+      setState(() {
+        _searchResults = results
+            .map((result) => {
+                  'name': result['display_name'],
+                  'lat': double.parse(result['lat']),
+                  'lon': double.parse(result['lon']),
+                })
+            .toList();
+      });
+    }
   }
 
   Future<void> _saveRoute() async {
@@ -381,14 +435,233 @@ class _RouteEditPageState extends State<RouteEditPage> {
     Navigator.of(context).pop();
   }
 
+  void _locatePosition() async {
+    final location = await Geolocator.getCurrentPosition();
+    setState(() {
+      _mapController.move(
+        LatLng(location.latitude, location.longitude),
+        15,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit Route'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.save),
+      body: Stack(
+        children: [
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: waypoints.isNotEmpty
+                  ? waypoints.first
+                  : const LatLng(34.1301578, 108.8277069),
+              initialZoom: 14,
+              onMapEvent: (event) {
+                if (_isSelectingPoint) {
+                  setState(() {
+                    _centerPoint = event.camera.center;
+                  });
+                }
+              },
+              onTap: _isSelectingPoint
+                  ? (tapPosition, point) {
+                      setState(() {
+                        waypoints.add(point);
+                        _isSelectingPoint = false;
+                      });
+                      _updateRoute();
+                    }
+                  : null,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+              ),
+              if (routePath.isNotEmpty)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: routePath,
+                      color: Colors.blue,
+                      strokeWidth: 5,
+                    ),
+                  ],
+                ),
+              MarkerLayer(
+                markers: waypoints
+                    .map((point) => Marker(
+                          point: point,
+                          child: const Icon(
+                            Icons.location_on,
+                            color: Colors.red,
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ],
+          ),
+          if (_isSelectingPoint)
+            Center(
+              child: Icon(
+                Icons.location_on,
+                color: Colors.red,
+                size: 40,
+              ),
+            ),
+          Positioned(
+            top: 32,
+            left: 16,
+            right: 16,
+            child: Column(
+              children: [
+                if (_isSearching)
+                  TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      prefixIcon: IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () {
+                          setState(() {
+                            _isSearching = false;
+                            _searchResults.clear();
+                          });
+                        },
+                      ),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.search),
+                        onPressed: () =>
+                            _searchLocation(_searchController.text),
+                      ),
+                      hintText: 'Search location',
+                    ),
+                  ),
+                if (_searchResults.isNotEmpty)
+                  ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _searchResults.length,
+                    itemBuilder: (context, index) {
+                      final result = _searchResults[index];
+                      return ListTile(
+                        title: Text(result['name']),
+                        onTap: () {
+                          _addWaypoint(LatLng(result['lat'], result['lon']));
+                          setState(() {
+                            _searchResults.clear();
+                            _isSearching = false;
+                          });
+                        },
+                      );
+                    },
+                  ),
+                if (!_isSearching)
+                  SizedBox(
+                    height:
+                        waypoints.length < 3 ? waypoints.length * 50.0 : 150,
+                    child: Card(
+                      child: ReorderableListView(
+                        onReorder: _reorderWaypoints,
+                        children: List.generate(waypoints.length, (index) {
+                          final point = waypoints[index];
+                          return ListTile(
+                            key: ValueKey(point),
+                            dense: true, // Reduce height of each item
+                            title: Text(
+                              'Point ${index + 1}: (${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)})',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.drag_handle, size: 18),
+                                IconButton(
+                                  icon: const Icon(Icons.delete, size: 18),
+                                  onPressed: () => _removeWaypoint(index),
+                                ),
+                              ],
+                            ),
+                            onTap: () {
+                              setState(() {
+                                _mapController.move(point, 14);
+                                _isSelectingPoint = false;
+                              });
+                            },
+                          );
+                        }),
+                      ),
+                    ),
+                  ),
+                if (!_isSearching)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.add_location),
+                        label: const Text('Add Point'),
+                        style: ElevatedButton.styleFrom(
+                          shape: const StadiumBorder(),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isSelectingPoint = true;
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 16),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.search),
+                        label: const Text('Search'),
+                        style: ElevatedButton.styleFrom(
+                          shape: const StadiumBorder(),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isSearching = true;
+                          });
+                        },
+                      ),
+                    ],
+                  )
+              ],
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          if (_isSelectingPoint)
+            FloatingActionButton(
+              onPressed: () {
+                if (_centerPoint != null) {
+                  _addWaypoint(_centerPoint!);
+                  setState(() {
+                    _isSelectingPoint = false;
+                    _centerPoint = null;
+                  });
+                }
+              },
+              child: const Icon(Icons.check),
+            ),
+          if (_isSelectingPoint) const SizedBox(height: 16),
+          if (_isSelectingPoint)
+            FloatingActionButton(
+              onPressed: () {
+                setState(() {
+                  _isSelectingPoint = false;
+                  _centerPoint = null;
+                });
+              },
+              child: const Icon(Icons.close),
+            ),
+          if (_isSelectingPoint) const SizedBox(height: 16),
+          FloatingActionButton(
+            onPressed: _locatePosition,
+            child: const Icon(Icons.my_location),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            child: const Icon(Icons.save),
             onPressed: () async {
               final title = await showDialog<String>(
                 context: context,
@@ -418,109 +691,7 @@ class _RouteEditPageState extends State<RouteEditPage> {
                 _saveRoute();
               }
             },
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          FlutterMap(
-            options: MapOptions(
-              initialCenter: waypoints.isNotEmpty
-                  ? waypoints.first
-                  : const LatLng(34.1301578, 108.8277069),
-              initialZoom: 14,
-              onTap: (tapPosition, point) {
-                // Add waypoint at tapped position
-                _addWaypoint(point);
-              },
-            ),
-            children: [
-              TileLayer(
-                urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-              ),
-              if (routePath.isNotEmpty)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: routePath,
-                      color: Colors.blue,
-                      strokeWidth: 5,
-                    ),
-                  ],
-                ),
-              MarkerLayer(
-                markers: waypoints
-                    .map((point) => Marker(
-                          point: point,
-                          child: const Icon(
-                            Icons.location_on,
-                            color: Colors.red,
-                          ),
-                        ))
-                    .toList(),
-              ),
-            ],
-          ),
-          DraggableScrollableSheet(
-            initialChildSize: 0.2,
-            minChildSize: 0.1,
-            maxChildSize: 0.5,
-            builder: (context, scrollController) {
-              return Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 10,
-                      spreadRadius: 5,
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      height: 4,
-                      width: 40,
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    Expanded(
-                      child: ListView.builder(
-                        controller: scrollController,
-                        itemCount: waypoints.length,
-                        itemBuilder: (context, index) {
-                          final point = waypoints[index];
-                          return ListTile(
-                            title: Text(
-                                'Point ${index + 1}: (${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)})'),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete),
-                              onPressed: () => _removeWaypoint(index),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        final center = routePath.isNotEmpty
-                            ? routePath.last
-                            : const LatLng(34.1301578, 108.8277069);
-                        _addWaypoint(center);
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text('新增途径点'),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
+          )
         ],
       ),
     );

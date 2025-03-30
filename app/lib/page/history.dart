@@ -43,7 +43,13 @@ class RideHistoryState extends State<RideHistory> {
           RideSummary(rideData: rideData),
           Expanded(
             child: RefreshIndicator(
-              onRefresh: _loadFitFiles,
+              onRefresh: () async {
+                await DataLoader().loadHistoryData();
+                await DataLoader().loadRideData();
+                setState(() {
+                  _loadFitFiles();
+                });
+              },
               child: RideHistoryList(history: histories),
             ),
           ),
