@@ -12,6 +12,7 @@ import 'package:app/utils/data_loader.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
+import 'package:share_plus/share_plus.dart';
 
 class RoutesPage extends StatefulWidget {
   const RoutesPage({super.key, this.onFullScreenToggle});
@@ -26,6 +27,7 @@ class RoutesPageState extends State<RoutesPage> {
   List<List<LatLng>> polylines = [];
   bool _isFullScreen = false;
   String? _selectedGpxData;
+  File? _selectedGpxFile = null;
   List<LatLng> _previewPath = [];
   Gpx? _previewGpx;
   final MapController _mapController = MapController();
@@ -163,26 +165,48 @@ class RoutesPageState extends State<RoutesPage> {
                                               ),
                                             ),
                                             onTap: () async {
-                                              final gpxData =
-                                                  file.readAsStringSync();
-                                              final gpx = GpxReader()
-                                                  .fromString(gpxData);
-                                              final points = gpx.trks
-                                                  .expand((trk) => trk.trksegs)
-                                                  .expand(
-                                                      (trkseg) => trkseg.trkpts)
-                                                  .map((trkpt) => LatLng(
-                                                      trkpt.lat!, trkpt.lon!))
-                                                  .toList();
-                                              _mapController.move(
-                                                initCenter(points),
-                                                initZoom(points),
-                                              );
-                                              setState(() {
-                                                _selectedGpxData = gpxData;
-                                                _previewGpx = gpx;
-                                                _previewPath = points;
-                                              });
+                                              try {
+                                                final gpxData =
+                                                    file.readAsStringSync();
+                                                final gpx = GpxReader()
+                                                    .fromString(gpxData);
+                                                final points = gpx.trks
+                                                    .expand(
+                                                        (trk) => trk.trksegs)
+                                                    .expand((trkseg) =>
+                                                        trkseg.trkpts)
+                                                    .map((trkpt) => LatLng(
+                                                        trkpt.lat!, trkpt.lon!))
+                                                    .toList();
+                                                _mapController.move(
+                                                  initCenter(points),
+                                                  initZoom(points),
+                                                );
+                                                setState(() {
+                                                  _selectedGpxData = gpxData;
+                                                  _selectedGpxFile = file;
+                                                  _previewGpx = gpx;
+                                                  _previewPath = points;
+                                                });
+                                              } catch (e) {
+                                                if (kDebugMode) {
+                                                  print(
+                                                      'Error loading GPX file: $e');
+                                                }
+                                                ScaffoldMessenger.of(context)
+                                                    .showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                        'Failed to load GPX file: $e'),
+                                                  ),
+                                                );
+                                                setState(() {
+                                                  _selectedGpxData = "";
+                                                  _selectedGpxFile = file;
+                                                  _previewPath = [];
+                                                  _previewGpx = null;
+                                                });
+                                              }
                                             },
                                           ),
                                         );
@@ -200,6 +224,7 @@ class RoutesPageState extends State<RoutesPage> {
                                 onPressed: () {
                                   setState(() {
                                     _selectedGpxData = null;
+                                    _selectedGpxFile = null;
                                     _previewPath = [];
                                     _previewGpx = null;
                                   });
@@ -215,20 +240,16 @@ class RoutesPageState extends State<RoutesPage> {
                               trailing: IconButton(
                                 icon: const Icon(Icons.delete),
                                 onPressed: () async {
-                                  if (_selectedGpxData != null) {
-                                    final file = gpxFiles.firstWhere(
-                                      (f) =>
-                                          f.readAsStringSync() ==
-                                          _selectedGpxData,
-                                      orElse: () => File(''),
-                                    );
-                                    if (file.existsSync()) {
-                                      await file.delete();
+                                  if (_selectedGpxFile != null) {
+                                    if (_selectedGpxFile!.existsSync()) {
+                                      await _selectedGpxFile!.delete();
                                       setState(() {
                                         _selectedGpxData = null;
+                                        _selectedGpxFile = null;
                                         _previewPath = [];
                                         _previewGpx = null;
                                       });
+                                      await DataLoader().loadRouteData();
                                       _initializeData();
                                     }
                                   }
@@ -276,37 +297,64 @@ class RoutesPageState extends State<RoutesPage> {
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          FloatingActionButton(
-            onPressed: () async {
-              final result = await FilePicker.platform.pickFiles(
-                type: FileType.any,
-                allowMultiple: true,
-              );
-              if (result != null) {
-                for (final file in result.files) {
-                  final path = file.path!;
-                  final gpxFile = File(path);
-                  await Storage().saveGpxFile(
-                    path.split('/').last,
-                    await gpxFile.readAsBytes(),
-                  );
+          if (_selectedGpxFile == null)
+            FloatingActionButton(
+              onPressed: () async {
+                final result = await FilePicker.platform.pickFiles(
+                  type: FileType.any,
+                  allowMultiple: true,
+                );
+                if (result != null) {
+                  for (final file in result.files) {
+                    final path = file.path!;
+                    final gpxFile = File(path);
+                    await Storage().saveGpxFile(
+                      path.split('/').last,
+                      await gpxFile.readAsBytes(),
+                    );
+                  }
+                  _initializeData();
                 }
-                _initializeData();
-              }
-            },
-            child: const Icon(Icons.upload_file),
-          ),
-          const SizedBox(height: 16),
-          FloatingActionButton(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const RouteEditPage(route: 'new_route'),
-                ),
-              );
-            },
-            child: const Icon(Icons.create),
-          ),
+              },
+              child: const Icon(Icons.upload_file),
+            ),
+          if (_selectedGpxFile == null) const SizedBox(height: 16),
+          if (_selectedGpxFile == null)
+            FloatingActionButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        const RouteEditPage(route: 'new_route'),
+                  ),
+                );
+              },
+              child: const Icon(Icons.create),
+            ),
+          if (_selectedGpxFile != null)
+            // export gpx file
+            FloatingActionButton(
+              onPressed: () async {
+                if (_selectedGpxFile != null) {
+                  final file = _selectedGpxFile!;
+                  try {
+                    await Share.shareXFiles(
+                        [XFile(file.path, mimeType: 'application/gpx+xml')],
+                        text: 'Sharing GPX file');
+                  } catch (e) {
+                    if (kDebugMode) {
+                      print('Error sharing GPX file: $e');
+                    }
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to share GPX file: $e'),
+                      ),
+                    );
+                  }
+                }
+              },
+              child: const Icon(Icons.output),
+            ),
           const SizedBox(height: 16),
           FloatingActionButton(
             onPressed: () {
@@ -335,6 +383,7 @@ class RouteEditPage extends StatefulWidget {
 
 class RouteEditPageState extends State<RouteEditPage> {
   List<LatLng> waypoints = [];
+  Map<LatLng, bool> isCustomPointMap = {}; // 辅助Map，标记点是否为自定义点
   List<LatLng> routePath = [];
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
@@ -343,6 +392,8 @@ class RouteEditPageState extends State<RouteEditPage> {
   List<Map<String, dynamic>> _searchResults = [];
   final MapController _mapController = MapController();
   LatLng? _centerPoint; // 地图中心点
+  LatLng? _selectedWaypoint; // 当前选中的途径点
+  bool _isMovingPoint = false; // 是否正在移动点
 
   @override
   void initState() {
@@ -351,51 +402,81 @@ class RouteEditPageState extends State<RouteEditPage> {
         "${waypoints.isNotEmpty ? waypoints.first : '起点'}-${waypoints.isNotEmpty ? waypoints.last : '终点'} 的路线";
   }
 
-  void _addWaypoint(LatLng point) {
+  Future<void> _updateRoute() async {
+    List<LatLng> combinedPath = [];
+    if (waypoints.isNotEmpty) {
+      combinedPath.add(waypoints.first);
+    }
+
+    // Traverse waypoints to process intervals and points
+    int i = 0;
+    while (i < waypoints.length) {
+      if (isCustomPointMap[waypoints[i]] != true) {
+        // Start of a potential false interval
+        int start = i;
+        while (i + 1 < waypoints.length &&
+            isCustomPointMap[waypoints[i + 1]] != true) {
+          i++;
+        }
+        // Fetch route for the interval if length > 1
+        if (i > start) {
+          final coordinates = waypoints
+              .sublist(start, i + 1)
+              .map((point) => '${point.longitude},${point.latitude}')
+              .join(';');
+          final url =
+              'http://router.project-osrm.org/route/v1/bike/$coordinates?overview=full&geometries=polyline';
+          final response = await http.get(Uri.parse(url));
+          if (response.statusCode == 200) {
+            final data = json.decode(response.body);
+            final route = data['routes'][0];
+            final polyline = route['geometry'];
+            final decodedPolyline = PolylinePoints().decodePolyline(polyline);
+            combinedPath.addAll(decodedPolyline
+                .map((point) => LatLng(point.latitude, point.longitude)));
+          } else {
+            if (kDebugMode) {
+              print('Failed to fetch route: ${response.statusCode}');
+            }
+          }
+        } else {
+          // Single non-custom point
+          combinedPath.add(waypoints[start]);
+        }
+      } else {
+        // Custom point, append directly
+        combinedPath.add(waypoints[i]);
+      }
+      i++; // Move to the next point
+    }
+
+    setState(() {
+      routePath = combinedPath;
+    });
+  }
+
+  void _addWaypoint(LatLng point, {bool isCustom = false}) {
     setState(() {
       waypoints.add(point);
+      isCustomPointMap[point] = isCustom;
       _updateRoute();
     });
   }
 
   void _removeWaypoint(int index) {
     setState(() {
-      waypoints.removeAt(index);
+      final point = waypoints.removeAt(index);
+      isCustomPointMap.remove(point);
       _updateRoute();
     });
   }
 
   void _reorderWaypoints(int oldIndex, int newIndex) {
     setState(() {
-      final item = waypoints.removeAt(oldIndex);
-      waypoints.insert(newIndex, item);
+      final point = waypoints.removeAt(oldIndex);
+      waypoints.insert(newIndex, point);
       _updateRoute();
     });
-  }
-
-  Future<void> _updateRoute() async {
-    if (waypoints.length < 2) return;
-    final coordinates = waypoints
-        .map((point) => '${point.longitude},${point.latitude}')
-        .join(';');
-    final url =
-        'http://router.project-osrm.org/route/v1/bike/$coordinates?overview=full&geometries=polyline';
-    final response = await http.get(Uri.parse(url));
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      final route = data['routes'][0];
-      final polyline = route['geometry'];
-      final decodedPolyline = PolylinePoints().decodePolyline(polyline);
-      setState(() {
-        routePath = decodedPolyline
-            .map((point) => LatLng(point.latitude, point.longitude))
-            .toList();
-      });
-    } else {
-      if (kDebugMode) {
-        print('Failed to fetch route: ${response.statusCode}');
-      }
-    }
   }
 
   Future<void> _searchLocation(String query) async {
@@ -416,10 +497,20 @@ class RouteEditPageState extends State<RouteEditPage> {
     }
   }
 
+  // TODO: add more metadata for gpx and solve save error
   Future<void> _saveRoute() async {
     final gpx = Gpx();
+    // gpx.metadata = Metadata(
+    //   name: _titleController.text,
+    //   desc: 'Route created with ${waypoints.length} waypoints',
+    //   time: DateTime.now(),
+    // );
+
+    // Calculate total distance
     gpx.trks = [
       Trk(
+        // name: _titleController.text,
+        // desc: 'Total distance: ${totalDistance.toStringAsFixed(2)} meters',
         trksegs: [
           Trkseg(
             trkpts: routePath
@@ -445,6 +536,31 @@ class RouteEditPageState extends State<RouteEditPage> {
     });
   }
 
+  void _startMovingPoint(LatLng point) {
+    setState(() {
+      _selectedWaypoint = point;
+      _isMovingPoint = true;
+    });
+  }
+
+  void _confirmMovingPoint() {
+    if (_selectedWaypoint != null && _centerPoint != null) {
+      setState(() {
+        final index = waypoints.indexOf(_selectedWaypoint!);
+        if (index != -1) {
+          waypoints[index] = _centerPoint!;
+          isCustomPointMap[_centerPoint!] =
+              isCustomPointMap[_selectedWaypoint!]!;
+          isCustomPointMap.remove(_selectedWaypoint!);
+          _updateRoute();
+        }
+        _selectedWaypoint = null;
+        _isMovingPoint = false;
+        _centerPoint = null;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -458,21 +574,12 @@ class RouteEditPageState extends State<RouteEditPage> {
                   : const LatLng(34.1301578, 108.8277069),
               initialZoom: 14,
               onMapEvent: (event) {
-                if (_isSelectingPoint) {
+                if (_isSelectingPoint || _isMovingPoint) {
                   setState(() {
                     _centerPoint = event.camera.center;
                   });
                 }
               },
-              onTap: _isSelectingPoint
-                  ? (tapPosition, point) {
-                      setState(() {
-                        waypoints.add(point);
-                        _isSelectingPoint = false;
-                      });
-                      _updateRoute();
-                    }
-                  : null,
             ),
             children: [
               TileLayer(
@@ -492,17 +599,32 @@ class RouteEditPageState extends State<RouteEditPage> {
                 markers: waypoints
                     .map((point) => Marker(
                           point: point,
-                          child: const Icon(
+                          child: Icon(
                             Icons.location_on,
-                            color: Colors.red,
+                            color: isCustomPointMap[point] == true
+                                ? Colors.green
+                                : Colors.red,
                           ),
                         ))
                     .toList(),
               ),
+              if (_isMovingPoint && _centerPoint != null)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: _centerPoint!,
+                      child: const Icon(
+                        Icons.location_on,
+                        color: Colors.orange,
+                        size: 40,
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
           if (_isSelectingPoint)
-            Center(
+            const Center(
               child: Icon(
                 Icons.location_on,
                 color: Colors.red,
@@ -516,48 +638,59 @@ class RouteEditPageState extends State<RouteEditPage> {
             child: Column(
               children: [
                 if (_isSearching)
-                  TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      prefixIcon: IconButton(
-                        icon: const Icon(Icons.arrow_back),
-                        onPressed: () {
-                          setState(() {
-                            _isSearching = false;
-                            _searchResults.clear();
-                          });
-                        },
+                  Card(
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        prefixIcon: IconButton(
+                          icon: const Icon(Icons.arrow_back),
+                          onPressed: () {
+                            setState(() {
+                              _isSearching = false;
+                              _searchResults.clear();
+                            });
+                          },
+                        ),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.search),
+                          onPressed: () =>
+                              _searchLocation(_searchController.text),
+                        ),
+                        hintText: 'Search location',
                       ),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.search),
-                        onPressed: () =>
-                            _searchLocation(_searchController.text),
-                      ),
-                      hintText: 'Search location',
                     ),
                   ),
                 if (_searchResults.isNotEmpty)
-                  ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _searchResults.length,
-                    itemBuilder: (context, index) {
-                      final result = _searchResults[index];
-                      return ListTile(
-                        title: Text(result['name']),
-                        onTap: () {
-                          _addWaypoint(LatLng(result['lat'], result['lon']));
-                          setState(() {
-                            _searchResults.clear();
-                            _isSearching = false;
-                          });
-                        },
-                      );
-                    },
+                  Card(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: _searchResults.length,
+                      itemBuilder: (context, index) {
+                        final result = _searchResults[index];
+                        return ListTile(
+                          title: Text(result['name']),
+                          onTap: () {
+                            _mapController.move(
+                              LatLng(result['lat'], result['lon']),
+                              14,
+                            );
+                            setState(() {
+                              _centerPoint =
+                                  LatLng(result['lat'], result['lon']);
+                              _isSelectingPoint = true;
+                              // Clear search results & stop searching
+                              _searchResults.clear();
+                              _isSearching = false;
+                            });
+                          },
+                        );
+                      },
+                    ),
                   ),
                 if (!_isSearching)
                   SizedBox(
                     height:
-                        waypoints.length < 3 ? waypoints.length * 50.0 : 150,
+                        waypoints.length < 3 ? waypoints.length * 52.0 : 150,
                     child: Card(
                       child: ReorderableListView(
                         onReorder: _reorderWaypoints,
@@ -574,6 +707,10 @@ class RouteEditPageState extends State<RouteEditPage> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 const Icon(Icons.drag_handle, size: 18),
+                                IconButton(
+                                  icon: const Icon(Icons.edit, size: 18),
+                                  onPressed: () => _startMovingPoint(point),
+                                ),
                                 IconButton(
                                   icon: const Icon(Icons.delete, size: 18),
                                   onPressed: () => _removeWaypoint(index),
@@ -629,9 +766,10 @@ class RouteEditPageState extends State<RouteEditPage> {
       ),
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (_isSelectingPoint)
-            FloatingActionButton(
+            FloatingActionButton.extended(
               onPressed: () {
                 if (_centerPoint != null) {
                   _addWaypoint(_centerPoint!);
@@ -641,7 +779,23 @@ class RouteEditPageState extends State<RouteEditPage> {
                   });
                 }
               },
-              child: const Icon(Icons.check),
+              icon: const Icon(Icons.add),
+              label: const Text('Add Nav Point'),
+            ),
+          if (_isSelectingPoint) const SizedBox(height: 16),
+          if (_isSelectingPoint)
+            FloatingActionButton.extended(
+              onPressed: () {
+                if (_centerPoint != null) {
+                  _addWaypoint(_centerPoint!, isCustom: true);
+                  setState(() {
+                    _isSelectingPoint = false;
+                    _centerPoint = null;
+                  });
+                }
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Add Custom Point'),
             ),
           if (_isSelectingPoint) const SizedBox(height: 16),
           if (_isSelectingPoint)
@@ -655,11 +809,32 @@ class RouteEditPageState extends State<RouteEditPage> {
               child: const Icon(Icons.close),
             ),
           if (_isSelectingPoint) const SizedBox(height: 16),
+          if (_isMovingPoint)
+            FloatingActionButton.extended(
+              onPressed: _confirmMovingPoint,
+              icon: const Icon(Icons.check),
+              label: const Text('Confirm Move'),
+            ),
+          if (_isMovingPoint) const SizedBox(height: 16),
+          if (_isMovingPoint)
+            FloatingActionButton(
+              onPressed: () {
+                setState(() {
+                  _isMovingPoint = false;
+                  _selectedWaypoint = null;
+                  _centerPoint = null;
+                });
+              },
+              child: const Icon(Icons.close),
+            ),
+          if (_isMovingPoint) const SizedBox(height: 16),
+          // locate button
           FloatingActionButton(
             onPressed: _locatePosition,
             child: const Icon(Icons.my_location),
           ),
           const SizedBox(height: 16),
+          // save button
           FloatingActionButton(
             child: const Icon(Icons.save),
             onPressed: () async {
@@ -688,7 +863,7 @@ class RouteEditPageState extends State<RouteEditPage> {
                 },
               );
               if (title != null) {
-                _saveRoute();
+                await _saveRoute();
               }
             },
           )

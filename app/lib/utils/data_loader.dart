@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:app/utils/fit_parser.dart';
 import 'package:app/utils/gpx_parser.dart';
 import 'package:app/utils/storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 
 class DataLoader {
@@ -50,8 +51,16 @@ class DataLoader {
     print('GPX files: ${files.length}');
     for (var file in files) {
       final gpx = File(file.path);
-      final gpxData = await gpx.readAsString();
       _gpxFile.add(gpx);
+      late final String gpxData;
+      try {
+        gpxData = await gpx.readAsString();
+      } catch (e) {
+        if (kDebugMode) {
+          print('Error reading GPX file: $e');
+        }
+        continue;
+      }
       _routes.add(parseGpxToPath(gpxData));
     }
   }
