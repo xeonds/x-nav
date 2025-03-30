@@ -1,15 +1,24 @@
 import 'package:app/utils/data_loader.dart';
+import 'package:app/utils/fit_parser.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:app/page/history.dart'; // 导入 RideHistoryCard
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
   @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  late Map<DateTime, Map<String, dynamic>> rideData;
+
+  @override
   Widget build(BuildContext context) {
-    final rideData = DataLoader()
+    rideData = DataLoader()
         .summaryList
         .map((e) => {
               'timestamp': DateTime.fromMillisecondsSinceEpoch(
@@ -227,6 +236,9 @@ class HomePage extends StatelessWidget {
                                 sideTitles: SideTitles(
                                   showTitles: true,
                                   getTitlesWidget: (value, meta) {
+                                    if (value % 1 != 0) {
+                                      return const SizedBox.shrink();
+                                    }
                                     final now = DateTime.now();
                                     final weekStart = now.subtract(Duration(
                                         days: now.weekday -
@@ -340,28 +352,33 @@ class HomePage extends StatelessWidget {
                                   ),
                                 )
                                 .value['total_distance'];
-                            final size = (distance / 1000).clamp(20.0, 50.0);
+                            final size =
+                                (20.0 + (distance / 5000).clamp(0.0, 30.0))
+                                    .toDouble();
                             if (distance == 0) {
                               return Center(
-                                child: Container(
-                                  child: Center(
-                                    child: Text('${day.day}'),
-                                  ),
+                                child: GestureDetector(
+                                  onTap: () => _showDailyRecords(context, day),
+                                  child: Text('${day.day}'),
                                 ),
                               );
                             }
                             return Center(
-                              child: Container(
-                                width: size,
-                                height: size,
-                                decoration: BoxDecoration(
-                                  color: Colors.deepOrange,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    '${day.day}',
-                                    style: const TextStyle(color: Colors.white),
+                              child: GestureDetector(
+                                onTap: () => _showDailyRecords(context, day),
+                                child: Container(
+                                  width: size,
+                                  height: size,
+                                  decoration: BoxDecoration(
+                                    color: Colors.deepOrange,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      '${day.day}',
+                                      style:
+                                          const TextStyle(color: Colors.white),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -374,6 +391,57 @@ class HomePage extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  void _showDailyRecords(BuildContext context, DateTime day) {
+    // 筛选出当天的骑行记录
+    final dailyRecords = DataLoader()
+        .fitData
+        .where((record) {
+          final recordDate = DateTime.fromMillisecondsSinceEpoch(
+              (parseFitDataToSummary(record)['start_time'] * 1000 +
+                      631065600000)
+                  .toInt());
+          return recordDate.year == day.year &&
+              recordDate.month == day.month &&
+              recordDate.day == day.day;
+        })
+        .map((record) => MapEntry(
+              DateTime.fromMillisecondsSinceEpoch(
+                  (parseFitDataToSummary(record)['start_time'] * 1000 +
+                          631065600000)
+                      .toInt()),
+              record,
+            ))
+        .sorted(
+          (a, b) => a.key.compareTo(b.key),
+        )
+        .toList();
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return dailyRecords.isEmpty
+            ? const Center(child: Text('当天没有骑行记录'))
+            : ListView.builder(
+                itemCount: dailyRecords.length,
+                itemBuilder: (context, index) {
+                  final record = dailyRecords[index];
+                  return RideHistoryCard(
+                    rideData: record.value,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              RideDetailPage(rideData: record.value),
+                        ),
+                      );
+                    },
+                  );
+                },
+              );
+      },
     );
   }
 }

@@ -198,83 +198,57 @@ class RideHistoryListState extends State<RideHistoryList> {
         : ListView.builder(
             itemCount: sortedHistory.length,
             itemBuilder: (context, index) {
-              final summary = parseFitDataToSummary(sortedHistory[index]);
-              return Card(
-                child: ListTile(
-                  leading: SizedBox(
-                    width: 50,
-                    height: 50,
-                    child: CustomPaint(
-                      painter: RidePathPainter(
-                          parseFitDataToRoute(sortedHistory[index])),
+              return RideHistoryCard(
+                rideData: sortedHistory[index],
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          RideDetailPage(rideData: sortedHistory[index]),
                     ),
-                  ),
-                  title: Text('骑行标题: ${summary['title']}'), // 替换为实际数据
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '日期时间: ${DateTime.fromMillisecondsSinceEpoch((summary['start_time'] * 1000 + 631065600000).toInt()).toLocal().toString().replaceFirst('T', ' ')}',
-                      ), // 替换为实际数据
-                      Text(
-                        '里程: ${(summary['total_distance'] / 1000.0).toStringAsFixed(2)} km 耗时: ${(summary['total_elapsed_time'] / 60).toStringAsFixed(2)} 分钟 均速: ${(summary['avg_speed'] * 3.6).toStringAsFixed(2)} km/h',
-                      ), // 替换为实际数据
-                    ],
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            RideDetailPage(rideData: sortedHistory[index]),
-                      ),
-                    );
-                  },
-                  onLongPress: () {
-                    showMenu(
-                      context: context,
-                      position: const RelativeRect.fromLTRB(100, 100, 0, 0),
-                      items: [
-                        PopupMenuItem(
-                          child: const Text('删除'),
-                          onTap: () async {
-                            final confirm = await showDialog<bool>(
-                              context: context,
-                              builder: (context) {
-                                return AlertDialog(
-                                  title: const Text('确认删除'),
-                                  content: const Text('确定要删除这条骑行记录吗？'),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.of(context).pop(false),
-                                      child: const Text('取消'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.of(context).pop(true),
-                                      child: const Text('删除'),
-                                    ),
-                                  ],
-                                );
-                              },
-                            );
-                            if (confirm == true) {
-                              // delete file by path
-                              final file = File(sortedHistory[index]['path']);
-                              await file.delete();
-                              setState(() {
-                                widget.history.removeAt(index);
-                              });
-                            }
-                          },
-                        ),
-                      ],
-                    );
-                  },
-                ),
+                  );
+                },
               );
             },
           );
+  }
+}
+
+class RideHistoryCard extends StatelessWidget {
+  final Map<String, dynamic> rideData;
+  final VoidCallback onTap;
+
+  const RideHistoryCard(
+      {super.key, required this.rideData, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final summary = parseFitDataToSummary(rideData);
+
+    return Card(
+      child: ListTile(
+        leading: SizedBox(
+          width: 50,
+          height: 50,
+          child: CustomPaint(
+            painter: RidePathPainter(parseFitDataToRoute(rideData)),
+          ),
+        ),
+        title: Text('骑行标题: ${summary['title']}'),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '日期时间: ${DateTime.fromMillisecondsSinceEpoch((summary['start_time'] * 1000 + 631065600000).toInt()).toLocal().toString().replaceFirst('T', ' ')}',
+            ),
+            Text(
+              '里程: ${(summary['total_distance'] / 1000.0).toStringAsFixed(2)} km 耗时: ${(summary['total_elapsed_time'] / 60).toStringAsFixed(2)} 分钟 均速: ${(summary['avg_speed'] * 3.6).toStringAsFixed(2)} km/h',
+            ),
+          ],
+        ),
+        onTap: onTap,
+      ),
+    );
   }
 }
 
