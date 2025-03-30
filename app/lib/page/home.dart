@@ -421,26 +421,30 @@ class _HomePageState extends State<HomePage> {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (context) {
-        return dailyRecords.isEmpty
-            ? const Center(child: Text('当天没有骑行记录'))
-            : ListView.builder(
-                itemCount: dailyRecords.length,
-                itemBuilder: (context, index) {
-                  final record = dailyRecords[index];
-                  return RideHistoryCard(
-                    rideData: record.value,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              RideDetailPage(rideData: record.value),
-                        ),
-                      );
-                    },
-                  );
-                },
-              );
+        return FractionallySizedBox(
+          heightFactor: 0.4,
+          child: dailyRecords.isEmpty
+              ? const Center(child: Text('当天没有骑行记录'))
+              : ListView.builder(
+                  itemCount: dailyRecords.length,
+                  itemBuilder: (context, index) {
+                    final record = dailyRecords[index];
+                    return RideHistoryCard(
+                      rideData: record.value,
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                RideDetailPage(rideData: record.value),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+        );
       },
     );
   }

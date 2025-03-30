@@ -72,7 +72,7 @@ class DataLoader {
     final files = await Storage().getFitFiles();
     for (var file in files) {
       final fitData = parseFitFile(await file.readAsBytes());
-      _fitData.add(fitData);
+      _fitData.add({...fitData, 'path': file.path});
       _histories.add(parseFitDataToRoute(fitData));
     }
   }

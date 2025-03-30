@@ -273,222 +273,322 @@ class RideDetailPage extends StatelessWidget {
     distances = distances.sublist(0, minLength);
     altitudes = altitudes.sublist(0, minLength);
     return Scaffold(
-      appBar: AppBar(title: const Text('骑行详情')),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // 地图展示
-            SizedBox(
-              height: 300,
-              child: FlutterMap(
-                options: MapOptions(
-                  initialCenter: initCenter(routePoints),
-                  initialZoom: initZoom(routePoints),
+      appBar: AppBar(
+        title: const Text('骑行详情'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete),
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('确认删除'),
+                  content: const Text('确定要删除这条骑行记录吗？'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text('取消'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: const Text('删除'),
+                    ),
+                  ],
                 ),
-                children: [
-                  TileLayer(
-                    urlTemplate:
-                        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                  ),
-                  PolylineLayer(
-                    polylines: [
-                      Polyline(
-                        points: routePoints,
-                        strokeWidth: 4.0,
-                        color: Colors.blue,
-                      ),
-                    ],
-                  ),
-                ],
+              );
+              if (confirm == true) {
+                await File(rideData['path']).delete();
+                await DataLoader().loadHistoryData();
+                await Future.wait([
+                  DataLoader().loadRideData(),
+                  DataLoader().loadSummaryData()
+                ]);
+                Navigator.of(context).pop(); // 返回上一页
+              }
+            },
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          // 地图展示
+          Positioned.fill(
+            child: FlutterMap(
+              options: MapOptions(
+                initialCenter: initCenter(routePoints),
+                initialZoom: initZoom(routePoints),
               ),
+              children: [
+                TileLayer(
+                  urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                ),
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: routePoints,
+                      strokeWidth: 4.0,
+                      color: Colors.blue,
+                    ),
+                  ],
+                ),
+              ],
             ),
-            // 数据展示
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          // BottomSheet
+          DraggableScrollableSheet(
+            initialChildSize: 0.3,
+            minChildSize: 0.1,
+            maxChildSize: 0.9,
+            builder: (context, scrollController) {
+              final isDarkMode =
+                  MediaQuery.of(context).platformBrightness == Brightness.dark;
+              return Container(
+                decoration: BoxDecoration(
+                  color: isDarkMode ? Colors.grey[900] : Colors.white,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16.0),
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  controller: scrollController,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 40,
+                            height: 5,
+                            margin: const EdgeInsets.only(bottom: 10),
+                            decoration: BoxDecoration(
+                              color: isDarkMode
+                                  ? Colors.grey[700]
+                                  : Colors.grey[300],
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '骑行标题: ${summary['title'] ?? '未知'}',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: isDarkMode ? Colors.white : Colors.black,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          '日期时间: ${DateTime.fromMillisecondsSinceEpoch((summary['start_time'] * 1000 + 631065600000).toInt()).toLocal()}',
+                          style: TextStyle(
+                            color: isDarkMode ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          '总里程: ${(summary['total_distance'] / 1000.0).toStringAsFixed(2)} km\n'
+                          '总耗时: ${(summary['total_elapsed_time'] / 60).toStringAsFixed(2)} 分钟\n'
+                          '均速: ${(summary['avg_speed'] * 3.6).toStringAsFixed(2)} km/h\n'
+                          '最大速度: ${(summary['max_speed'] * 3.6).toStringAsFixed(2)} km/h\n'
+                          '总爬升: ${summary['total_ascent']} m\n'
+                          '总下降: ${summary['total_descent']} m\n'
+                          '平均心率: ${summary['avg_heart_rate'] ?? '未知'} bpm\n'
+                          '最大心率: ${summary['max_heart_rate'] ?? '未知'} bpm\n'
+                          '平均功率: ${summary['avg_power'] ?? '未知'} W\n'
+                          '最大功率: ${summary['max_power'] ?? '未知'} W\n'
+                          '总卡路里: ${summary['total_calories'] ?? '未知'} kcal',
+                          style: TextStyle(
+                            color: isDarkMode ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          '速度变化图',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(
+                          height: 240,
+                          child: LineChart(
+                            LineChartData(
+                              lineBarsData: [
+                                LineChartBarData(
+                                  spots: () {
+                                    const reductionFactor = 10;
+                                    return List.generate(
+                                      (speeds.length / reductionFactor).ceil(),
+                                      (index) => FlSpot(
+                                        distances[index * reductionFactor],
+                                        speeds[index * reductionFactor],
+                                      ),
+                                    );
+                                  }(),
+                                  isCurved: false,
+                                  color: Colors.deepOrange,
+                                  belowBarData: BarAreaData(
+                                    show: true,
+                                    color: Colors.deepOrange.withOpacity(0.3),
+                                  ),
+                                  dotData: FlDotData(show: false),
+                                ),
+                              ],
+                              titlesData: FlTitlesData(
+                                topTitles: AxisTitles(),
+                                leftTitles: AxisTitles(),
+                                rightTitles: AxisTitles(
+                                  sideTitles: SideTitles(
+                                    showTitles: true,
+                                    reservedSize: 60,
+                                    getTitlesWidget: (value, meta) =>
+                                        Text('${value.toInt()} km/h'),
+                                    interval: 10,
+                                  ),
+                                ),
+                                bottomTitles: AxisTitles(
+                                  sideTitles: SideTitles(
+                                    showTitles: true,
+                                    reservedSize: 20,
+                                    interval:
+                                        summary['total_distance'] / 5 / 1000,
+                                    getTitlesWidget: (value, meta) =>
+                                        Text('${value.toStringAsFixed(1)} km'),
+                                  ),
+                                ),
+                              ),
+                              borderData: FlBorderData(show: false),
+                              gridData: FlGridData(
+                                show: true,
+                                drawVerticalLine: true,
+                                drawHorizontalLine: true,
+                                horizontalInterval: 10,
+                                verticalInterval: 1,
+                                getDrawingHorizontalLine: (value) => FlLine(
+                                  color: Colors.grey.withOpacity(0.5),
+                                  strokeWidth: 0.5,
+                                ),
+                                getDrawingVerticalLine: (value) => FlLine(
+                                  color: Colors.grey.withOpacity(0.5),
+                                  strokeWidth: 0.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          '海拔变化图',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(
+                          height: 240,
+                          child: LineChart(
+                            LineChartData(
+                              lineBarsData: [
+                                LineChartBarData(
+                                  spots: () {
+                                    const reductionFactor = 10;
+                                    return List.generate(
+                                      (altitudes.length / reductionFactor)
+                                          .ceil(),
+                                      (index) => FlSpot(
+                                        distances[index * reductionFactor],
+                                        altitudes[index * reductionFactor],
+                                      ),
+                                    );
+                                  }(),
+                                  isCurved: false,
+                                  color: Colors.blueAccent,
+                                  belowBarData: BarAreaData(
+                                    show: true,
+                                    color: Colors.blueAccent.withOpacity(0.3),
+                                  ),
+                                  dotData: FlDotData(show: false),
+                                ),
+                              ],
+                              titlesData: FlTitlesData(
+                                topTitles: AxisTitles(),
+                                leftTitles: AxisTitles(),
+                                rightTitles: AxisTitles(
+                                  sideTitles: SideTitles(
+                                    showTitles: true,
+                                    reservedSize: 60,
+                                    getTitlesWidget: (value, meta) =>
+                                        Text('${value.toInt()} m'),
+                                    interval: 50,
+                                  ),
+                                ),
+                                bottomTitles: AxisTitles(
+                                  sideTitles: SideTitles(
+                                    showTitles: true,
+                                    reservedSize: 20,
+                                    interval:
+                                        summary['total_distance'] / 5 / 1000,
+                                    getTitlesWidget: (value, meta) =>
+                                        Text('${value.toStringAsFixed(1)} km'),
+                                  ),
+                                ),
+                              ),
+                              borderData: FlBorderData(show: false),
+                              gridData: FlGridData(
+                                show: true,
+                                drawVerticalLine: true,
+                                drawHorizontalLine: true,
+                                horizontalInterval: 50,
+                                verticalInterval: 10,
+                                getDrawingHorizontalLine: (value) => FlLine(
+                                  color: Colors.grey.withOpacity(0.5),
+                                  strokeWidth: 0.5,
+                                ),
+                                getDrawingVerticalLine: (value) => FlLine(
+                                  color: Colors.grey.withOpacity(0.5),
+                                  strokeWidth: 0.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          // Toggle full-screen map
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => Scaffold(
+                body: FlutterMap(
+                  options: MapOptions(
+                    initialCenter: initCenter(routePoints),
+                    initialZoom: initZoom(routePoints),
+                  ),
                   children: [
-                    Text(
-                      '骑行标题: ${summary['title'] ?? '未知'}',
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold),
+                    TileLayer(
+                      urlTemplate:
+                          "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      '日期时间: ${DateTime.fromMillisecondsSinceEpoch((summary['start_time'] * 1000 + 631065600000).toInt()).toLocal()}',
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      '总里程: ${(summary['total_distance'] / 1000.0).toStringAsFixed(2)} km\n'
-                      '总耗时: ${(summary['total_elapsed_time'] / 60).toStringAsFixed(2)} 分钟\n'
-                      '均速: ${(summary['avg_speed'] * 3.6).toStringAsFixed(2)} km/h\n'
-                      '最大速度: ${(summary['max_speed'] * 3.6).toStringAsFixed(2)} km/h\n'
-                      '总爬升: ${summary['total_ascent']} m\n'
-                      '总下降: ${summary['total_descent']} m\n'
-                      '平均心率: ${summary['avg_heart_rate'] ?? '未知'} bpm\n'
-                      '最大心率: ${summary['max_heart_rate'] ?? '未知'} bpm\n'
-                      '平均功率: ${summary['avg_power'] ?? '未知'} W\n'
-                      '最大功率: ${summary['max_power'] ?? '未知'} W\n'
-                      '总卡路里: ${summary['total_calories'] ?? '未知'} kcal',
-                    ),
-                    const SizedBox(height: 20),
-                    // 图表展示
-                    const Text(
-                      '速度变化图',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    SizedBox(
-                      height: 240,
-                      child: LineChart(
-                        LineChartData(
-                          lineBarsData: [
-                            LineChartBarData(
-                              spots: () {
-                                // Reduce the number of points for clarity
-                                const reductionFactor = 10;
-                                return List.generate(
-                                  (speeds.length / reductionFactor).ceil(),
-                                  (index) => FlSpot(
-                                    distances[index * reductionFactor],
-                                    speeds[index * reductionFactor],
-                                  ),
-                                );
-                              }(),
-                              isCurved: false,
-                              color: Colors.deepOrange,
-                              belowBarData: BarAreaData(
-                                show: true,
-                                color: Colors.deepOrange.withOpacity(0.3),
-                              ),
-                              dotData: FlDotData(
-                                show: false, // Hide the dots
-                              ),
-                            ),
-                          ],
-                          titlesData: FlTitlesData(
-                            topTitles: AxisTitles(),
-                            leftTitles: AxisTitles(),
-                            rightTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 60,
-                                getTitlesWidget: (value, meta) =>
-                                    Text('${value.toInt()} km/h'),
-                                interval: 10,
-                              ),
-                            ),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 20,
-                                interval: summary['total_distance'] / 5 / 1000,
-                                getTitlesWidget: (value, meta) =>
-                                    Text('${value.toStringAsFixed(1)} km'),
-                              ),
-                            ),
-                          ),
-                          borderData: FlBorderData(show: false),
-                          gridData: FlGridData(
-                            show: true,
-                            drawVerticalLine: true,
-                            drawHorizontalLine: true,
-                            horizontalInterval: 10,
-                            verticalInterval: 1,
-                            getDrawingHorizontalLine: (value) => FlLine(
-                              color: Colors.grey.withOpacity(0.5),
-                              strokeWidth: 0.5,
-                            ),
-                            getDrawingVerticalLine: (value) => FlLine(
-                              color: Colors.grey.withOpacity(0.5),
-                              strokeWidth: 0.5,
-                            ),
-                          ),
+                    PolylineLayer(
+                      polylines: [
+                        Polyline(
+                          points: routePoints,
+                          strokeWidth: 4.0,
+                          color: Colors.blue,
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      '海拔变化图',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    SizedBox(
-                      height: 240,
-                      child: LineChart(
-                        LineChartData(
-                          lineBarsData: [
-                            LineChartBarData(
-                              spots: () {
-                                // Reduce the number of points for clarity
-                                const reductionFactor = 10;
-                                return List.generate(
-                                  (altitudes.length / reductionFactor).ceil(),
-                                  (index) => FlSpot(
-                                    distances[index * reductionFactor],
-                                    altitudes[index * reductionFactor],
-                                  ),
-                                );
-                              }(),
-                              isCurved: false,
-                              color: Colors.blueAccent,
-                              belowBarData: BarAreaData(
-                                show: true,
-                                color: Colors.blueAccent.withOpacity(0.3),
-                              ),
-                              dotData: FlDotData(
-                                show: false, // Hide the dots
-                              ),
-                            ),
-                          ],
-                          titlesData: FlTitlesData(
-                            topTitles: AxisTitles(),
-                            leftTitles: AxisTitles(),
-                            rightTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 60,
-                                getTitlesWidget: (value, meta) =>
-                                    Text('${value.toInt()} m'),
-                                interval: 50,
-                              ),
-                            ),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 20,
-                                interval: summary['total_distance'] / 5 / 1000,
-                                getTitlesWidget: (value, meta) =>
-                                    Text('${value.toStringAsFixed(1)} km'),
-                              ),
-                            ),
-                          ),
-                          borderData: FlBorderData(show: false),
-                          gridData: FlGridData(
-                            show: true,
-                            drawVerticalLine: true,
-                            drawHorizontalLine: true,
-                            horizontalInterval: 50,
-                            verticalInterval: 10,
-                            getDrawingHorizontalLine: (value) => FlLine(
-                              color: Colors.grey.withOpacity(0.5),
-                              strokeWidth: 0.5,
-                            ),
-                            getDrawingVerticalLine: (value) => FlLine(
-                              color: Colors.grey.withOpacity(0.5),
-                              strokeWidth: 0.5,
-                            ),
-                          ),
-                        ),
-                      ),
+                      ],
                     ),
                   ],
                 ),
               ),
             ),
-          ],
-        ),
+          );
+        },
+        child: const Icon(Icons.fullscreen),
       ),
     );
   }
