@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:app/utils/storage.dart';
 import 'package:fl_chart/fl_chart.dart'; // 用于图表
 import 'package:flutter_map/flutter_map.dart'; // 用于地图
+import 'package:provider/provider.dart';
 
 class RideHistory extends StatefulWidget {
   const RideHistory({super.key});
@@ -17,40 +18,28 @@ class RideHistory extends StatefulWidget {
 }
 
 class RideHistoryState extends State<RideHistory> {
-  List<dynamic> histories = [];
-  Map<String, dynamic> rideData = {};
-
   @override
   void initState() {
     super.initState();
-    _loadFitFiles();
-  }
-
-  Future<void> _loadFitFiles() async {
-    await DataLoader().initialize();
-    setState(() {
-      histories = DataLoader().fitData;
-      rideData = DataLoader().rideData;
-    });
+    DataLoader().initialize(); // 确保数据加载
   }
 
   @override
   Widget build(BuildContext context) {
+    final dataLoader = context.watch<DataLoader>(); // 监听 DataLoader 的状态
+
     return Scaffold(
       appBar: AppBar(title: const Text('骑行记录')),
       body: Column(
         children: [
-          RideSummary(rideData: rideData),
+          RideSummary(rideData: dataLoader.rideData),
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
-                await DataLoader().loadHistoryData();
-                await DataLoader().loadRideData();
-                setState(() {
-                  _loadFitFiles();
-                });
+                await dataLoader.loadHistoryData();
+                await dataLoader.loadRideData();
               },
-              child: RideHistoryList(history: histories),
+              child: RideHistoryList(history: dataLoader.fitData),
             ),
           ),
         ],
@@ -70,7 +59,7 @@ class RideHistoryState extends State<RideHistory> {
                 fitFile,
               );
             }
-            _loadFitFiles();
+            await DataLoader().loadHistoryData();
           }
         },
         child: const Icon(Icons.file_upload),

@@ -13,6 +13,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:provider/provider.dart';
 
 class RoutesPage extends StatefulWidget {
   const RoutesPage({super.key, this.onFullScreenToggle});
@@ -48,6 +49,8 @@ class RoutesPageState extends State<RoutesPage> {
 
   @override
   Widget build(BuildContext context) {
+    final dataLoader = context.watch<DataLoader>(); // 监听 DataLoader 的状态
+
     return Scaffold(
       appBar: _isFullScreen
           ? null
@@ -57,10 +60,7 @@ class RoutesPageState extends State<RoutesPage> {
                 IconButton(
                   icon: const Icon(Icons.refresh),
                   onPressed: () async {
-                    await DataLoader().loadRouteData();
-                    setState(() {
-                      _initializeData();
-                    });
+                    await dataLoader.loadRouteData();
                   },
                 ),
               ],
@@ -79,7 +79,7 @@ class RoutesPageState extends State<RoutesPage> {
               ),
               PolylineLayer(
                 polylines: [
-                  ...polylines.map((points) => Polyline(
+                  ...dataLoader.routes.map((points) => Polyline(
                         points: points,
                         color: Colors.deepOrange,
                         strokeWidth: 5,

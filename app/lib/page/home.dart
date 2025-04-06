@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:app/page/history.dart'; // 导入 RideHistoryCard
+import 'package:provider/provider.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -14,12 +15,11 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  late Map<DateTime, Map<String, dynamic>> rideData;
-
   @override
   Widget build(BuildContext context) {
-    rideData = DataLoader()
-        .summaryList
+    final dataLoader = context.watch<DataLoader>(); // 监听 DataLoader 的状态
+
+    final rideData = dataLoader.summaryList
         .map((e) => {
               'timestamp': DateTime.fromMillisecondsSinceEpoch(
                       (e['start_time'] * 1000 + 631065600000).toInt())

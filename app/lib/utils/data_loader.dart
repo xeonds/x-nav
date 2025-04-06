@@ -6,7 +6,7 @@ import 'package:app/utils/storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 
-class DataLoader {
+class DataLoader extends ChangeNotifier {
   static final DataLoader _instance = DataLoader._internal();
 
   factory DataLoader() => _instance;
@@ -41,6 +41,8 @@ class DataLoader {
       loadRideData(),
       loadSummaryData(),
     ]);
+
+    notifyListeners(); // 通知监听者数据已加载完成
   }
 
   Future<void> loadRouteData() async {
@@ -63,6 +65,8 @@ class DataLoader {
       }
       _routes.add(parseGpxToPath(gpxData));
     }
+
+    notifyListeners(); // 通知监听者数据已更新
   }
 
   Future<void> loadHistoryData() async {
@@ -75,6 +79,8 @@ class DataLoader {
       _fitData.add({...fitData, 'path': file.path});
       _histories.add(parseFitDataToRoute(fitData));
     }
+
+    notifyListeners(); // 通知监听者数据已更新
   }
 
   Future<void> loadRideData() async {
@@ -92,6 +98,8 @@ class DataLoader {
     ).forEach((key, value) {
       _rideData[key] = value;
     });
+
+    notifyListeners(); // 通知监听者数据已更新
   }
 
   Future<void> loadSummaryData() async {
@@ -99,5 +107,7 @@ class DataLoader {
     _fitData.map((e) => parseFitDataToSummary(e)).forEach((element) {
       _summary.add(element);
     });
+
+    notifyListeners(); // 通知监听者数据已更新
   }
 }

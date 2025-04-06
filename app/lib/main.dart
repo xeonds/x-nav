@@ -7,11 +7,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'dart:async';
 import 'package:app/utils/data_loader.dart';
+import 'package:provider/provider.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  DataLoader().initialize(); // 在应用启动时初始化数据加载器
-  runApp(const MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => DataLoader()..initialize(), // 初始化 DataLoader
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
