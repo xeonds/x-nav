@@ -1,13 +1,14 @@
+import 'dart:io';
+import 'package:app/component/data.dart';
 import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit_parser.dart';
 import 'package:app/utils/path_utils.dart' show initCenter, initZoom;
-import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:latlong2/latlong.dart' show LatLng;
-import 'dart:io';
 import 'package:app/utils/storage.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:fl_chart/fl_chart.dart'; // 用于图表
+import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart'; // 用于地图
+import 'package:latlong2/latlong.dart' show LatLng;
 import 'package:provider/provider.dart';
 
 class RideHistory extends StatefulWidget {
@@ -327,7 +328,9 @@ class RideDetailPage extends StatelessWidget {
           DraggableScrollableSheet(
             initialChildSize: 0.3,
             minChildSize: 0.1,
-            maxChildSize: 0.9,
+            maxChildSize: 1.0,
+            snap: true,
+            snapSizes: const [0.2, 0.5, 1.0],
             builder: (context, scrollController) {
               final isDarkMode =
                   MediaQuery.of(context).platformBrightness == Brightness.dark;
@@ -345,6 +348,7 @@ class RideDetailPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // 下拉把柄
                         Center(
                           child: Container(
                             width: 40,
@@ -368,31 +372,110 @@ class RideDetailPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          '日期时间: ${DateTime.fromMillisecondsSinceEpoch((summary['start_time'] * 1000 + 631065600000).toInt()).toLocal()}',
+                          () {
+                            final dateTime =
+                                DateTime.fromMillisecondsSinceEpoch(
+                              (summary['start_time'] * 1000 + 631065600000)
+                                  .toInt(),
+                            ).toLocal();
+                            final now = DateTime.now();
+                            final difference = now.difference(dateTime).inDays;
+                            if (difference == 0) {
+                              return '今天 ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+                            } else if (difference == 1) {
+                              return '昨天 ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+                            } else {
+                              return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+                            }
+                          }(),
                           style: TextStyle(
                             color: isDarkMode ? Colors.white70 : Colors.black87,
                           ),
                         ),
                         const SizedBox(height: 10),
-                        Text(
-                          '总里程: ${(summary['total_distance'] / 1000.0).toStringAsFixed(2)} km\n'
-                          '总耗时: ${(summary['total_elapsed_time'] / 60).toStringAsFixed(2)} 分钟\n'
-                          '均速: ${(summary['avg_speed'] * 3.6).toStringAsFixed(2)} km/h\n'
-                          '最大速度: ${(summary['max_speed'] * 3.6).toStringAsFixed(2)} km/h\n'
-                          '总爬升: ${summary['total_ascent']} m\n'
-                          '总下降: ${summary['total_descent']} m\n'
-                          '平均心率: ${summary['avg_heart_rate'] ?? '未知'} bpm\n'
-                          '最大心率: ${summary['max_heart_rate'] ?? '未知'} bpm\n'
-                          '平均功率: ${summary['avg_power'] ?? '未知'} W\n'
-                          '最大功率: ${summary['max_power'] ?? '未知'} W\n'
-                          '总卡路里: ${summary['total_calories'] ?? '未知'} kcal',
-                          style: TextStyle(
-                            color: isDarkMode ? Colors.white70 : Colors.black87,
-                          ),
+                        GridView.count(
+                          crossAxisCount: 3, // 每行显示3个元素
+                          shrinkWrap: true, // 适配内容高度
+                          physics: const NeverScrollableScrollPhysics(), // 禁止滚动
+                          childAspectRatio: 1.8,
+                          children: [
+                            Statistic(
+                              data:
+                                  '${(summary['total_distance'] / 1000.0).toStringAsFixed(2)}',
+                              label: 'km',
+                              subtitle: '总里程',
+                            ),
+                            Statistic(
+                              data:
+                                  '${(summary['total_elapsed_time'] / 60).toStringAsFixed(2)}',
+                              label: '分钟',
+                              subtitle: '总耗时',
+                            ),
+                            Statistic(
+                              data:
+                                  '${(summary['avg_speed'] * 3.6).toStringAsFixed(2)}',
+                              label: 'km/h',
+                              subtitle: '均速',
+                            ),
+                            Statistic(
+                              data:
+                                  '${(summary['max_speed'] * 3.6).toStringAsFixed(2)}',
+                              label: 'km/h',
+                              subtitle: '最大速度',
+                            ),
+                            Statistic(
+                              data: '${summary['total_ascent']}',
+                              label: 'm',
+                              subtitle: '总爬升',
+                            ),
+                            Statistic(
+                              data: '${summary['total_descent']}',
+                              label: 'm',
+                              subtitle: '总下降',
+                            ),
+                            Statistic(
+                              data: '${summary['avg_heart_rate'] ?? '未知'}',
+                              label: 'bpm',
+                              subtitle: '平均心率',
+                            ),
+                            Statistic(
+                              data: '${summary['max_heart_rate'] ?? '未知'}',
+                              label: 'bpm',
+                              subtitle: '最大心率',
+                            ),
+                            Statistic(
+                              data: '${summary['avg_power'] ?? '未知'}',
+                              label: 'W',
+                              subtitle: '平均功率',
+                            ),
+                            Statistic(
+                              data: '${summary['max_power'] ?? '未知'}',
+                              label: 'W',
+                              subtitle: '最大功率',
+                            ),
+                            Statistic(
+                              data: '${summary['total_calories'] ?? '未知'}',
+                              label: 'kcal',
+                              subtitle: '总卡路里',
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 20),
                         const Text(
-                          '速度变化图',
+                          '成绩',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              Statistic(subtitle: "最佳成绩", data: "5"),
+                              Statistic(subtitle: "路段", data: "5"),
+                              Statistic(subtitle: "成就", data: "5"),
+                            ]),
+                        const Text(
+                          '速度',
                           style: TextStyle(
                               fontSize: 16, fontWeight: FontWeight.bold),
                         ),
@@ -465,7 +548,7 @@ class RideDetailPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 20),
                         const Text(
-                          '海拔变化图',
+                          '海拔',
                           style: TextStyle(
                               fontSize: 16, fontWeight: FontWeight.bold),
                         ),
