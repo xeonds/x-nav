@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:app/component/data.dart';
 import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit_parser.dart';
-import 'package:app/utils/path_utils.dart' show initCenter, initZoom;
+import 'package:app/utils/path_utils.dart' show initCenter, initZoom, isSubPath;
 import 'package:app/utils/storage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:fl_chart/fl_chart.dart'; // 用于图表
@@ -250,6 +250,10 @@ class RideDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final routePoints = parseFitDataToRoute(rideData);
     final summary = parseFitDataToSummary(rideData);
+    final dataLoader = context.watch<DataLoader>(); // 监听 DataLoader 的状态
+    List<List<LatLng>> routes = dataLoader.routes;
+    final subRoutes =
+        routes.where((route) => isSubPath(route, routePoints)).toList();
 
     List<double> speeds =
         parseFitDataToMetric(rideData, "speed").map((e) => e * 3.6).toList();
@@ -474,6 +478,24 @@ class RideDetailPage extends StatelessWidget {
                               Statistic(subtitle: "路段", data: "5"),
                               Statistic(subtitle: "成就", data: "5"),
                             ]),
+                        const Text('路段'),
+                        ListView(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          children: subRoutes
+                              .map((route) => ListTile(
+                                    title: Text(
+                                      '路段 ${subRoutes.indexOf(route) + 1}',
+                                      style: const TextStyle(fontSize: 16),
+                                    ),
+                                    subtitle: Text(
+                                      '里程 ${(route.length / 1000.0).toStringAsFixed(2)} km',
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                  ))
+                              .toList(),
+                        ),
+                        const SizedBox(height: 20),
                         const Text(
                           '速度',
                           style: TextStyle(
