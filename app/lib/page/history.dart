@@ -2,7 +2,8 @@ import 'dart:io';
 import 'package:app/component/data.dart';
 import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit_parser.dart';
-import 'package:app/utils/path_utils.dart' show initCenter, initZoom, isSubPath;
+import 'package:app/utils/path_utils.dart'
+    show SegmentMatcher, initCenter, initZoom, isSubPath, latlngToDistance;
 import 'package:app/utils/storage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:fl_chart/fl_chart.dart'; // 用于图表
@@ -252,8 +253,9 @@ class RideDetailPage extends StatelessWidget {
     final summary = parseFitDataToSummary(rideData);
     final dataLoader = context.watch<DataLoader>(); // 监听 DataLoader 的状态
     List<List<LatLng>> routes = dataLoader.routes;
-    final subRoutes =
-        routes.where((route) => isSubPath(route, routePoints)).toList();
+
+    final matcher = SegmentMatcher();
+    final subRoutes = matcher.findSegments(routePoints, routes);
 
     List<double> speeds =
         parseFitDataToMetric(rideData, "speed").map((e) => e * 3.6).toList();
@@ -489,9 +491,48 @@ class RideDetailPage extends StatelessWidget {
                                       style: const TextStyle(fontSize: 16),
                                     ),
                                     subtitle: Text(
-                                      '里程 ${(route.length / 1000.0).toStringAsFixed(2)} km',
+                                      '里程 ${(latlngToDistance(routePoints.sublist(route.startIndex, route.endIndex)) / 1000.0).toStringAsFixed(2)} km',
                                       style: const TextStyle(fontSize: 14),
                                     ),
+                                    onTap: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (context) => Scaffold(
+                                            body: FlutterMap(
+                                              options: MapOptions(
+                                                initialCenter:
+                                                    initCenter(routePoints),
+                                                initialZoom:
+                                                    initZoom(routePoints),
+                                              ),
+                                              children: [
+                                                TileLayer(
+                                                  urlTemplate:
+                                                      "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                                                ),
+                                                PolylineLayer(
+                                                  polylines: [
+                                                    Polyline(
+                                                      points: routePoints,
+                                                      strokeWidth: 4.0,
+                                                      color: Colors.blue,
+                                                    ),
+                                                    Polyline(
+                                                      points:
+                                                          routePoints.sublist(
+                                                              route.startIndex,
+                                                              route.endIndex),
+                                                      strokeWidth: 4.0,
+                                                      color: Colors.orange,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
                                   ))
                               .toList(),
                         ),
