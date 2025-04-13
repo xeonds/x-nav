@@ -1,9 +1,10 @@
 import 'dart:io';
 import 'package:app/component/data.dart';
+import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit_parser.dart';
 import 'package:app/utils/path_utils.dart'
-    show SegmentMatcher, initCenter, initZoom, isSubPath, latlngToDistance;
+    show SegmentMatcher, initCenter, initZoom, latlngToDistance;
 import 'package:app/utils/storage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:fl_chart/fl_chart.dart'; // 用于图表
@@ -257,6 +258,8 @@ class RideDetailPage extends StatelessWidget {
     final matcher = SegmentMatcher();
     final subRoutes = matcher.findSegments(routePoints, routes);
 
+    final bestScore = BestScore().update(rideData['records']).getBestData();
+
     List<double> speeds =
         parseFitDataToMetric(rideData, "speed").map((e) => e * 3.6).toList();
     List<double> distances = parseFitDataToMetric(rideData, "distance")
@@ -477,7 +480,9 @@ class RideDetailPage extends StatelessWidget {
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
                               Statistic(subtitle: "最佳成绩", data: "5"),
-                              Statistic(subtitle: "路段", data: "5"),
+                              Statistic(
+                                  subtitle: "路段",
+                                  data: subRoutes.length.toString()),
                               Statistic(subtitle: "成就", data: "5"),
                             ]),
                         const Text('路段'),
@@ -535,6 +540,23 @@ class RideDetailPage extends StatelessWidget {
                                     },
                                   ))
                               .toList(),
+                        ),
+                        const Text('最佳成绩'),
+                        ListView(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          children: bestScore.entries.map((entry) {
+                            final key = entry.key;
+                            final value = entry.value;
+                            return ListTile(
+                              title: Text(key),
+                              subtitle: Text(
+                                value is double
+                                    ? '${value.toStringAsFixed(2)} ${value}'
+                                    : value?.toString() ?? '未知',
+                              ),
+                            );
+                          }).toList(),
                         ),
                         const SizedBox(height: 20),
                         const Text(

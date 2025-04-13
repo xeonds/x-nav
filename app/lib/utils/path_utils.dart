@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import 'package:latlong2/latlong.dart';
-import 'package:flutter/material.dart';
 
 // 获取一个路径的几何中心
 LatLng initCenter(List<LatLng> routePoints) {
@@ -229,93 +228,6 @@ class SegmentMatcher {
 
   /// 辅助方法：返回两个数中的较小值
   int min(int a, int b) => a < b ? a : b;
-}
-
-// 使用示例
-void main() {
-  // 创建一些测试数据
-
-  // 一条骑行记录
-  List<LatLng> rideRoute = [
-    LatLng(39.9042, 116.4074),
-    LatLng(39.9043, 116.4075),
-    LatLng(39.9044, 116.4076),
-    LatLng(39.9045, 116.4077),
-    LatLng(39.9046, 116.4078),
-    LatLng(39.9047, 116.4079),
-    LatLng(39.9048, 116.4080),
-    LatLng(39.9049, 116.4081),
-    LatLng(39.9050, 116.4082),
-  ];
-
-  // 赛段数据库
-  List<List<LatLng>> segments = [
-    // 赛段1：应该匹配
-    [
-      LatLng(39.9044, 116.4076),
-      LatLng(39.9045, 116.4077),
-      LatLng(39.9046, 116.4078),
-    ],
-    // 赛段2：不应该匹配
-    [
-      LatLng(39.8044, 116.3076),
-      LatLng(39.8045, 116.3077),
-    ],
-    // 赛段3：部分匹配
-    [
-      LatLng(39.9049, 116.4081),
-      LatLng(39.9050, 116.4082),
-      LatLng(39.9051, 116.4083), // 骑行记录中没有这个点
-    ],
-  ];
-
-  // 创建匹配器实例
-  var matcher = SegmentMatcher();
-
-  // 执行匹配
-  List<SegmentMatch> matches = matcher.findSegments(rideRoute, segments);
-
-  // 输出结果
-  for (int i = 0; i < matches.length; i++) {
-    var match = matches[i];
-    print('匹配赛段 ${i + 1}:');
-    print('  起始索引: ${match.startIndex}');
-    print('  结束索引: ${match.endIndex}');
-    print('  匹配百分比: ${(match.matchPercentage * 100).toStringAsFixed(2)}%');
-    print('');
-  }
-}
-
-// 可视化匹配结果的组件示例
-class SegmentMatchVisualizer extends StatelessWidget {
-  final List<LatLng> ridePoints;
-  final List<SegmentMatch> matches;
-
-  const SegmentMatchVisualizer({
-    Key? key,
-    required this.ridePoints,
-    required this.matches,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      // 这里可以使用flutter_map或其他地图组件来展示匹配结果
-      // 简单起见，只返回文字描述
-      child: ListView.builder(
-        itemCount: matches.length,
-        itemBuilder: (context, index) {
-          final match = matches[index];
-          return ListTile(
-            title: Text('赛段 ${index + 1}'),
-            subtitle: Text(
-                '匹配度: ${(match.matchPercentage * 100).toStringAsFixed(1)}%\n'
-                '从点 ${match.startIndex} 到点 ${match.endIndex}'),
-          );
-        },
-      ),
-    );
-  }
 }
 
 // 计算List<LatLng>的距离（单位：米）
