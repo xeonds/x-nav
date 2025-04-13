@@ -120,12 +120,17 @@ class BestScore {
   }
 
   Map<String, dynamic> getBestData() {
+    final expandedBestSpeed = bestSpeedByDistance.entries
+        .where((entry) => entry.value > 0)
+        .map((entry) => MapEntry('${entry.key}m', entry.value));
+
     return {
       'maxSpeed': maxSpeed,
       'maxAltitude': maxAltitude,
       'maxClimb': maxClimb,
-      'bestSpeedByDistance': bestSpeedByDistance,
-      'bestPowerByTime': bestPowerByTime,
+      ...expandedBestSpeed.toList().asMap().map((index, entry) {
+        return MapEntry(entry.key, entry.value);
+      }),
     };
   }
 }
