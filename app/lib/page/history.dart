@@ -270,7 +270,7 @@ class RideDetailPage extends StatelessWidget {
         'segment': segment,
         'start_time': startTime,
         'end_time': endTime,
-        'duration': (endTime - startTime) / 1000.0, // 转换为秒
+        'duration': (endTime - startTime), // 转换为秒
         'avg_speed':
             (latlngToDistance(routePoints.sublist(startIndex, endIndex)) /
                     1000.0) /
@@ -544,7 +544,7 @@ class RideDetailPage extends StatelessWidget {
                               ),
                               subtitle: Text(
                                 '里程 ${(latlngToDistance(routePoints.sublist(segment.startIndex, segment.endIndex)) / 1000.0).toStringAsFixed(2)} km'
-                                ' 耗时 ${(duration / 60).toStringAsFixed(2)} 分钟'
+                                ' 耗时 ${secondToFormatTime(duration)}'
                                 ' 均速 ${(avgSpeed * 3.6).toStringAsFixed(2)} km/h',
                                 style: const TextStyle(fontSize: 14),
                               ),
