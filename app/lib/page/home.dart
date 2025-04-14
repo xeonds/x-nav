@@ -1,3 +1,4 @@
+import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit_parser.dart';
 import 'package:collection/collection.dart';
@@ -18,6 +19,10 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final dataLoader = context.watch<DataLoader>(); // 监听 DataLoader 的状态
+    final bestScore = dataLoader.bestScore;
+    // 取bestscore中key最大的值
+    final maxKey = bestScore.keys.reduce((a, b) => a > b ? a : b);
+    final bestScoreDisplay = (bestScore[maxKey] ?? BestScore()).getBestData();
 
     final rideData = dataLoader.summaryList
         .map((e) => {
@@ -386,6 +391,26 @@ class _HomePageState extends State<HomePage> {
                           },
                         ),
                       ),
+              ),
+              const Text(
+                '最佳成绩',
+                style: TextStyle(fontSize: 20),
+              ),
+              ListView(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                children: bestScoreDisplay.entries.map((entry) {
+                  final key = entry.key;
+                  final value = entry.value;
+                  return ListTile(
+                    title: Text(key),
+                    subtitle: Text(
+                      value is double
+                          ? value.toStringAsFixed(2)
+                          : value?.toString() ?? '未知',
+                    ),
+                  );
+                }).toList(),
               ),
             ],
           ),

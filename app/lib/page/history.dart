@@ -6,6 +6,7 @@ import 'package:app/utils/fit_parser.dart';
 import 'package:app/utils/path_utils.dart'
     show SegmentMatcher, initCenter, initZoom, latlngToDistance;
 import 'package:app/utils/storage.dart';
+import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:fl_chart/fl_chart.dart'; // 用于图表
 import 'package:flutter/material.dart';
@@ -248,25 +249,43 @@ class RideHistoryCard extends StatelessWidget {
   }
 }
 
-class RideDetailPage extends StatelessWidget {
+class RideDetailPage extends StatefulWidget {
   final Map<String, dynamic> rideData;
-  const RideDetailPage({super.key, required this.rideData});
+  RideDetailPage({super.key, required this.rideData});
+
+  @override
+  State<RideDetailPage> createState() => _RideDetailPageState();
+}
+
+class _RideDetailPageState extends State<RideDetailPage> {
+  late final List<LatLng> routePoints;
+  late final Map<String, dynamic> summary;
+  late final Map<String, dynamic> rideData;
+  late int highlightRouteIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    routePoints = parseFitDataToRoute(widget.rideData);
+    summary = parseFitDataToSummary(widget.rideData);
+    rideData = widget.rideData;
+    highlightRouteIndex = -1;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final routePoints = parseFitDataToRoute(rideData);
-    final summary = parseFitDataToSummary(rideData);
     final dataLoader = context.watch<DataLoader>(); // 监听 DataLoader 的状态
     List<List<LatLng>> routes = dataLoader.routes;
 
     final matcher = SegmentMatcher();
     final subRoutes = matcher.findSegments(routePoints, routes);
-    final analysisOfSubRoutes = subRoutes.map((segment) {
+    final analysisOfSubRoutes = subRoutes.mapIndexed((idx, segment) {
       final startIndex = segment.startIndex;
       final endIndex = segment.endIndex;
       final startTime = rideData['records'][startIndex].get('timestamp');
       final endTime = rideData['records'][endIndex].get('timestamp');
       return {
+        'index': idx,
         'segment': segment,
         'start_time': startTime,
         'end_time': endTime,
@@ -350,8 +369,16 @@ class RideDetailPage extends StatelessWidget {
                 initialZoom: initZoom(routePoints),
               ),
               children: [
-                TileLayer(
-                  urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      highlightRouteIndex = -1;
+                    });
+                  },
+                  child: TileLayer(
+                    urlTemplate:
+                        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                  ),
                 ),
                 PolylineLayer(
                   polylines: [
@@ -360,6 +387,42 @@ class RideDetailPage extends StatelessWidget {
                       strokeWidth: 4.0,
                       color: Colors.blue,
                     ),
+                    ...analysisOfSubRoutes.map(
+                      (segment) => Polyline(
+                        points: segment['route'],
+                        strokeWidth: 4.0,
+                        color: (highlightRouteIndex == segment['index']!)
+                            ? Colors.orange
+                            : Colors.transparent,
+                      ),
+                    ),
+                  ],
+                ),
+                MarkerLayer(
+                  markers: [
+                    ...analysisOfSubRoutes.map((segment) {
+                      final index = segment['index'];
+                      return Marker(
+                        point: LatLng(
+                          segment['route'][0].latitude,
+                          segment['route'][0].longitude,
+                        ),
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              highlightRouteIndex = index;
+                            });
+                          },
+                          child: Icon(
+                            Icons.emoji_events,
+                            color: (highlightRouteIndex == index)
+                                ? Colors.transparent
+                                : Colors.amber,
+                            size: 30,
+                          ),
+                        ),
+                      );
+                    }),
                   ],
                 ),
               ],
@@ -536,7 +599,7 @@ class RideDetailPage extends StatelessWidget {
                             // final endTime = analysis['end_time'] ?? 0;
                             final duration = analysis['duration'] ?? 0;
                             final avgSpeed = analysis['avg_speed'] ?? 0;
-                            final route = analysis['route'] ?? [];
+                            // final route = analysis['route'] ?? [];
                             return ListTile(
                               title: Text(
                                 '路段 ${subRoutes.indexOf(segment) + 1}',
@@ -549,42 +612,47 @@ class RideDetailPage extends StatelessWidget {
                                 style: const TextStyle(fontSize: 14),
                               ),
                               onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => Scaffold(
-                                      body: FlutterMap(
-                                        options: MapOptions(
-                                          initialCenter: initCenter(
-                                            routePoints,
-                                          ),
-                                          initialZoom: initZoom(
-                                            routePoints,
-                                          ),
-                                        ),
-                                        children: [
-                                          TileLayer(
-                                            urlTemplate:
-                                                "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                                          ),
-                                          PolylineLayer(
-                                            polylines: [
-                                              Polyline(
-                                                points: routePoints,
-                                                strokeWidth: 4.0,
-                                                color: Colors.blue,
-                                              ),
-                                              Polyline(
-                                                points: route,
-                                                strokeWidth: 4.0,
-                                                color: Colors.orange,
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
+                                setState(() {
+                                  highlightRouteIndex =
+                                      subRoutes.indexOf(segment);
+                                });
+                                // TODO: 赛段详情页面
+                                // Navigator.of(context).push(
+                                //   MaterialPageRoute(
+                                //     builder: (context) => Scaffold(
+                                //       body: FlutterMap(
+                                //         options: MapOptions(
+                                //           initialCenter: initCenter(
+                                //             routePoints,
+                                //           ),
+                                //           initialZoom: initZoom(
+                                //             routePoints,
+                                //           ),
+                                //         ),
+                                //         children: [
+                                //           TileLayer(
+                                //             urlTemplate:
+                                //                 "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                                //           ),
+                                //           PolylineLayer(
+                                //             polylines: [
+                                //               Polyline(
+                                //                 points: routePoints,
+                                //                 strokeWidth: 4.0,
+                                //                 color: Colors.blue,
+                                //               ),
+                                //               Polyline(
+                                //                 points: route,
+                                //                 strokeWidth: 4.0,
+                                //                 color: Colors.orange,
+                                //               ),
+                                //             ],
+                                //           ),
+                                //         ],
+                                //       ),
+                                //     ),
+                                //   ),
+                                // );
                               },
                             );
                           }).toList(),
@@ -777,39 +845,6 @@ class RideDetailPage extends StatelessWidget {
             },
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Toggle full-screen map
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => Scaffold(
-                body: FlutterMap(
-                  options: MapOptions(
-                    initialCenter: initCenter(routePoints),
-                    initialZoom: initZoom(routePoints),
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate:
-                          "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                    ),
-                    PolylineLayer(
-                      polylines: [
-                        Polyline(
-                          points: routePoints,
-                          strokeWidth: 4.0,
-                          color: Colors.blue,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-        child: const Icon(Icons.fullscreen),
       ),
     );
   }
