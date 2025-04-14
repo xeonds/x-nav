@@ -112,28 +112,23 @@ class RidePathPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color = Colors.deepOrange
-          ..strokeWidth = 2.0
-          ..style = PaintingStyle.stroke;
+    final paint = Paint()
+      ..color = Colors.deepOrange
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke;
 
     if (points.isNotEmpty) {
       final path = Path();
 
       // 获取经纬度的最小值和最大值
-      final minLat = points
-          .map((p) => p.latitude)
-          .reduce((a, b) => a < b ? a : b);
-      final maxLat = points
-          .map((p) => p.latitude)
-          .reduce((a, b) => a > b ? a : b);
-      final minLng = points
-          .map((p) => p.longitude)
-          .reduce((a, b) => a < b ? a : b);
-      final maxLng = points
-          .map((p) => p.longitude)
-          .reduce((a, b) => a > b ? a : b);
+      final minLat =
+          points.map((p) => p.latitude).reduce((a, b) => a < b ? a : b);
+      final maxLat =
+          points.map((p) => p.latitude).reduce((a, b) => a > b ? a : b);
+      final minLng =
+          points.map((p) => p.longitude).reduce((a, b) => a < b ? a : b);
+      final maxLng =
+          points.map((p) => p.longitude).reduce((a, b) => a > b ? a : b);
 
       // 计算缩放比例
       final scaleX = size.width / (maxLng - minLng);
@@ -184,31 +179,31 @@ class RideHistoryListState extends State<RideHistoryList> {
 
   @override
   Widget build(BuildContext context) {
-    final sortedHistory = List.from(widget.history)..sort(
-      (a, b) => (parseFitDataToSummary(b)['start_time'] ?? 0).compareTo(
-        parseFitDataToSummary(a)['start_time'] ?? 0,
-      ),
-    );
+    final sortedHistory = List.from(widget.history)
+      ..sort(
+        (a, b) => (parseFitDataToSummary(b)['start_time'] ?? 0).compareTo(
+          parseFitDataToSummary(a)['start_time'] ?? 0,
+        ),
+      );
 
     return sortedHistory.isEmpty
         ? const Center(child: Text('没有骑行记录'))
         : ListView.builder(
-          itemCount: sortedHistory.length,
-          itemBuilder: (context, index) {
-            return RideHistoryCard(
-              rideData: sortedHistory[index],
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder:
-                        (context) =>
-                            RideDetailPage(rideData: sortedHistory[index]),
-                  ),
-                );
-              },
-            );
-          },
-        );
+            itemCount: sortedHistory.length,
+            itemBuilder: (context, index) {
+              return RideHistoryCard(
+                rideData: sortedHistory[index],
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          RideDetailPage(rideData: sortedHistory[index]),
+                    ),
+                  );
+                },
+              );
+            },
+          );
   }
 }
 
@@ -266,16 +261,39 @@ class RideDetailPage extends StatelessWidget {
 
     final matcher = SegmentMatcher();
     final subRoutes = matcher.findSegments(routePoints, routes);
-
-    final bestScore = BestScore().update(rideData['records']).getBestData();
+    final analysisOfSubRoutes = subRoutes.map((segment) {
+      final startIndex = segment.startIndex;
+      final endIndex = segment.endIndex;
+      final startTime = rideData['records'][startIndex].get('timestamp');
+      final endTime = rideData['records'][endIndex].get('timestamp');
+      return {
+        'segment': segment,
+        'start_time': startTime,
+        'end_time': endTime,
+        'duration': (endTime - startTime) / 1000.0, // 转换为秒
+        'avg_speed':
+            (latlngToDistance(routePoints.sublist(startIndex, endIndex)) /
+                    1000.0) /
+                ((endTime - startTime) / 1000.0),
+        'distance': latlngToDistance(
+          routePoints.sublist(startIndex, endIndex),
+        ),
+        'route': routePoints.sublist(startIndex, endIndex),
+      };
+    });
+    final bestScore = BestScore().update(rideData['records']);
+    final bestScoreDisplay = bestScore.getBestData();
+    final bestScoreTillNow =
+        dataLoader.bestScore[rideData['sessions'][0].get('timestamp')]!;
+    // 计算最佳成绩
+    final newBest = bestScoreTillNow.getBetterDataDiff(bestScore);
 
     List<double> speeds =
         parseFitDataToMetric(rideData, "speed").map((e) => e * 3.6).toList();
-    List<double> distances =
-        parseFitDataToMetric(
-          rideData,
-          "distance",
-        ).map((e) => e / 1000.0).toList();
+    List<double> distances = parseFitDataToMetric(
+      rideData,
+      "distance",
+    ).map((e) => e / 1000.0).toList();
     List<double> altitudes = parseFitDataToMetric(rideData, "altitude");
     final minLength = [
       speeds.length,
@@ -294,21 +312,20 @@ class RideDetailPage extends StatelessWidget {
             onPressed: () async {
               final confirm = await showDialog<bool>(
                 context: context,
-                builder:
-                    (context) => AlertDialog(
-                      title: const Text('确认删除'),
-                      content: const Text('确定要删除这条骑行记录吗？'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(false),
-                          child: const Text('取消'),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(true),
-                          child: const Text('删除'),
-                        ),
-                      ],
+                builder: (context) => AlertDialog(
+                  title: const Text('确认删除'),
+                  content: const Text('确定要删除这条骑行记录吗？'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text('取消'),
                     ),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: const Text('删除'),
+                    ),
+                  ],
+                ),
               );
               if (confirm == true) {
                 await File(rideData['path']).delete();
@@ -379,10 +396,9 @@ class RideDetailPage extends StatelessWidget {
                             height: 5,
                             margin: const EdgeInsets.only(bottom: 10),
                             decoration: BoxDecoration(
-                              color:
-                                  isDarkMode
-                                      ? Colors.grey[700]
-                                      : Colors.grey[300],
+                              color: isDarkMode
+                                  ? Colors.grey[700]
+                                  : Colors.grey[300],
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
@@ -400,9 +416,9 @@ class RideDetailPage extends StatelessWidget {
                           () {
                             final dateTime =
                                 DateTime.fromMillisecondsSinceEpoch(
-                                  (summary['start_time'] * 1000 + 631065600000)
-                                      .toInt(),
-                                ).toLocal();
+                              (summary['start_time'] * 1000 + 631065600000)
+                                  .toInt(),
+                            ).toLocal();
                             final now = DateTime.now();
                             final difference = now.difference(dateTime).inDays;
                             if (difference == 0) {
@@ -499,98 +515,106 @@ class RideDetailPage extends StatelessWidget {
                           children: [
                             Statistic(
                               subtitle: "最佳成绩",
-                              data: bestScore.length.toString(),
+                              data: bestScoreDisplay.length.toString(),
                             ),
                             Statistic(
                               subtitle: "路段",
                               data: subRoutes.length.toString(),
                             ),
-                            Statistic(subtitle: "成就", data: "5"),
+                            Statistic(
+                                subtitle: "成就",
+                                data: newBest.length.toString()),
                           ],
                         ),
                         const Text('路段'),
                         ListView(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          children:
-                              subRoutes
-                                  .map(
-                                    (route) => ListTile(
-                                      title: Text(
-                                        '路段 ${subRoutes.indexOf(route) + 1}',
-                                        style: const TextStyle(fontSize: 16),
-                                      ),
-                                      subtitle: Text(
-                                        '里程 ${(latlngToDistance(routePoints.sublist(route.startIndex, route.endIndex)) / 1000.0).toStringAsFixed(2)} km',
-                                        style: const TextStyle(fontSize: 14),
-                                      ),
-                                      onTap: () {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder:
-                                                (context) => Scaffold(
-                                                  body: FlutterMap(
-                                                    options: MapOptions(
-                                                      initialCenter: initCenter(
-                                                        routePoints,
-                                                      ),
-                                                      initialZoom: initZoom(
-                                                        routePoints,
-                                                      ),
-                                                    ),
-                                                    children: [
-                                                      TileLayer(
-                                                        urlTemplate:
-                                                            "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                                                      ),
-                                                      PolylineLayer(
-                                                        polylines: [
-                                                          Polyline(
-                                                            points: routePoints,
-                                                            strokeWidth: 4.0,
-                                                            color: Colors.blue,
-                                                          ),
-                                                          Polyline(
-                                                            points: routePoints
-                                                                .sublist(
-                                                                  route
-                                                                      .startIndex,
-                                                                  route
-                                                                      .endIndex,
-                                                                ),
-                                                            strokeWidth: 4.0,
-                                                            color:
-                                                                Colors.orange,
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
+                          children: analysisOfSubRoutes.map((analysis) {
+                            final segment = analysis['segment'];
+                            // final startTime = analysis['start_time'] ?? 0;
+                            // final endTime = analysis['end_time'] ?? 0;
+                            final duration = analysis['duration'] ?? 0;
+                            final avgSpeed = analysis['avg_speed'] ?? 0;
+                            final route = analysis['route'] ?? [];
+                            return ListTile(
+                              title: Text(
+                                '路段 ${subRoutes.indexOf(segment) + 1}',
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                              subtitle: Text(
+                                '里程 ${(latlngToDistance(routePoints.sublist(segment.startIndex, segment.endIndex)) / 1000.0).toStringAsFixed(2)} km'
+                                ' 耗时 ${(duration / 60).toStringAsFixed(2)} 分钟'
+                                ' 均速 ${(avgSpeed * 3.6).toStringAsFixed(2)} km/h',
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => Scaffold(
+                                      body: FlutterMap(
+                                        options: MapOptions(
+                                          initialCenter: initCenter(
+                                            routePoints,
                                           ),
-                                        );
-                                      },
+                                          initialZoom: initZoom(
+                                            routePoints,
+                                          ),
+                                        ),
+                                        children: [
+                                          TileLayer(
+                                            urlTemplate:
+                                                "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                                          ),
+                                          PolylineLayer(
+                                            polylines: [
+                                              Polyline(
+                                                points: routePoints,
+                                                strokeWidth: 4.0,
+                                                color: Colors.blue,
+                                              ),
+                                              Polyline(
+                                                points: route,
+                                                strokeWidth: 4.0,
+                                                color: Colors.orange,
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  )
-                                  .toList(),
+                                  ),
+                                );
+                              },
+                            );
+                          }).toList(),
                         ),
                         const Text('最佳成绩'),
                         ListView(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          children:
-                              bestScore.entries.map((entry) {
-                                final key = entry.key;
-                                final value = entry.value;
-                                return ListTile(
-                                  title: Text(key),
-                                  subtitle: Text(
-                                    value is double
-                                        ? value.toStringAsFixed(2)
-                                        : value?.toString() ?? '未知',
-                                  ),
-                                );
-                              }).toList(),
+                          children: bestScoreDisplay.entries.map((entry) {
+                            final key = entry.key;
+                            final value = entry.value;
+                            return ListTile(
+                              title: Row(
+                                children: [
+                                  Text(key),
+                                  if (newBest.containsKey(key))
+                                    const Icon(
+                                      Icons.emoji_events,
+                                      color: Colors.amber,
+                                      size: 18,
+                                    ),
+                                ],
+                              ),
+                              subtitle: Text(
+                                value is double
+                                    ? value.toStringAsFixed(2)
+                                    : value?.toString() ?? '未知',
+                              ),
+                            );
+                          }).toList(),
                         ),
                         const SizedBox(height: 20),
                         const Text(
@@ -632,9 +656,8 @@ class RideDetailPage extends StatelessWidget {
                                   sideTitles: SideTitles(
                                     showTitles: true,
                                     reservedSize: 60,
-                                    getTitlesWidget:
-                                        (value, meta) =>
-                                            Text('${value.toInt()} km/h'),
+                                    getTitlesWidget: (value, meta) =>
+                                        Text('${value.toInt()} km/h'),
                                     interval: 10,
                                   ),
                                 ),
@@ -644,10 +667,9 @@ class RideDetailPage extends StatelessWidget {
                                     reservedSize: 20,
                                     interval:
                                         summary['total_distance'] / 5 / 1000,
-                                    getTitlesWidget:
-                                        (value, meta) => Text(
-                                          '${value.toStringAsFixed(1)} km',
-                                        ),
+                                    getTitlesWidget: (value, meta) => Text(
+                                      '${value.toStringAsFixed(1)} km',
+                                    ),
                                   ),
                                 ),
                               ),
@@ -658,16 +680,14 @@ class RideDetailPage extends StatelessWidget {
                                 drawHorizontalLine: true,
                                 horizontalInterval: 10,
                                 verticalInterval: 1,
-                                getDrawingHorizontalLine:
-                                    (value) => FlLine(
-                                      color: Colors.grey.withOpacity(0.5),
-                                      strokeWidth: 0.5,
-                                    ),
-                                getDrawingVerticalLine:
-                                    (value) => FlLine(
-                                      color: Colors.grey.withOpacity(0.5),
-                                      strokeWidth: 0.5,
-                                    ),
+                                getDrawingHorizontalLine: (value) => FlLine(
+                                  color: Colors.grey.withOpacity(0.5),
+                                  strokeWidth: 0.5,
+                                ),
+                                getDrawingVerticalLine: (value) => FlLine(
+                                  color: Colors.grey.withOpacity(0.5),
+                                  strokeWidth: 0.5,
+                                ),
                               ),
                             ),
                           ),
@@ -713,9 +733,8 @@ class RideDetailPage extends StatelessWidget {
                                   sideTitles: SideTitles(
                                     showTitles: true,
                                     reservedSize: 60,
-                                    getTitlesWidget:
-                                        (value, meta) =>
-                                            Text('${value.toInt()} m'),
+                                    getTitlesWidget: (value, meta) =>
+                                        Text('${value.toInt()} m'),
                                     interval: 50,
                                   ),
                                 ),
@@ -725,10 +744,9 @@ class RideDetailPage extends StatelessWidget {
                                     reservedSize: 20,
                                     interval:
                                         summary['total_distance'] / 5 / 1000,
-                                    getTitlesWidget:
-                                        (value, meta) => Text(
-                                          '${value.toStringAsFixed(1)} km',
-                                        ),
+                                    getTitlesWidget: (value, meta) => Text(
+                                      '${value.toStringAsFixed(1)} km',
+                                    ),
                                   ),
                                 ),
                               ),
@@ -739,16 +757,14 @@ class RideDetailPage extends StatelessWidget {
                                 drawHorizontalLine: true,
                                 horizontalInterval: 50,
                                 verticalInterval: 10,
-                                getDrawingHorizontalLine:
-                                    (value) => FlLine(
-                                      color: Colors.grey.withOpacity(0.5),
-                                      strokeWidth: 0.5,
-                                    ),
-                                getDrawingVerticalLine:
-                                    (value) => FlLine(
-                                      color: Colors.grey.withOpacity(0.5),
-                                      strokeWidth: 0.5,
-                                    ),
+                                getDrawingHorizontalLine: (value) => FlLine(
+                                  color: Colors.grey.withOpacity(0.5),
+                                  strokeWidth: 0.5,
+                                ),
+                                getDrawingVerticalLine: (value) => FlLine(
+                                  color: Colors.grey.withOpacity(0.5),
+                                  strokeWidth: 0.5,
+                                ),
                               ),
                             ),
                           ),
@@ -767,30 +783,29 @@ class RideDetailPage extends StatelessWidget {
           // Toggle full-screen map
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder:
-                  (context) => Scaffold(
-                    body: FlutterMap(
-                      options: MapOptions(
-                        initialCenter: initCenter(routePoints),
-                        initialZoom: initZoom(routePoints),
-                      ),
-                      children: [
-                        TileLayer(
-                          urlTemplate:
-                              "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                        ),
-                        PolylineLayer(
-                          polylines: [
-                            Polyline(
-                              points: routePoints,
-                              strokeWidth: 4.0,
-                              color: Colors.blue,
-                            ),
-                          ],
+              builder: (context) => Scaffold(
+                body: FlutterMap(
+                  options: MapOptions(
+                    initialCenter: initCenter(routePoints),
+                    initialZoom: initZoom(routePoints),
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate:
+                          "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                    ),
+                    PolylineLayer(
+                      polylines: [
+                        Polyline(
+                          points: routePoints,
+                          strokeWidth: 4.0,
+                          color: Colors.blue,
                         ),
                       ],
                     ),
-                  ),
+                  ],
+                ),
+              ),
             ),
           );
         },

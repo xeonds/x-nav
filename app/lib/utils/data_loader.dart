@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/fit_parser.dart';
 import 'package:app/utils/gpx_parser.dart';
 import 'package:app/utils/storage.dart';
@@ -19,6 +20,7 @@ class DataLoader extends ChangeNotifier {
   final List<List<LatLng>> _histories = [];
   final Map<String, dynamic> _rideData = {};
   final List<Map<String, dynamic>> _summary = [];
+  final Map<int, BestScore> _bestScore = {}; // 修改为 Map<int, BestScore>
   bool isInitialized = false;
 
   List<List<LatLng>> get routes => _routes;
@@ -27,6 +29,7 @@ class DataLoader extends ChangeNotifier {
   List<Map<String, dynamic>> get summaryList => _summary;
   List<Map<String, dynamic>> get fitData => _fitData;
   List<File> get gpxData => _gpxFile;
+  Map<int, BestScore> get bestScore => _bestScore; // 修改 getter
 
   Future<void> initialize() async {
     if (isInitialized) return;
@@ -40,6 +43,10 @@ class DataLoader extends ChangeNotifier {
     await Future.wait([
       loadRideData(),
       loadSummaryData(),
+    ]);
+
+    await Future.wait([
+      loadBestScore(),
     ]);
 
     notifyListeners(); // 通知监听者数据已加载完成
@@ -109,5 +116,22 @@ class DataLoader extends ChangeNotifier {
     });
 
     notifyListeners(); // 通知监听者数据已更新
+  }
+
+  Future<void> loadBestScore() async {
+    _bestScore.clear(); // 清空现有最佳成绩映射
+    final currBestScore = BestScore();
+    final orderedFitData = List<Map<String, dynamic>>.from(_fitData)
+      ..sort((a, b) => (a['sessions'][0].get('timestamp') -
+              b['sessions'][0].get('timestamp'))
+          .toInt());
+    // 计算每个时间戳节点的 bestScore
+    for (var fitData in orderedFitData) {
+      final timestamp = fitData['sessions'][0].get('timestamp');
+      final bestScore = BestScore().update(fitData['records']);
+      _bestScore[timestamp.toInt()] = BestScore()
+        ..merge(currBestScore); // 使用 timestamp 作为键，存储截至上次的最佳成绩
+      currBestScore.merge(bestScore);
+    }
   }
 }

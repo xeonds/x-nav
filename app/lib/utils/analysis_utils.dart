@@ -129,15 +129,33 @@ class BestScore {
 
   // 将当期数据和其他数据进行比较，返回其他数据比当前数据更好的部分
   Map<String, dynamic> getBetterDataDiff(BestScore other) {
-    final currentBestData = getBestData();
-    final otherBestData = other.getBestData();
     final betterData = <String, dynamic>{};
-    for (var entry in currentBestData.entries) {
-      if (otherBestData[entry.key] != null &&
-          otherBestData[entry.key] > entry.value) {
-        betterData[entry.key] = otherBestData[entry.key];
-      }
+
+    // 比较最大速度
+    if (other.maxSpeed > maxSpeed) {
+      betterData['最大速度'] = '${(other.maxSpeed * 3.6).toStringAsFixed(2)} km/h';
     }
+
+    // 比较最大海拔
+    if (other.maxAltitude > maxAltitude) {
+      betterData['最大海拔'] = '${other.maxAltitude.toStringAsFixed(2)} m';
+    }
+
+    // 比较最大爬坡
+    if (other.maxClimb > maxClimb) {
+      betterData['最大爬坡'] = '${other.maxClimb.toStringAsFixed(2)} %';
+    }
+
+    // 比较各个里程的最佳速度
+    other.bestSpeedByDistance.forEach((distance, otherSpeed) {
+      if (!bestSpeedByDistance.containsKey(distance) ||
+          otherSpeed > bestSpeedByDistance[distance]!) {
+        betterData['${(distance / 1000).toInt()} km'] =
+            '${(otherSpeed * 3.6).toStringAsFixed(2)} km/h'
+            ' ${secondToFormatTime(distance / otherSpeed)}';
+      }
+    });
+
     return betterData;
   }
 
@@ -163,6 +181,9 @@ class BestScore {
 }
 
 String secondToFormatTime(double seconds) {
+  if (seconds.isInfinite || seconds.isNaN) {
+    return '00:00';
+  }
   int hours = seconds ~/ 3600;
   int minutes = (seconds % 3600) ~/ 60;
   int secs = seconds.toInt() % 60;
