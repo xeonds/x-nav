@@ -4,7 +4,13 @@ import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit_parser.dart';
 import 'package:app/utils/path_utils.dart'
-    show SegmentMatcher, initCenter, initZoom, latlngToDistance;
+    show
+        RideScore,
+        SegmentMatcher,
+        initCenter,
+        initZoom,
+        latlngToDistance,
+        parseSegmentToScore;
 import 'package:app/utils/storage.dart';
 import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
@@ -258,16 +264,12 @@ class RideDetailPage extends StatefulWidget {
 }
 
 class _RideDetailPageState extends State<RideDetailPage> {
-  late final List<LatLng> routePoints;
-  late final Map<String, dynamic> summary;
   late final Map<String, dynamic> rideData;
   late int highlightRouteIndex;
 
   @override
   void initState() {
     super.initState();
-    routePoints = parseFitDataToRoute(widget.rideData);
-    summary = parseFitDataToSummary(widget.rideData);
     rideData = widget.rideData;
     highlightRouteIndex = -1;
   }
@@ -277,51 +279,23 @@ class _RideDetailPageState extends State<RideDetailPage> {
     final dataLoader = context.watch<DataLoader>(); // 监听 DataLoader 的状态
     List<List<LatLng>> routes = dataLoader.routes;
 
-    final matcher = SegmentMatcher();
-    final subRoutes = matcher.findSegments(routePoints, routes);
-    final analysisOfSubRoutes = subRoutes.mapIndexed((idx, segment) {
-      final startIndex = segment.startIndex;
-      final endIndex = segment.endIndex;
-      final startTime = rideData['records'][startIndex].get('timestamp');
-      final endTime = rideData['records'][endIndex].get('timestamp');
-      return {
-        'index': idx,
-        'segment': segment,
-        'start_time': startTime,
-        'end_time': endTime,
-        'duration': (endTime - startTime), // 转换为秒
-        'avg_speed':
-            (latlngToDistance(routePoints.sublist(startIndex, endIndex)) /
-                    1000.0) /
-                ((endTime - startTime) / 1000.0),
-        'distance': latlngToDistance(
-          routePoints.sublist(startIndex, endIndex),
-        ),
-        'route': routePoints.sublist(startIndex, endIndex),
-      };
-    });
-    final bestScore = BestScore().update(rideData['records']);
-    final bestScoreDisplay = bestScore.getBestData();
+    final rideScore = RideScore(
+      rideData: rideData,
+      routes: routes,
+    );
+    final bestScoreDisplay = rideScore.bestScore.getBestData();
     final bestScoreTillNow =
         dataLoader.bestScore[rideData['sessions'][0].get('timestamp')]!;
     // 计算最佳成绩
-    final newBest = bestScoreTillNow.getBetterDataDiff(bestScore);
+    final newBest = bestScoreTillNow.getBetterDataDiff(rideScore.bestScore);
+    final analysisOfSubRoutes = rideScore.segments
+        .map((segment) => parseSegmentToScore(
+              segment,
+              rideData,
+              rideScore.routePoints,
+            ))
+        .toList();
 
-    List<double> speeds =
-        parseFitDataToMetric(rideData, "speed").map((e) => e * 3.6).toList();
-    List<double> distances = parseFitDataToMetric(
-      rideData,
-      "distance",
-    ).map((e) => e / 1000.0).toList();
-    List<double> altitudes = parseFitDataToMetric(rideData, "altitude");
-    final minLength = [
-      speeds.length,
-      distances.length,
-      altitudes.length,
-    ].reduce((a, b) => a < b ? a : b);
-    speeds = speeds.sublist(0, minLength);
-    distances = distances.sublist(0, minLength);
-    altitudes = altitudes.sublist(0, minLength);
     return Scaffold(
       appBar: AppBar(
         title: const Text('骑行详情'),
@@ -365,8 +339,8 @@ class _RideDetailPageState extends State<RideDetailPage> {
           Positioned.fill(
             child: FlutterMap(
               options: MapOptions(
-                initialCenter: initCenter(routePoints),
-                initialZoom: initZoom(routePoints),
+                initialCenter: initCenter(rideScore.routePoints),
+                initialZoom: initZoom(rideScore.routePoints),
               ),
               children: [
                 GestureDetector(
@@ -383,15 +357,16 @@ class _RideDetailPageState extends State<RideDetailPage> {
                 PolylineLayer(
                   polylines: [
                     Polyline(
-                      points: routePoints,
+                      points: rideScore.routePoints,
                       strokeWidth: 4.0,
                       color: Colors.blue,
                     ),
                     ...analysisOfSubRoutes.map(
                       (segment) => Polyline(
-                        points: segment['route'],
+                        points: segment.route,
                         strokeWidth: 4.0,
-                        color: (highlightRouteIndex == segment['index']!)
+                        color: (highlightRouteIndex ==
+                                segment.segment.startIndex) //fix
                             ? Colors.orange
                             : Colors.transparent,
                       ),
@@ -401,11 +376,11 @@ class _RideDetailPageState extends State<RideDetailPage> {
                 MarkerLayer(
                   markers: [
                     ...analysisOfSubRoutes.map((segment) {
-                      final index = segment['index'];
+                      final index = segment.segment.startIndex;
                       return Marker(
                         point: LatLng(
-                          segment['route'][0].latitude,
-                          segment['route'][0].longitude,
+                          segment.route[0].latitude,
+                          segment.route[0].longitude,
                         ),
                         child: GestureDetector(
                           onTap: () {
@@ -467,7 +442,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
                           ),
                         ),
                         Text(
-                          '骑行标题: ${summary['title'] ?? '未知'}',
+                          '骑行标题: ${rideScore.summary['title'] ?? '未知'}',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -479,7 +454,8 @@ class _RideDetailPageState extends State<RideDetailPage> {
                           () {
                             final dateTime =
                                 DateTime.fromMillisecondsSinceEpoch(
-                              (summary['start_time'] * 1000 + 631065600000)
+                              (rideScore.summary['start_time'] * 1000 +
+                                      631065600000)
                                   .toInt(),
                             ).toLocal();
                             final now = DateTime.now();
@@ -505,60 +481,63 @@ class _RideDetailPageState extends State<RideDetailPage> {
                           children: [
                             Statistic(
                               data:
-                                  '${(summary['total_distance'] / 1000.0).toStringAsFixed(2)}',
+                                  '${(rideScore.summary['total_distance'] / 1000.0).toStringAsFixed(2)}',
                               label: 'km',
                               subtitle: '总里程',
                             ),
                             Statistic(
                               data:
-                                  '${(summary['total_elapsed_time'] / 60).toStringAsFixed(2)}',
+                                  '${(rideScore.summary['total_elapsed_time'] / 60).toStringAsFixed(2)}',
                               label: '分钟',
                               subtitle: '总耗时',
                             ),
                             Statistic(
                               data:
-                                  '${(summary['avg_speed'] * 3.6).toStringAsFixed(2)}',
+                                  '${(rideScore.summary['avg_speed'] * 3.6).toStringAsFixed(2)}',
                               label: 'km/h',
                               subtitle: '均速',
                             ),
                             Statistic(
                               data:
-                                  '${(summary['max_speed'] * 3.6).toStringAsFixed(2)}',
+                                  '${(rideScore.summary['max_speed'] * 3.6).toStringAsFixed(2)}',
                               label: 'km/h',
                               subtitle: '最大速度',
                             ),
                             Statistic(
-                              data: '${summary['total_ascent']}',
+                              data: '${rideScore.summary['total_ascent']}',
                               label: 'm',
                               subtitle: '总爬升',
                             ),
                             Statistic(
-                              data: '${summary['total_descent']}',
+                              data: '${rideScore.summary['total_descent']}',
                               label: 'm',
                               subtitle: '总下降',
                             ),
                             Statistic(
-                              data: '${summary['avg_heart_rate'] ?? '未知'}',
+                              data:
+                                  '${rideScore.summary['avg_heart_rate'] ?? '未知'}',
                               label: 'bpm',
                               subtitle: '平均心率',
                             ),
                             Statistic(
-                              data: '${summary['max_heart_rate'] ?? '未知'}',
+                              data:
+                                  '${rideScore.summary['max_heart_rate'] ?? '未知'}',
                               label: 'bpm',
                               subtitle: '最大心率',
                             ),
                             Statistic(
-                              data: '${summary['avg_power'] ?? '未知'}',
+                              data: '${rideScore.summary['avg_power'] ?? '未知'}',
                               label: 'W',
                               subtitle: '平均功率',
                             ),
                             Statistic(
-                              data: '${summary['max_power'] ?? '未知'}',
+                              data: '${rideScore.summary['max_power'] ?? '未知'}',
                               label: 'W',
                               subtitle: '最大功率',
                             ),
                             Statistic(
-                              data: '${summary['total_calories'] ?? '未知'}',
+                              data:
+                                  '${rideScore.summary['total_calories'] ?? '未知'}',
                               label: 'kcal',
                               subtitle: '总卡路里',
                             ),
@@ -582,7 +561,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
                             ),
                             Statistic(
                               subtitle: "路段",
-                              data: subRoutes.length.toString(),
+                              data: rideScore.segments.length.toString(),
                             ),
                             Statistic(
                                 subtitle: "成就",
@@ -593,28 +572,36 @@ class _RideDetailPageState extends State<RideDetailPage> {
                         ListView(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          children: analysisOfSubRoutes.map((analysis) {
-                            final segment = analysis['segment'];
-                            // final startTime = analysis['start_time'] ?? 0;
-                            // final endTime = analysis['end_time'] ?? 0;
-                            final duration = analysis['duration'] ?? 0;
-                            final avgSpeed = analysis['avg_speed'] ?? 0;
-                            // final route = analysis['route'] ?? [];
+                          children: analysisOfSubRoutes.map((segment) {
                             return ListTile(
-                              title: Text(
-                                '路段 ${subRoutes.indexOf(segment) + 1}',
-                                style: const TextStyle(fontSize: 16),
+                              title: Row(
+                                children: [
+                                  Text(
+                                    '路段 ${rideScore.segments.indexOf(segment.segment) + 1}',
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                  if (dataLoader.bestSegment[
+                                              segment.segment.segmentIndex]
+                                          ?.getPosition(
+                                              segment.startTime.toInt()) ==
+                                      0)
+                                    const Icon(
+                                      Icons.emoji_events,
+                                      color: Colors.amber,
+                                      size: 18,
+                                    ),
+                                ],
                               ),
                               subtitle: Text(
-                                '里程 ${(latlngToDistance(routePoints.sublist(segment.startIndex, segment.endIndex)) / 1000.0).toStringAsFixed(2)} km'
-                                ' 耗时 ${secondToFormatTime(duration)}'
-                                ' 均速 ${(avgSpeed * 3.6).toStringAsFixed(2)} km/h',
+                                '里程 ${segment.distance.toStringAsFixed(2)} km'
+                                ' 耗时 ${secondToFormatTime(segment.duration)}'
+                                ' 均速 ${segment.avgSpeed.toStringAsFixed(2)} km/h',
                                 style: const TextStyle(fontSize: 14),
                               ),
                               onTap: () {
                                 setState(() {
-                                  highlightRouteIndex =
-                                      subRoutes.indexOf(segment);
+                                  highlightRouteIndex = rideScore.segments
+                                      .indexOf(segment.segment);
                                 });
                                 // TODO: 赛段详情页面
                                 // Navigator.of(context).push(
@@ -701,10 +688,13 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                   spots: () {
                                     const reductionFactor = 10;
                                     return List.generate(
-                                      (speeds.length / reductionFactor).ceil(),
+                                      (rideScore.speed.length / reductionFactor)
+                                          .ceil(),
                                       (index) => FlSpot(
-                                        distances[index * reductionFactor],
-                                        speeds[index * reductionFactor],
+                                        rideScore
+                                            .distance[index * reductionFactor],
+                                        rideScore
+                                            .speed[index * reductionFactor],
                                       ),
                                     );
                                   }(),
@@ -734,7 +724,9 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                     showTitles: true,
                                     reservedSize: 20,
                                     interval:
-                                        summary['total_distance'] / 5 / 1000,
+                                        rideScore.summary['total_distance'] /
+                                            5 /
+                                            1000,
                                     getTitlesWidget: (value, meta) => Text(
                                       '${value.toStringAsFixed(1)} km',
                                     ),
@@ -777,11 +769,14 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                   spots: () {
                                     const reductionFactor = 10;
                                     return List.generate(
-                                      (altitudes.length / reductionFactor)
+                                      (rideScore.altitude.length /
+                                              reductionFactor)
                                           .ceil(),
                                       (index) => FlSpot(
-                                        distances[index * reductionFactor],
-                                        altitudes[index * reductionFactor],
+                                        rideScore
+                                            .distance[index * reductionFactor],
+                                        rideScore
+                                            .altitude[index * reductionFactor],
                                       ),
                                     );
                                   }(),
@@ -811,7 +806,9 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                     showTitles: true,
                                     reservedSize: 20,
                                     interval:
-                                        summary['total_distance'] / 5 / 1000,
+                                        rideScore.summary['total_distance'] /
+                                            5 /
+                                            1000,
                                     getTitlesWidget: (value, meta) => Text(
                                       '${value.toStringAsFixed(1)} km',
                                     ),

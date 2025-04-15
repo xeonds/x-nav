@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/fit_parser.dart';
 import 'package:app/utils/gpx_parser.dart';
+import 'package:app/utils/path_utils.dart';
 import 'package:app/utils/storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
@@ -17,10 +18,12 @@ class DataLoader extends ChangeNotifier {
   final List<List<LatLng>> _routes = [];
   final List<Map<String, dynamic>> _fitData = [];
   final List<File> _gpxFile = [];
-  final List<List<LatLng>> _histories = [];
-  final Map<String, dynamic> _rideData = {};
-  final List<Map<String, dynamic>> _summary = [];
-  final Map<int, BestScore> _bestScore = {}; // 修改为 Map<int, BestScore>
+  final List<List<LatLng>> _histories = []; // 历史路径
+  final Map<String, dynamic> _rideData = {}; // 骑行历史统计信息
+  final List<Map<String, dynamic>> _summary = []; // 每个骑行记录对应的摘要
+  final Map<int, BestScore> _bestScore = {}; // 截至任意时间戳的骑行记录的最佳成绩
+  final Map<int, SortManager<SegmentScore, int>> _bestSegment =
+      {}; // 任意赛段，截至任意时间戳的最佳记录
   bool isInitialized = false;
 
   List<List<LatLng>> get routes => _routes;
@@ -29,24 +32,25 @@ class DataLoader extends ChangeNotifier {
   List<Map<String, dynamic>> get summaryList => _summary;
   List<Map<String, dynamic>> get fitData => _fitData;
   List<File> get gpxData => _gpxFile;
-  Map<int, BestScore> get bestScore => _bestScore; // 修改 getter
+  Map<int, BestScore> get bestScore => _bestScore;
+  Map<int, SortManager<SegmentScore, int>> get bestSegment => _bestSegment;
 
   Future<void> initialize() async {
     if (isInitialized) return;
     isInitialized = true;
 
     await Future.wait([
-      loadRouteData(),
-      loadHistoryData(),
+      loadRouteData(), // 加载路线库
+      loadHistoryData(), // 加载骑行历史数据库
     ]);
 
     await Future.wait([
-      loadRideData(),
-      loadSummaryData(),
+      loadRideData(), // 分析历史总骑行摘要
+      loadSummaryData(), // 分析每次骑行的摘要数据
     ]);
 
     await Future.wait([
-      loadBestScore(),
+      loadBestScore(), // 加载截至每个时间戳的最佳骑行记录数据
     ]);
 
     notifyListeners(); // 通知监听者数据已加载完成
@@ -132,6 +136,58 @@ class DataLoader extends ChangeNotifier {
       _bestScore[timestamp.toInt()] = BestScore()
         ..merge(currBestScore); // 使用 timestamp 作为键，存储截至上次的最佳成绩
       currBestScore.merge(bestScore);
+      final routePoints = parseFitDataToRoute(fitData);
+      final subRoutes = SegmentMatcher().findSegments(routePoints, _routes);
+      final analysisOfSubRoutes = subRoutes
+          .map((item) => parseSegmentToScore(item, rideData, routePoints));
+      analysisOfSubRoutes.map((item) {
+        if (_bestSegment.containsKey(item.segment.segmentIndex)) {
+          _bestSegment[item.segment.segmentIndex]!
+              .append(item, item.startTime.toInt());
+        } else {
+          _bestSegment[item.segment.segmentIndex] = SortManager<SegmentScore,
+              int>((a, b) => a.startTime < b.startTime)
+            ..append(item, item.startTime.toInt());
+        }
+      });
     }
   }
+}
+
+class SortManager<T, K> {
+  final bool Function(T a, T b) _comparator;
+  final List<Entry<T, K>> _dataList = [];
+
+  SortManager(this._comparator);
+
+  void append(T item, K key) {
+    _dataList.add(Entry(item, key));
+  }
+
+  int getPosition(K index) {
+    final tIndex = _dataList.indexWhere((entry) => entry.key == index);
+    if (tIndex == -1) {
+      return -1;
+    }
+    final target = _dataList[tIndex].item;
+    final subList = _dataList.sublist(0, tIndex + 1);
+    subList.sort((a, b) => _comparator(a.item, b.item)
+        ? 1
+        : _comparator(b.item, a.item)
+            ? -1
+            : 0);
+    for (int i = 0; i < subList.length; i++) {
+      if (identical(subList[i], target)) {
+        return i;
+      }
+    }
+    return -1;
+  }
+}
+
+class Entry<T, K> {
+  final T item;
+  final K key;
+
+  Entry(this.item, this.key);
 }
