@@ -31,7 +31,14 @@ class RideHistoryState extends State<RideHistory> {
   @override
   void initState() {
     super.initState();
-    DataLoader().initialize(); // 确保数据加载
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    final dataloader = Provider.of<DataLoader>(context, listen: false);
+    while (!dataloader.isInitialized) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
   }
 
   @override

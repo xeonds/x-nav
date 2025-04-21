@@ -40,10 +40,13 @@ class RoutesPageState extends State<RoutesPage> {
   }
 
   Future<void> _initializeData() async {
-    await DataLoader().initialize();
+    final dataloader = Provider.of<DataLoader>(context, listen: false);
+    while (!dataloader.isInitialized) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
     setState(() {
-      polylines = DataLoader().routes;
-      gpxFiles = DataLoader().gpxData;
+      polylines = dataloader.routes;
+      gpxFiles = dataloader.gpxData;
     });
   }
 

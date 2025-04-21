@@ -35,9 +35,12 @@ class DataLoader extends ChangeNotifier {
   Map<int, BestScore> get bestScore => _bestScore;
   Map<int, SortManager<SegmentScore, int>> get bestSegment => _bestSegment;
 
+  bool isLoading = false; // 是否正在加载数据
+
   Future<void> initialize() async {
-    if (isInitialized) return;
-    isInitialized = true;
+    if (isLoading) return;
+    isLoading = true;
+    isInitialized = false;
 
     await Future.wait([
       loadRouteData(), // 加载路线库
@@ -53,6 +56,8 @@ class DataLoader extends ChangeNotifier {
       loadBestScore(), // 加载截至每个时间戳的最佳骑行记录数据
     ]);
 
+    isInitialized = true;
+    isLoading = false;
     notifyListeners(); // 通知监听者数据已加载完成
   }
 

@@ -14,13 +14,13 @@ void main() {
   runApp(
     ChangeNotifierProvider(
       create: (_) => DataLoader()..initialize(), // 初始化 DataLoader
-      child: const MyApp(),
+      child: const AppMain(),
     ),
   );
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class AppMain extends StatelessWidget {
+  const AppMain({super.key});
 
   @override
   Widget build(BuildContext context) {

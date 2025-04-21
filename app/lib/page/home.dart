@@ -18,7 +18,12 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
-    final dataLoader = context.watch<DataLoader>(); // 监听 DataLoader 的状态
+    final dataLoader = Provider.of<DataLoader>(context, listen: true);
+
+    if (!dataLoader.isInitialized) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     final bestScore = dataLoader.bestScore;
     // 取bestscore中key最大的值
     final maxKey = bestScore.keys.reduce((a, b) => a > b ? a : b);

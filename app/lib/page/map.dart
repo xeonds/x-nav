@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_heatmap/flutter_map_heatmap.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:app/utils/data_loader.dart';
 
@@ -16,7 +17,7 @@ class MapPage extends StatefulWidget {
 
 class MapPageState extends State<MapPage> {
   late MapController _controller;
-  bool _showHistory = false;
+  int _showHistory = 0;
   bool _showRoute = false;
   bool _showMap = false;
   List<List<LatLng>> _routes = [];
@@ -31,53 +32,18 @@ class MapPageState extends State<MapPage> {
   @override
   void initState() {
     super.initState();
-    _loadPreferences();
     _initializeData();
     _controller = MapController();
   }
 
   Future<void> _initializeData() async {
-    await DataLoader().initialize();
+    final dataloader = Provider.of<DataLoader>(context, listen: false);
+    while (!dataloader.isInitialized) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
     setState(() {
-      _routes = DataLoader().routes;
-      _histories = DataLoader().histories;
-    });
-  }
-
-  Future<void> _loadPreferences() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _showHistory = prefs.getBool('showHistory') ?? false;
-      _showRoute = prefs.getBool('showRoute') ?? false;
-      _showMap = prefs.getBool('showMap') ?? false;
-    });
-  }
-
-  Future<void> _savePreferences() async {
-    final prefs = await SharedPreferences.getInstance();
-    prefs.setBool('showHistory', _showHistory);
-    prefs.setBool('showRoute', _showRoute);
-    prefs.setBool('showMap', _showMap);
-  }
-
-  void _toggleHistory(bool value) {
-    setState(() {
-      _showHistory = value;
-      _savePreferences();
-    });
-  }
-
-  void _toggleRoute(bool value) {
-    setState(() {
-      _showRoute = value;
-      _savePreferences();
-    });
-  }
-
-  void _toggleMap(bool value) {
-    setState(() {
-      _showMap = value;
-      _savePreferences();
+      _routes = dataloader.routes;
+      _histories = dataloader.histories;
     });
   }
 
@@ -101,33 +67,83 @@ class MapPageState extends State<MapPage> {
           : AppBar(
               title: const Text('地图页面'),
               actions: [
-                PopupMenuButton(
+                IconButton(
                   icon: const Icon(Icons.layers),
-                  itemBuilder: (context) => [
-                    CheckedPopupMenuItem(
-                      value: 'showHistory',
-                      checked: _showHistory,
-                      child: const Text('显示历史活动'),
-                    ),
-                    CheckedPopupMenuItem(
-                      value: 'showRoute',
-                      checked: _showRoute,
-                      child: const Text('显示路书'),
-                    ),
-                    CheckedPopupMenuItem(
-                      value: 'showMap',
-                      checked: _showMap,
-                      child: const Text('显示地图'),
-                    ),
-                  ],
-                  onSelected: (value) {
-                    if (value == 'showHistory') {
-                      _toggleHistory(!_showHistory);
-                    } else if (value == 'showRoute') {
-                      _toggleRoute(!_showRoute);
-                    } else if (value == 'showMap') {
-                      _toggleMap(!_showMap);
-                    }
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      builder: (_) {
+                        return StatefulBuilder(
+                          builder: (context, setModalState) {
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ListTile(
+                                  title: const Text('地图模式'),
+                                  subtitle: Text(
+                                    _showHistory == 1
+                                        ? '普通地图'
+                                        : _showHistory == 2
+                                            ? '热力图'
+                                            : '隐藏',
+                                  ),
+                                  trailing: SegmentedButton<int>(
+                                    showSelectedIcon: false,
+                                    segments: const [
+                                      ButtonSegment(
+                                        value: 0,
+                                        label: Text('隐藏'),
+                                      ),
+                                      ButtonSegment(
+                                        value: 1,
+                                        label: Text('普通地图'),
+                                      ),
+                                      ButtonSegment(
+                                        value: 2,
+                                        label: Text('热力图'),
+                                      ),
+                                    ],
+                                    selected: {_showHistory},
+                                    onSelectionChanged: (newSelection) {
+                                      setModalState(() {
+                                        _showHistory = newSelection.first;
+                                      });
+                                      setState(() {
+                                        _showHistory = newSelection.first;
+                                      });
+                                    },
+                                  ),
+                                ),
+                                SwitchListTile(
+                                  title: const Text('显示路书'),
+                                  value: _showRoute,
+                                  onChanged: (value) {
+                                    setModalState(() {
+                                      _showRoute = value;
+                                    });
+                                    setState(() {
+                                      _showRoute = value;
+                                    });
+                                  },
+                                ),
+                                SwitchListTile(
+                                  title: const Text('显示地图'),
+                                  value: _showMap,
+                                  onChanged: (value) {
+                                    setModalState(() {
+                                      _showMap = value;
+                                    });
+                                    setState(() {
+                                      _showMap = value;
+                                    });
+                                  },
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      },
+                    );
                   },
                 ),
               ],
@@ -164,7 +180,7 @@ class MapPageState extends State<MapPage> {
                 return polylines;
               }(),
             ),
-          if (_showHistory)
+          if (_showHistory == 1)
             PolylineLayer(
               polylines: () {
                 final polylines = <Polyline>[];
@@ -178,7 +194,26 @@ class MapPageState extends State<MapPage> {
                 return polylines;
               }(),
             ),
-          // if (_showHistory && _histories.isNotEmpty)
+          if (_showHistory == 2)
+            HeatMapLayer(
+              heatMapDataSource: InMemoryHeatMapDataSource(
+                data: () {
+                  final data = <WeightedLatLng>[];
+                  for (var route in _histories) {
+                    for (var point in route) {
+                      // 修复权重值计算逻辑
+                      data.add(WeightedLatLng(point, 0.2)); // 使用固定权重值或根据需求调整
+                    }
+                  }
+                  return data;
+                }(),
+              ),
+              heatMapOptions: HeatMapOptions(gradient: {
+                0.1: Colors.blue,
+                0.5: Colors.green,
+                0.9: Colors.red,
+              }, minOpacity: 0.1),
+            ),
           MarkerLayer(
             markers: [selectedMarker],
           ),
