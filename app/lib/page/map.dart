@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:app/page/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_heatmap/flutter_map_heatmap.dart';
@@ -5,6 +8,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:app/utils/data_loader.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key, this.onFullScreenToggle});
@@ -22,12 +26,15 @@ class MapPageState extends State<MapPage> {
   bool _showMap = false;
   List<List<LatLng>> _routes = [];
   List<List<LatLng>> _histories = [];
+  List<WeightedLatLng> _heatMapData = [];
   LatLng _currentPosition = const LatLng(37.7749, -122.4194);
   Marker selectedMarker = const Marker(
     point: LatLng(34.1301578, 108.8277069),
     child: Icon(Icons.location_on),
   );
   bool _isFullScreen = false;
+  final StreamController<void> _rebuildStream = StreamController.broadcast();
+  late SharedPreferences prefs;
 
   @override
   void initState() {
@@ -36,14 +43,45 @@ class MapPageState extends State<MapPage> {
     _controller = MapController();
   }
 
+  @override
+  void dispose() {
+    _rebuildStream.close();
+    super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 监听数据加载完成的事件
+    final dataloader = Provider.of<DataLoader>(context, listen: false);
+    dataloader.addListener(() {
+      if (dataloader.isInitialized) {
+        _rebuildStream.add(null);
+      }
+    });
+  }
+
   Future<void> _initializeData() async {
     final dataloader = Provider.of<DataLoader>(context, listen: false);
+    prefs = await loadPreferences();
+    _showHistory = getPreference<int>('showHistory', 0, prefs);
+    _showRoute = getPreference<bool>('showRoute', false, prefs);
+    _showMap = getPreference<bool>('showMap', false, prefs);
+
     while (!dataloader.isInitialized) {
       await Future.delayed(const Duration(milliseconds: 100));
     }
     setState(() {
       _routes = dataloader.routes;
       _histories = dataloader.histories;
+      _heatMapData = _histories
+          .map(
+            (route) => route.map((point) {
+              return WeightedLatLng(point, 1);
+            }).toList(),
+          )
+          .expand((i) => i)
+          .toList();
     });
   }
 
@@ -61,6 +99,11 @@ class MapPageState extends State<MapPage> {
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _rebuildStream.add(null);
+    });
+    final dataloader = Provider.of<DataLoader>(context, listen: false);
+
     return Scaffold(
       appBar: _isFullScreen
           ? null
@@ -111,6 +154,8 @@ class MapPageState extends State<MapPage> {
                                       setState(() {
                                         _showHistory = newSelection.first;
                                       });
+                                      setPreference<int>(
+                                          'showHistory', _showHistory, prefs);
                                     },
                                   ),
                                 ),
@@ -124,6 +169,8 @@ class MapPageState extends State<MapPage> {
                                     setState(() {
                                       _showRoute = value;
                                     });
+                                    setPreference<bool>(
+                                        'showRoute', _showRoute, prefs);
                                   },
                                 ),
                                 SwitchListTile(
@@ -136,6 +183,8 @@ class MapPageState extends State<MapPage> {
                                     setState(() {
                                       _showMap = value;
                                     });
+                                    setPreference<bool>(
+                                        'showMap', _showMap, prefs);
                                   },
                                 ),
                               ],
@@ -165,6 +214,7 @@ class MapPageState extends State<MapPage> {
           if (_showMap)
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              tileProvider: dataloader.tileProvider,
             ),
           if (_showRoute)
             PolylineLayer(
@@ -194,25 +244,17 @@ class MapPageState extends State<MapPage> {
                 return polylines;
               }(),
             ),
-          if (_showHistory == 2)
+          if (_showHistory == 2 && _heatMapData.isNotEmpty)
             HeatMapLayer(
               heatMapDataSource: InMemoryHeatMapDataSource(
-                data: () {
-                  final data = <WeightedLatLng>[];
-                  for (var route in _histories) {
-                    for (var point in route) {
-                      // 修复权重值计算逻辑
-                      data.add(WeightedLatLng(point, 0.2)); // 使用固定权重值或根据需求调整
-                    }
-                  }
-                  return data;
-                }(),
+                data: _heatMapData,
               ),
-              heatMapOptions: HeatMapOptions(gradient: {
-                0.1: Colors.blue,
-                0.5: Colors.green,
-                0.9: Colors.red,
-              }, minOpacity: 0.1),
+              heatMapOptions: HeatMapOptions(
+                gradient: HeatMapOptions.defaultGradient,
+                minOpacity: 0.1,
+                radius: 3,
+              ),
+              reset: _rebuildStream.stream,
             ),
           MarkerLayer(
             markers: [selectedMarker],

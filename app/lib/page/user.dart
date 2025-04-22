@@ -1,11 +1,51 @@
+import 'dart:io';
+
 import 'package:app/utils/data_loader.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Future<SharedPreferences> loadPreferences() async {
   final prefs = await SharedPreferences.getInstance();
   return prefs;
+}
+
+T getPreference<T>(String key, T defaultValue, SharedPreferences prefs) {
+  if (prefs.containsKey(key)) {
+    try {
+      final value = prefs.get(key);
+      if (value is T) {
+        return value;
+      } else {
+        // If the type doesn't match, reset to default value
+        setPreference(key, defaultValue, prefs);
+        return defaultValue;
+      }
+    } catch (e) {
+      // In case of any unexpected error, reset to default value
+      setPreference(key, defaultValue, prefs);
+      return defaultValue;
+    }
+  } else {
+    return defaultValue;
+  }
+}
+
+Future<void> setPreference<T>(
+    String key, T value, SharedPreferences prefs) async {
+  if (value is String) {
+    await prefs.setString(key, value);
+  } else if (value is int) {
+    await prefs.setInt(key, value);
+  } else if (value is double) {
+    await prefs.setDouble(key, value);
+  } else if (value is bool) {
+    await prefs.setBool(key, value);
+  } else if (value is List<String>) {
+    await prefs.setStringList(key, value);
+  }
 }
 
 class UserPage extends StatelessWidget {
@@ -39,6 +79,19 @@ class UserPage extends StatelessWidget {
                   dataLoader.initialize(); // 重新加载数据
                 },
               ),
+              ListTile(
+                title: const Text('清除地图缓存'),
+                subtitle: const Text("一般不需要使用"),
+                onTap: () async {
+                  final dir = Directory(
+                    path.join(
+                      (await getApplicationDocumentsDirectory()).absolute.path,
+                      'fmtc',
+                    ),
+                  );
+                  await dir.delete(recursive: true);
+                },
+              )
             ],
           ),
           const SizedBox(height: 20),

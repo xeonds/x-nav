@@ -7,10 +7,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'dart:async';
 import 'package:app/utils/data_loader.dart';
+import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:provider/provider.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await FMTCObjectBoxBackend().initialise();
+  await FMTCStore('mapStore').manage.create();
   runApp(
     ChangeNotifierProvider(
       create: (_) => DataLoader()..initialize(), // 初始化 DataLoader

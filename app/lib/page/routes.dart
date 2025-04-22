@@ -79,6 +79,7 @@ class RoutesPageState extends State<RoutesPage> {
             children: [
               TileLayer(
                 urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                tileProvider: dataLoader.tileProvider,
               ),
               PolylineLayer(
                 polylines: [
@@ -566,6 +567,7 @@ class RouteEditPageState extends State<RouteEditPage> {
 
   @override
   Widget build(BuildContext context) {
+    final dataLoader = context.watch<DataLoader>();
     return Scaffold(
       body: Stack(
         children: [
@@ -587,6 +589,7 @@ class RouteEditPageState extends State<RouteEditPage> {
             children: [
               TileLayer(
                 urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                tileProvider: dataLoader.tileProvider,
               ),
               if (routePath.isNotEmpty)
                 PolylineLayer(

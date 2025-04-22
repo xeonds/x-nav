@@ -359,6 +359,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
                   child: TileLayer(
                     urlTemplate:
                         "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                    tileProvider: dataLoader.tileProvider,
                   ),
                 ),
                 PolylineLayer(

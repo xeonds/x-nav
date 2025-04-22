@@ -6,6 +6,7 @@ import 'package:app/utils/gpx_parser.dart';
 import 'package:app/utils/path_utils.dart';
 import 'package:app/utils/storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:latlong2/latlong.dart';
 
 class DataLoader extends ChangeNotifier {
@@ -24,6 +25,9 @@ class DataLoader extends ChangeNotifier {
   final Map<int, BestScore> _bestScore = {}; // 截至任意时间戳的骑行记录的最佳成绩
   final Map<int, SortManager<SegmentScore, int>> _bestSegment =
       {}; // 任意赛段，截至任意时间戳的最佳记录
+  final FMTCTileProvider tileProvider = FMTCTileProvider(
+    stores: const {'mapStore': BrowseStoreStrategy.readUpdateCreate},
+  );
   bool isInitialized = false;
 
   List<List<LatLng>> get routes => _routes;
@@ -62,101 +66,166 @@ class DataLoader extends ChangeNotifier {
   }
 
   Future<void> loadRouteData() async {
-    _gpxFile.clear(); // 清空现有 GPX 文件列表
-    _routes.clear(); // 清空现有路线列表
+    _gpxFile.clear();
+    _routes.clear();
 
     final files = await Storage().getGpxFiles();
     print('GPX files: ${files.length}');
-    for (var file in files) {
-      final gpx = File(file.path);
-      _gpxFile.add(gpx);
-      late final String gpxData;
-      try {
-        gpxData = await gpx.readAsString();
-      } catch (e) {
-        if (kDebugMode) {
-          print('Error reading GPX file: $e');
-        }
-        continue;
-      }
-      _routes.add(parseGpxToPath(gpxData));
-    }
+    final parsedRoutes = await compute(_parseGpxFiles, files);
+    print('Parsed GPX files: ${parsedRoutes['files'].length}');
+    _gpxFile.addAll(parsedRoutes['files']);
+    _routes.addAll(parsedRoutes['routes']);
 
-    notifyListeners(); // 通知监听者数据已更新
+    notifyListeners();
   }
 
   Future<void> loadHistoryData() async {
-    _fitData.clear(); // 清空现有 FIT 数据列表
-    _histories.clear(); // 清空现有历史路线列表
+    _fitData.clear();
+    _histories.clear();
 
     final files = await Storage().getFitFiles();
-    for (var file in files) {
-      final fitData = parseFitFile(await file.readAsBytes());
-      _fitData.add({...fitData, 'path': file.path});
-      _histories.add(parseFitDataToRoute(fitData));
-    }
+    print('FIT files: ${files.length}');
+    final parsedHistories = await compute(_parseFitFiles, files);
+    print('Parsed FIT files: ${parsedHistories['fitData'].length}');
+    _fitData.addAll(parsedHistories['fitData']);
+    _histories.addAll(parsedHistories['histories']);
 
-    notifyListeners(); // 通知监听者数据已更新
+    notifyListeners();
   }
 
   Future<void> loadRideData() async {
-    _fitData.map((e) => parseFitDataToSummary(e)).fold<Map<String, dynamic>>(
-      {'totalDistance': 0.0, 'totalRides': 0, 'totalTime': 0},
-      (value, element) {
-        return {
-          'totalDistance':
-              value['totalDistance'] + (element['total_distance'] ?? 0.0),
-          'totalRides': value['totalRides'] + 1,
-          'totalTime':
-              value['totalTime'] + (element['total_elapsed_time'] ?? 0),
-        };
-      },
-    ).forEach((key, value) {
-      _rideData[key] = value;
-    });
+    print('Loading ride data...');
+    final stopwatch = Stopwatch()..start(); // 开始计时
+    final rideData = await compute(_analyzeRideData, _fitData);
+    stopwatch.stop(); // 停止计时
+    print(
+        'Ride data loaded: ${rideData['totalRides']} rides in ${stopwatch.elapsedMilliseconds} ms');
+    _rideData.clear();
+    _rideData.addAll(rideData);
 
-    notifyListeners(); // 通知监听者数据已更新
+    notifyListeners();
   }
 
   Future<void> loadSummaryData() async {
-    _summary.clear(); // 清空现有摘要列表
-    _fitData.map((e) => parseFitDataToSummary(e)).forEach((element) {
-      _summary.add(element);
-    });
+    print('Loading summary data...');
+    final stopwatch = Stopwatch()..start(); // 开始计时
+    final summaries = await compute(_analyzeSummaryData, _fitData);
+    stopwatch.stop(); // 停止计时
+    print(
+        'Summary data loaded: ${summaries.length} summaries in ${stopwatch.elapsedMilliseconds} ms');
+    _summary.clear();
+    _summary.addAll(summaries);
 
-    notifyListeners(); // 通知监听者数据已更新
+    notifyListeners();
   }
 
   Future<void> loadBestScore() async {
-    _bestScore.clear(); // 清空现有最佳成绩映射
-    final currBestScore = BestScore();
-    final orderedFitData = List<Map<String, dynamic>>.from(_fitData)
-      ..sort((a, b) => (a['sessions'][0].get('timestamp') -
-              b['sessions'][0].get('timestamp'))
-          .toInt());
-    // 计算每个时间戳节点的 bestScore
-    for (var fitData in orderedFitData) {
-      final timestamp = fitData['sessions'][0].get('timestamp');
-      final bestScore = BestScore().update(fitData['records']);
-      _bestScore[timestamp.toInt()] = BestScore()
-        ..merge(currBestScore); // 使用 timestamp 作为键，存储截至上次的最佳成绩
-      currBestScore.merge(bestScore);
-      final routePoints = parseFitDataToRoute(fitData);
-      final subRoutes = SegmentMatcher().findSegments(routePoints, _routes);
-      final analysisOfSubRoutes = subRoutes
-          .map((item) => parseSegmentToScore(item, rideData, routePoints));
-      analysisOfSubRoutes.map((item) {
-        if (_bestSegment.containsKey(item.segment.segmentIndex)) {
-          _bestSegment[item.segment.segmentIndex]!
-              .append(item, item.startTime.toInt());
-        } else {
-          _bestSegment[item.segment.segmentIndex] = SortManager<SegmentScore,
-              int>((a, b) => a.startTime < b.startTime)
-            ..append(item, item.startTime.toInt());
-        }
-      });
+    print('Loading best score data...');
+    final stopwatch = Stopwatch()..start(); // 开始计时
+    final bestScoreData = await compute(_analyzeBestScore, {
+      'fitData': _fitData,
+      'routes': _routes,
+      'rideData': _rideData,
+    });
+    stopwatch.stop(); // 停止计时
+    print(
+        'Best score data loaded: ${bestScoreData['bestScore'].length} scores in ${stopwatch.elapsedMilliseconds} ms');
+    _bestScore.clear();
+    _bestScore.addAll(bestScoreData['bestScore']);
+    _bestSegment.clear();
+    _bestSegment.addAll(bestScoreData['bestSegment']);
+
+    notifyListeners();
+  }
+}
+
+Map<String, dynamic> _parseGpxFiles(List<File> files) {
+  final gpxFiles = <File>[];
+  final routes = <List<LatLng>>[];
+
+  for (var file in files) {
+    try {
+      final gpxData = file.readAsStringSync();
+      gpxFiles.add(file);
+      routes.add(parseGpxToPath(gpxData));
+    } catch (e) {
+      debugPrint('Error reading GPX file: $e');
     }
   }
+
+  return {'files': gpxFiles, 'routes': routes};
+}
+
+Map<String, dynamic> _parseFitFiles(List<File> files) {
+  final fitDataList = <Map<String, dynamic>>[];
+  final histories = <List<LatLng>>[];
+
+  for (var file in files) {
+    final fitData = parseFitFile(file.readAsBytesSync());
+    fitDataList.add({...fitData, 'path': file.path});
+    histories.add(parseFitDataToRoute(fitData));
+  }
+
+  return {'fitData': fitDataList, 'histories': histories};
+}
+
+Map<String, dynamic> _analyzeRideData(List<Map<String, dynamic>> fitData) {
+  final summaries = fitData.map(parseFitDataToSummary).toList();
+  return summaries.fold<Map<String, dynamic>>(
+    {'totalDistance': 0.0, 'totalRides': 0, 'totalTime': 0},
+    (value, element) {
+      return {
+        'totalDistance':
+            value['totalDistance'] + (element['total_distance'] ?? 0.0),
+        'totalRides': value['totalRides'] + 1,
+        'totalTime': value['totalTime'] + (element['total_elapsed_time'] ?? 0),
+      };
+    },
+  );
+}
+
+List<Map<String, dynamic>> _analyzeSummaryData(
+    List<Map<String, dynamic>> fitData) {
+  return fitData.map(parseFitDataToSummary).toList();
+}
+
+Map<String, dynamic> _analyzeBestScore(Map<String, dynamic> input) {
+  final fitData = input['fitData'] as List<Map<String, dynamic>>;
+  final routes = input['routes'] as List<List<LatLng>>;
+  final rideData = input['rideData'] as Map<String, dynamic>;
+
+  final bestScore = <int, BestScore>{};
+  final bestSegment = <int, SortManager<SegmentScore, int>>{};
+  final currBestScore = BestScore();
+
+  final orderedFitData = List<Map<String, dynamic>>.from(fitData)
+    ..sort((a, b) =>
+        (a['sessions'][0].get('timestamp') - b['sessions'][0].get('timestamp'))
+            .toInt());
+
+  for (var fitData in orderedFitData) {
+    final timestamp = fitData['sessions'][0].get('timestamp');
+    final bestScoreForTimestamp = BestScore().update(fitData['records']);
+    bestScore[timestamp.toInt()] = BestScore()..merge(currBestScore);
+    currBestScore.merge(bestScoreForTimestamp);
+
+    final routePoints = parseFitDataToRoute(fitData);
+    final subRoutes = SegmentMatcher().findSegments(routePoints, routes);
+    final analysisOfSubRoutes = subRoutes
+        .map((item) => parseSegmentToScore(item, rideData, routePoints));
+    analysisOfSubRoutes.map((item) {
+      if (bestSegment.containsKey(item.segment.segmentIndex)) {
+        bestSegment[item.segment.segmentIndex]!
+            .append(item, item.startTime.toInt());
+      } else {
+        bestSegment[item.segment.segmentIndex] =
+            SortManager<SegmentScore, int>((a, b) => a.startTime < b.startTime)
+              ..append(item, item.startTime.toInt());
+      }
+    });
+  }
+
+  return {'bestScore': bestScore, 'bestSegment': bestSegment};
 }
 
 class SortManager<T, K> {
