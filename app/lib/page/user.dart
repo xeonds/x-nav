@@ -1,10 +1,13 @@
 import 'dart:io';
 
 import 'package:app/utils/data_loader.dart';
+import 'package:app/utils/storage.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Future<SharedPreferences> loadPreferences() async {
@@ -90,6 +93,47 @@ class UserPage extends StatelessWidget {
                     ),
                   );
                   await dir.delete(recursive: true);
+                },
+              ),
+              ListTile(
+                title: const Text("数据备份"),
+                subtitle: const Text("备份gpx和fit文件为一个压缩包"),
+                onTap: () async {
+                  await Storage().createBackup();
+                  Share.shareXFiles(
+                    [
+                      XFile(
+                        path.join(
+                          (await getApplicationDocumentsDirectory())
+                              .absolute
+                              .path,
+                          'backup.zip',
+                        ),
+                      )
+                    ],
+                    text: "备份文件",
+                  );
+                },
+              ),
+              ListTile(
+                title: const Text("数据恢复"),
+                subtitle: const Text("从备份压缩包中恢复gpx和fit文件"),
+                onTap: () async {
+                  final result = await FilePicker.platform.pickFiles(
+                    type: FileType.any,
+                    allowMultiple: false,
+                  );
+                  if (result != null) {
+                    final path = result.files.single.path!;
+                    final file = File(path);
+                    await Storage().restoreBackup(file);
+                  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("恢复完成"),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
                 },
               )
             ],

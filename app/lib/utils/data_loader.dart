@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/fit_parser.dart';
 import 'package:app/utils/gpx_parser.dart';
@@ -8,6 +9,56 @@ import 'package:app/utils/storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:latlong2/latlong.dart';
+
+Future<R> runInIsolate<P, R>(R Function(P) function, P parameter) async {
+  final receivePort = ReceivePort();
+  await Isolate.spawn<_IsolateMessage<P, R>>(
+    _isolateEntry,
+    _IsolateMessage(function, parameter, receivePort.sendPort),
+  );
+  return await receivePort.first as R;
+}
+
+class _IsolateMessage<P, R> {
+  final R Function(P) function;
+  final P parameter;
+  final SendPort sendPort;
+
+  _IsolateMessage(this.function, this.parameter, this.sendPort);
+}
+
+// Entry point for the spawned isolate
+void _isolateEntry<P, R>(_IsolateMessage<P, R> message) {
+  final result = message.function(message.parameter);
+  message.sendPort.send(result);
+}
+
+class _DataLoadRequest {
+  final String appDocPath;
+  const _DataLoadRequest(this.appDocPath);
+}
+
+class _DataLoadResult {
+  final List<List<LatLng>> routes;
+  final List<Map<String, dynamic>> fitData;
+  final List<File> gpxFiles;
+  final List<List<LatLng>> histories;
+  final Map<String, dynamic> rideData;
+  final List<Map<String, dynamic>> summary;
+  final Map<int, BestScore> bestScore;
+  final Map<int, SortManager<SegmentScore, int>> bestSegment;
+
+  _DataLoadResult({
+    required this.routes,
+    required this.fitData,
+    required this.gpxFiles,
+    required this.histories,
+    required this.rideData,
+    required this.summary,
+    required this.bestScore,
+    required this.bestSegment,
+  });
+}
 
 class DataLoader extends ChangeNotifier {
   static final DataLoader _instance = DataLoader._internal();
@@ -46,85 +97,47 @@ class DataLoader extends ChangeNotifier {
     isLoading = true;
     isInitialized = false;
 
-    await Future.wait([
-      loadRouteData(),
-      loadHistoryData(),
-    ]);
+    // 传递appDocPath到isolate
+    final result = await runInIsolate<_DataLoadRequest, _DataLoadResult>(
+      (req) => _dataLoadIsolateEntrySync(req),
+      _DataLoadRequest(Storage.appDocPath!),
+    );
 
-    await Future.wait([
-      loadRideData(),
-      loadSummaryData(),
-    ]);
-
-    await Future.wait([
-      loadBestScore(),
-    ]);
+    _routes
+      ..clear()
+      ..addAll(result.routes);
+    _fitData
+      ..clear()
+      ..addAll(result.fitData);
+    _gpxFile
+      ..clear()
+      ..addAll(result.gpxFiles);
+    _histories
+      ..clear()
+      ..addAll(result.histories);
+    _rideData
+      ..clear()
+      ..addAll(result.rideData);
+    _summary
+      ..clear()
+      ..addAll(result.summary);
+    _bestScore
+      ..clear()
+      ..addAll(result.bestScore);
+    _bestSegment
+      ..clear()
+      ..addAll(result.bestSegment);
 
     isInitialized = true;
     isLoading = false;
     notifyListeners();
   }
 
-  Future<void> loadRouteData() async {
-    _gpxFile.clear();
-    _routes.clear();
-
-    final files = await Storage().getGpxFiles();
-    print('GPX files: ${files.length}');
-    final parsedRoutes = await compute(_parseGpxFiles, files);
-    print('Parsed GPX files: ${parsedRoutes['files'].length}');
-    _gpxFile.addAll(parsedRoutes['files']);
-    _routes.addAll(parsedRoutes['routes']);
-
-    notifyListeners();
-  }
-
-  Future<void> loadHistoryData() async {
-    _fitData.clear();
-    _histories.clear();
-
-    final files = await Storage().getFitFiles();
-    print('FIT files: ${files.length}');
-    final parsedHistories = await compute(_parseFitFiles, files);
-    print('Parsed FIT files: ${parsedHistories['fitData'].length}');
-    _fitData.addAll(parsedHistories['fitData']);
-    _histories.addAll(parsedHistories['histories']);
-
-    notifyListeners();
-  }
-
-  Future<void> loadRideData() async {
-    print('Loading ride data...');
-    final rideData = await compute(_analyzeRideData, _fitData);
-    _rideData.clear();
-    _rideData.addAll(rideData);
-
-    notifyListeners();
-  }
-
-  Future<void> loadSummaryData() async {
-    print('Loading summary data...');
-    final summaries = await compute(_analyzeSummaryData, _fitData);
-    _summary.clear();
-    _summary.addAll(summaries);
-
-    notifyListeners();
-  }
-
-  Future<void> loadBestScore() async {
-    print('Loading best score data...');
-    final bestScoreData = await compute(_analyzeBestScore, {
-      'fitData': _fitData,
-      'routes': _routes,
-      'rideData': _rideData,
-    });
-    _bestScore.clear();
-    _bestScore.addAll(bestScoreData['bestScore']);
-    _bestSegment.clear();
-    _bestSegment.addAll(bestScoreData['bestSegment']);
-
-    notifyListeners();
-  }
+  Future<void> loadRouteData() async {}
+  Future<void> loadHistoryData() async {}
+  Future<void> loadRideData() async {}
+  Future<void> loadSummaryData() async {}
+  Future<void> loadBestScore() async {}
 }
 
 Map<String, dynamic> _parseGpxFiles(List<File> files) {
@@ -157,17 +170,14 @@ Map<String, dynamic> _parseFitFiles(List<File> files) {
   return {'fitData': fitDataList, 'histories': histories};
 }
 
-Map<String, dynamic> _analyzeRideData(List<Map<String, dynamic>> fitData) {
-  final summaries = fitData.map(parseFitDataToSummary).toList();
+Map<String, dynamic> _analyzeRideData(List<Map<String, dynamic>> summaries) {
   return summaries.fold<Map<String, dynamic>>(
     {'totalDistance': 0.0, 'totalRides': 0, 'totalTime': 0},
-    (value, element) {
-      return {
-        'totalDistance':
-            value['totalDistance'] + (element['total_distance'] ?? 0.0),
-        'totalRides': value['totalRides'] + 1,
-        'totalTime': value['totalTime'] + (element['total_elapsed_time'] ?? 0),
-      };
+    (value, element) => {
+      'totalDistance':
+          value['totalDistance'] + (element['total_distance'] ?? 0.0),
+      'totalRides': value['totalRides'] + 1,
+      'totalTime': value['totalTime'] + (element['total_elapsed_time'] ?? 0),
     },
   );
 }
@@ -252,4 +262,32 @@ class Entry<T, K> {
   final K key;
 
   Entry(this.item, this.key);
+}
+
+_DataLoadResult _dataLoadIsolateEntrySync(_DataLoadRequest request) {
+  // isolate中设置Storage的appDocPath
+  Storage.appDocPath = request.appDocPath;
+
+  final gpxFiles = Storage().getGpxFilesSync();
+  final parsedRoutes = _parseGpxFiles(gpxFiles);
+  final fitFiles = Storage().getFitFilesSync();
+  final parsedHistories = _parseFitFiles(fitFiles);
+  final summary = _analyzeSummaryData(parsedHistories['fitData']);
+  final rideData = _analyzeRideData(summary);
+  final bestScoreData = _analyzeBestScore({
+    'fitData': parsedHistories['fitData'],
+    'routes': parsedRoutes['routes'],
+    'rideData': rideData,
+  });
+
+  return _DataLoadResult(
+    routes: parsedRoutes['routes'],
+    fitData: parsedHistories['fitData'],
+    gpxFiles: parsedRoutes['files'],
+    histories: parsedHistories['histories'],
+    rideData: rideData,
+    summary: summary,
+    bestScore: bestScoreData['bestScore'],
+    bestSegment: bestScoreData['bestSegment'],
+  );
 }

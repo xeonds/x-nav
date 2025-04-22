@@ -3,6 +3,7 @@ import 'package:app/page/home.dart';
 import 'package:app/page/map.dart';
 import 'package:app/page/routes.dart';
 import 'package:app/page/user.dart';
+import 'package:app/utils/storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'dart:async';
@@ -14,6 +15,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await FMTCObjectBoxBackend().initialise();
   await FMTCStore('mapStore').manage.create();
+  await Storage.initialize(); // 必须先初始化
   runApp(
     ChangeNotifierProvider(
       create: (_) => DataLoader()..initialize(), // 初始化 DataLoader

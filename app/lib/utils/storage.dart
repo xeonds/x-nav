@@ -1,14 +1,24 @@
 import 'dart:io';
+import 'package:archive/archive_io.dart';
+import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
 class Storage {
   static final Storage _instance = Storage._internal();
+  static String? appDocPath;
 
   factory Storage() {
     return _instance;
   }
 
   Storage._internal();
+
+  static Future<void> initialize() async {
+    if (appDocPath == null) {
+      final dir = await getApplicationDocumentsDirectory();
+      appDocPath = dir.path;
+    }
+  }
 
   Future<Directory> _getHistoryDirectory() async {
     final directory = await getApplicationDocumentsDirectory();
@@ -33,6 +43,26 @@ class Storage {
     return historyDir.listSync().whereType<File>().toList();
   }
 
+  List<File> getFitFilesSync() {
+    if (appDocPath == null) {
+      throw Exception("Storage未初始化，请先 await Storage.initialize()");
+    }
+    final historyDir = Directory('$appDocPath/history');
+    return historyDir.existsSync()
+        ? historyDir.listSync().whereType<File>().toList()
+        : [];
+  }
+
+  List<File> getGpxFilesSync() {
+    if (appDocPath == null) {
+      throw Exception("Storage未初始化，请先 await Storage.initialize()");
+    }
+    final routeDir = Directory('$appDocPath/route');
+    return routeDir.existsSync()
+        ? routeDir.listSync().whereType<File>().toList()
+        : [];
+  }
+
   Future<List<File>> getGpxFiles() async {
     final routeDir = await _getRouteDirectory();
     return routeDir.listSync().whereType<File>().toList();
@@ -48,5 +78,42 @@ class Storage {
     final routeDir = await _getRouteDirectory();
     final file = File('${routeDir.path}/$fileName');
     await file.writeAsBytes(bytes);
+  }
+
+  Future<void> createBackup() async {
+    // create backup for gpx and fit files
+    final gpxFiles = await getGpxFiles();
+    final fitFiles = await getFitFiles();
+    final backupFile = File(
+      path.join(
+        (await getApplicationDocumentsDirectory()).absolute.path,
+        'backup.zip',
+      ),
+    );
+    final encoder = ZipFileEncoder();
+    encoder.create(backupFile.path);
+    for (final file in [...gpxFiles, ...fitFiles]) {
+      encoder.addFile(file);
+    }
+    encoder.close();
+  }
+
+  Future<void> restoreBackup(File backupFile) async {
+    // restore gpx and fit files to appDocDir from zip
+    final historyDir = await _getHistoryDirectory();
+    final routeDir = await _getRouteDirectory();
+    final archive = ZipDecoder().decodeBytes(backupFile.readAsBytesSync());
+    for (final file in archive) {
+      if (file.isFile) {
+        final outFile = File(
+          path.join(
+            file.name.startsWith('history/') ? historyDir.path : routeDir.path,
+            path.basename(file.name),
+          ),
+        );
+        await outFile.create(recursive: true);
+        await outFile.writeAsBytes(file.content as List<int>);
+      }
+    }
   }
 }
