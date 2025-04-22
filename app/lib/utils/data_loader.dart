@@ -47,22 +47,22 @@ class DataLoader extends ChangeNotifier {
     isInitialized = false;
 
     await Future.wait([
-      loadRouteData(), // 加载路线库
-      loadHistoryData(), // 加载骑行历史数据库
+      loadRouteData(),
+      loadHistoryData(),
     ]);
 
     await Future.wait([
-      loadRideData(), // 分析历史总骑行摘要
-      loadSummaryData(), // 分析每次骑行的摘要数据
+      loadRideData(),
+      loadSummaryData(),
     ]);
 
     await Future.wait([
-      loadBestScore(), // 加载截至每个时间戳的最佳骑行记录数据
+      loadBestScore(),
     ]);
 
     isInitialized = true;
     isLoading = false;
-    notifyListeners(); // 通知监听者数据已加载完成
+    notifyListeners();
   }
 
   Future<void> loadRouteData() async {
@@ -95,11 +95,7 @@ class DataLoader extends ChangeNotifier {
 
   Future<void> loadRideData() async {
     print('Loading ride data...');
-    final stopwatch = Stopwatch()..start(); // 开始计时
     final rideData = await compute(_analyzeRideData, _fitData);
-    stopwatch.stop(); // 停止计时
-    print(
-        'Ride data loaded: ${rideData['totalRides']} rides in ${stopwatch.elapsedMilliseconds} ms');
     _rideData.clear();
     _rideData.addAll(rideData);
 
@@ -108,11 +104,7 @@ class DataLoader extends ChangeNotifier {
 
   Future<void> loadSummaryData() async {
     print('Loading summary data...');
-    final stopwatch = Stopwatch()..start(); // 开始计时
     final summaries = await compute(_analyzeSummaryData, _fitData);
-    stopwatch.stop(); // 停止计时
-    print(
-        'Summary data loaded: ${summaries.length} summaries in ${stopwatch.elapsedMilliseconds} ms');
     _summary.clear();
     _summary.addAll(summaries);
 
@@ -121,15 +113,11 @@ class DataLoader extends ChangeNotifier {
 
   Future<void> loadBestScore() async {
     print('Loading best score data...');
-    final stopwatch = Stopwatch()..start(); // 开始计时
     final bestScoreData = await compute(_analyzeBestScore, {
       'fitData': _fitData,
       'routes': _routes,
       'rideData': _rideData,
     });
-    stopwatch.stop(); // 停止计时
-    print(
-        'Best score data loaded: ${bestScoreData['bestScore'].length} scores in ${stopwatch.elapsedMilliseconds} ms');
     _bestScore.clear();
     _bestScore.addAll(bestScoreData['bestScore']);
     _bestSegment.clear();
