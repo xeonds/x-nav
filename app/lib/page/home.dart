@@ -32,7 +32,7 @@ class _HomePageState extends State<HomePage> {
     final rideData = dataLoader.summaryList
         .map((e) => {
               'timestamp': DateTime.fromMillisecondsSinceEpoch(
-                      (e['start_time'] * 1000 + 631065600000).toInt())
+                      timestampFromFitTimestamp(e['start_time'].toInt()))
                   .toLocal(),
               'total_distance': e['total_distance'],
               'total_ascent': e['total_ascent'],
@@ -306,7 +306,7 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 20),
               const Text(
-                '最近骑行记录',
+                '月骑行记录',
                 style: TextStyle(fontSize: 20),
               ),
               SizedBox(

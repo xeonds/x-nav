@@ -21,36 +21,21 @@ class BestScore {
     final grade = record.get('grade') ?? 0.0;
     final power = record.get('power') ?? 0.0;
 
-    // 更新最大速度
-    if (speed > maxSpeed) {
-      maxSpeed = speed;
-    }
-
-    // 更新最大海拔
-    if (altitude > maxAltitude) {
-      maxAltitude = altitude;
-    }
-
-    // 更新最大爬坡
-    if (grade > maxClimb) {
-      maxClimb = grade;
-    }
-
-    if (power > maxPower) {
-      maxPower = power;
-    }
+    maxSpeed = speed > maxSpeed ? speed : maxSpeed;
+    maxAltitude = altitude > maxAltitude ? altitude : maxAltitude;
+    maxClimb = grade > maxClimb ? grade : maxClimb;
+    maxPower = power > maxPower ? power : maxPower;
   }
 
   BestScore update(List<DataMessage> records) {
     for (var record in records) {
       updateRecord(record);
     }
-    final distance = records.last.get('distance') ?? 0.0;
-    maxDistance = maxDistance > distance ? maxDistance : distance;
-
     final time = getTimestampFromDataMessage(records.last) -
         getTimestampFromDataMessage(records.first);
+    final distance = records.last.get('distance') ?? 0.0;
     maxTime = maxTime > time ? maxTime : time;
+    maxDistance = maxDistance > distance ? maxDistance : distance;
 
     List<dynamic> alignedPoints = []; // 以1000m为间隔的点列表
     double accu = 0.0;
@@ -62,7 +47,7 @@ class BestScore {
       ]);
       if (accu >= 1000) {
         alignedPoints.add({
-          'timestamp': records[i].get("timestamp"),
+          'timestamp': getTimestampFromDataMessage(records[i]),
           'pos': getLatlngFromDataMessage(records[i]),
         });
         accu -= 1000; // 重置为0同时保留多余的部分，保证值都在整数位置上
@@ -70,27 +55,12 @@ class BestScore {
     }
 
     // /*
-    bestSpeedByDistance = calculateMaxRangeAvgs([
-      1000,
-      5000,
-      10000,
-      20000,
-      30000,
-      50000,
-      80000,
-      100000,
-      150000,
-      160000,
-      180000,
-      200000,
-      250000,
-      300000,
-      400000,
-      500000,
-    ], alignedPoints, (key, range) {
-      final accumulate = key; // in this case is range's length
+    bestSpeedByDistance = calculateMaxRangeAvgs(
+        [1, 5, 10, 20, 30, 50, 80, 100, 150, 160, 180, 200, 250, 300, 400, 500],
+        alignedPoints, (key, range) {
+      final accumulate = key * 1000; // in this case is range's length
       final timeSpent = range.last['timestamp'] - range.first['timestamp'];
-      return timeSpent > 0 ? accumulate / timeSpent : 0; // in case of div 0
+      return timeSpent > 0 ? accumulate / timeSpent : 0.0; // in case of div 0
     });
 
     // ensure points are aligned to seconds
@@ -122,7 +92,7 @@ class BestScore {
       ...Map.fromEntries(
         bestSpeedByDistance.entries.where((e) => e.value > 0).map(
               (e) => MapEntry(
-                  "${(e.key / 1000).toInt()} km",
+                  "${e.key} km",
                   '${(e.value * 3.6).toStringAsFixed(2)} km/h'
                       ' ${secondToFormatTime(e.key * 1000.0 / e.value)}'),
             ),
@@ -174,6 +144,19 @@ class BestScore {
     maxAltitude =
         maxAltitude > other.maxAltitude ? maxAltitude : other.maxAltitude;
     maxClimb = maxClimb > other.maxClimb ? maxClimb : other.maxClimb;
+    maxPower = maxPower > other.maxPower ? maxPower : other.maxPower;
+    maxDistance =
+        maxDistance > other.maxDistance ? maxDistance : other.maxDistance;
+    maxTime = maxTime > other.maxTime ? maxTime : other.maxTime;
+    other.bestPowerByTime.forEach((time, otherPower) {
+      if (bestPowerByTime.containsKey(time)) {
+        bestPowerByTime[time] = bestPowerByTime[time]! > otherPower
+            ? bestPowerByTime[time]!
+            : otherPower;
+      } else {
+        bestPowerByTime[time] = otherPower;
+      }
+    });
 
     other.bestSpeedByDistance.forEach((distance, otherSpeed) {
       if (bestSpeedByDistance.containsKey(distance)) {
@@ -207,16 +190,20 @@ String secondToFormatTime(double seconds) {
 Map<int, double> calculateMaxRangeAvgs(
     List<int> keys, List<dynamic> values, Function calcRangeAvg) {
   Map<int, double> res = {}; // 结果数组，key为keys, value为最大均值
-  for (var key in keys) {
+  for (var key in keys.where((e) => e < values.length)) {
     // 处理不同区间长度
     double maxAvg = 0.0; // 当前区间最大长度
     for (int start = 0; start + key < values.length; start++) {
       // 遍历所有可能的开头点
       final range = values.sublist(start, start + key);
-      double avg = calcRangeAvg(key, range);
+      final avg = calcRangeAvg(key, range);
       maxAvg = maxAvg > avg ? maxAvg : avg;
     }
     res[key] = maxAvg;
   }
   return res;
+}
+
+int timestampFromFitTimestamp(int fitTimestamp) {
+  return fitTimestamp * 1000 + 631065600000;
 }
