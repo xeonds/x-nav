@@ -746,12 +746,47 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                           //     ),
                                           //   ],
                                           // ),
-                                          ListTile(
-                                              title: Text(segment
-                                                  .segment.segmentIndex
-                                                  .toString()),
-                                              subtitle: Text(
-                                                  '${dataLoader.bestSegment[segment.segment.segmentIndex]!.getPosition(segment.startTime.toInt())}'))
+                                          const Text("路段详情"),
+                                          const SizedBox(height: 20),
+                                          Text(
+                                            '路段 ${rideScore.segments.indexOf(segment.segment) + 1}',
+                                            style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold),
+                                          ),
+                                          const SizedBox(height: 10),
+                                          Text(
+                                            '里程 ${segment.distance.toStringAsFixed(2)} km'
+                                            ' 耗时 ${secondToFormatTime(segment.duration)}'
+                                            ' 均速 ${segment.avgSpeed.toStringAsFixed(2)} km/h',
+                                            style:
+                                                const TextStyle(fontSize: 14),
+                                          ),
+                                          const SizedBox(height: 10),
+                                          Text('历史成绩'),
+                                          ListView.builder(
+                                            shrinkWrap: true,
+                                            physics:
+                                                const NeverScrollableScrollPhysics(),
+                                            itemCount: dataLoader
+                                                .bestSegment[segment
+                                                    .segment.segmentIndex]!
+                                                .dataList
+                                                .length,
+                                            itemBuilder: (context, index) {
+                                              final history = dataLoader
+                                                  .bestSegment[segment
+                                                      .segment.segmentIndex]!
+                                                  .dataList[index];
+                                              return ListTile(
+                                                  title: Text(
+                                                      parseFitTimestampToString(
+                                                          history.item.startTime
+                                                              .toInt())),
+                                                  subtitle: Text(
+                                                      '${secondToFormatTime(history.item.duration)} ${history.item.avgSpeed.toStringAsFixed(2)} km/h'));
+                                            },
+                                          ),
                                         ],
                                       ),
                                     ),

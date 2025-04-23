@@ -312,7 +312,7 @@ class _HomePageState extends State<HomePage> {
               SizedBox(
                 height: 400,
                 child: rideData.isEmpty
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Center(child: Text("data loading"))
                     : TableCalendar(
                         firstDay: rideData.keys
                             .reduce((a, b) => a.isBefore(b) ? a : b)
@@ -453,22 +453,47 @@ class _HomePageState extends State<HomePage> {
           heightFactor: 0.4,
           child: dailyRecords.isEmpty
               ? const Center(child: Text('当天没有骑行记录'))
-              : ListView.builder(
-                  itemCount: dailyRecords.length,
-                  itemBuilder: (context, index) {
-                    final record = dailyRecords[index];
-                    return RideHistoryCard(
-                      rideData: record.value,
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                RideDetailPage(rideData: record.value),
-                          ),
+              : CustomScrollView(
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: RideSummary(rideData: {
+                          'totalDistance': dailyRecords.fold(
+                              0.0,
+                              (a, b) =>
+                                  a +
+                                  parseFitDataToSummary(
+                                      b.value)['total_distance']),
+                          'totalRides': dailyRecords.length,
+                          'totalTime': dailyRecords.fold(
+                              0.0,
+                              (a, b) =>
+                                  a +
+                                  parseFitDataToSummary(
+                                      b.value)['total_elapsed_time'])
+                        }),
+                      ),
+                    ),
+                    SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final record = dailyRecords[index];
+                        return RideHistoryCard(
+                          rideData: record.value,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    RideDetailPage(rideData: record.value),
+                              ),
+                            );
+                          },
                         );
                       },
-                    );
-                  },
+                      childCount: dailyRecords.length,
+                    ))
+                  ],
                 ),
         );
       },

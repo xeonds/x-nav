@@ -196,3 +196,10 @@ DateTime getDateTimeFromDataMessage(DataMessage item) {
 int getTimestampFromDataMessage(DataMessage item) {
   return ((item.get('timestamp') * 1000 + 631065600000) / 1000).toInt();
 }
+
+String parseFitTimestampToString(num timestamp) {
+  return DateTime.fromMillisecondsSinceEpoch(
+          (timestamp * 1000 + 631065600000).toInt())
+      .toLocal()
+      .toString();
+}
