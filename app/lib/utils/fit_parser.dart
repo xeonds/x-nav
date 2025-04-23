@@ -181,3 +181,7 @@ List<double> parseFitDataToMetric(Map<String, dynamic> data, String metric) {
       .cast<double>()
       .toList();
 }
+
+LatLng latlngFromFitData(double lat, double lng) {
+  return LatLng(lat / 11930465.0, lng / 11930465.0);
+}

@@ -336,3 +336,8 @@ double latlngToDistance(List<LatLng> points) {
   }
   return totalDistance;
 }
+
+// 计算两个LatLng点之间的距离（单位：米）
+double calculateDistance(LatLng point1, LatLng point2) {
+  return const Distance().as(LengthUnit.Meter, point1, point2);
+}

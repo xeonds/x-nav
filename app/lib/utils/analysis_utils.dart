@@ -1,6 +1,6 @@
+import 'package:app/utils/fit_parser.dart';
 import 'package:app/utils/fit_parser/fit_parser.dart';
 import 'package:app/utils/path_utils.dart';
-import 'package:latlong2/latlong.dart' show LatLng;
 
 // 最佳成绩统计类
 // 有两种使用方法，一是计算本次运动最佳数据
@@ -46,14 +46,10 @@ class BestScore {
     double accumulatedDistance = 0.0;
     for (int i = 1; i < records.length; i++) {
       accumulatedDistance += latlngToDistance([
-        LatLng(
-          records[i - 1].get('position_lat') / 1e7,
-          records[i - 1].get('position_long') / 1e7,
-        ),
-        LatLng(
-          records[i].get('position_lat') / 1e7,
-          records[i].get('position_long') / 1e7,
-        ),
+        latlngFromFitData(records[i - 1].get('position_lat'),
+            records[i - 1].get('position_long')),
+        latlngFromFitData(
+            records[i].get('position_lat'), records[i].get('position_long')),
       ]);
 
       if (accumulatedDistance >= 1000) {
