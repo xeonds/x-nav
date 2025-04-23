@@ -18,12 +18,10 @@ class BestScore {
   void updateRecord(DataMessage record) {
     final speed = record.get('speed') ?? 0.0;
     final altitude = record.get('altitude') ?? 0.0;
-    final grade = record.get('grade') ?? 0.0;
     final power = record.get('power') ?? 0.0;
 
     maxSpeed = speed > maxSpeed ? speed : maxSpeed;
     maxAltitude = altitude > maxAltitude ? altitude : maxAltitude;
-    maxClimb = grade > maxClimb ? grade : maxClimb;
     maxPower = power > maxPower ? power : maxPower;
   }
 
@@ -34,8 +32,18 @@ class BestScore {
     final time = getTimestampFromDataMessage(records.last) -
         getTimestampFromDataMessage(records.first);
     final distance = records.last.get('distance') ?? 0.0;
+    var ascent = 0.0;
+    records
+        .map((e) => e.get('altitude') ?? double.negativeInfinity)
+        .where((e) => e != double.negativeInfinity)
+        .fold(records.first.get('altitude'), (a, b) {
+      ascent += (a < b ? b - a : 0.0);
+      return b;
+    });
+
     maxTime = maxTime > time ? maxTime : time;
     maxDistance = maxDistance > distance ? maxDistance : distance;
+    maxClimb = ascent > maxClimb ? ascent : maxClimb;
 
     List<dynamic> alignedPoints = []; // 以1000m为间隔的点列表
     double accu = 0.0;
@@ -85,7 +93,7 @@ class BestScore {
     return {
       '最大速度': '${(maxSpeed * 3.6).toStringAsFixed(2)} km/h', // 转换为 km/h
       '最大海拔': '${maxAltitude.toStringAsFixed(2)} m', // 保持单位为米
-      '最大爬坡': '${maxClimb.toStringAsFixed(2)} %', // 爬坡百分比
+      '最大爬升': '${maxClimb.toStringAsFixed(2)} m', // 爬坡百分比
       '最大功率': '${maxPower.toStringAsFixed(2)} w', // 功率单位为瓦特
       '最大里程': '${(maxDistance / 1000).toInt()} km', // 转换为公里
       '最长时间': secondToFormatTime(maxTime.toDouble()), // 转换为时分秒格式
@@ -121,14 +129,25 @@ class BestScore {
 
     // 比较最大爬坡
     if (other.maxClimb > maxClimb) {
-      betterData['最大爬坡'] = '${other.maxClimb.toStringAsFixed(2)} %';
+      betterData['最大爬升'] = '${other.maxClimb.toStringAsFixed(2)} m';
+    }
+
+    if (other.maxPower > maxPower) {
+      betterData['最大功率'] = '${other.maxPower.toStringAsFixed(2)} w';
+    }
+
+    if (other.maxDistance > maxDistance) {
+      betterData['最大里程'] = '${(other.maxDistance / 1000).toInt()} km';
+    }
+    if (other.maxTime > maxTime) {
+      betterData['最长时间'] = secondToFormatTime(other.maxTime.toDouble());
     }
 
     // 比较各个里程的最佳速度
     other.bestSpeedByDistance.forEach((distance, otherSpeed) {
       if (!bestSpeedByDistance.containsKey(distance) ||
           otherSpeed > bestSpeedByDistance[distance]!) {
-        betterData['${(distance / 1000).toInt()} km'] =
+        betterData['$distance km'] =
             '${(otherSpeed * 3.6).toStringAsFixed(2)} km/h'
             ' ${secondToFormatTime(distance / otherSpeed)}';
       }
@@ -190,7 +209,7 @@ String secondToFormatTime(double seconds) {
 Map<int, double> calculateMaxRangeAvgs(
     List<int> keys, List<dynamic> values, Function calcRangeAvg) {
   Map<int, double> res = {}; // 结果数组，key为keys, value为最大均值
-  for (var key in keys.where((e) => e < values.length)) {
+  for (var key in keys.where((e) => e <= values.length)) {
     // 处理不同区间长度
     double maxAvg = 0.0; // 当前区间最大长度
     for (int start = 0; start + key < values.length; start++) {

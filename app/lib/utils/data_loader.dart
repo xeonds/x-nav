@@ -45,7 +45,7 @@ class _DataLoadResult {
   final List<List<LatLng>> histories;
   final Map<String, dynamic> rideData;
   final List<Map<String, dynamic>> summary;
-  final Map<int, BestScore> bestScore;
+  final Map<int, BestScore> bestScore, bestScoreAt;
   final Map<int, SortManager<SegmentScore, int>> bestSegment;
 
   _DataLoadResult({
@@ -56,6 +56,7 @@ class _DataLoadResult {
     required this.rideData,
     required this.summary,
     required this.bestScore,
+    required this.bestScoreAt,
     required this.bestSegment,
   });
 }
@@ -73,7 +74,7 @@ class DataLoader extends ChangeNotifier {
   final List<List<LatLng>> _histories = []; // 历史路径
   final Map<String, dynamic> _rideData = {}; // 骑行历史统计信息
   final List<Map<String, dynamic>> _summary = []; // 每个骑行记录对应的摘要
-  final Map<int, BestScore> _bestScore = {}; // 截至任意时间戳的骑行记录的最佳成绩
+  final Map<int, BestScore> _bestScore = {}, _bestScoreAt = {};
   final Map<int, SortManager<SegmentScore, int>> _bestSegment =
       {}; // 任意赛段，截至任意时间戳的最佳记录
   final FMTCTileProvider tileProvider = FMTCTileProvider(
@@ -88,6 +89,7 @@ class DataLoader extends ChangeNotifier {
   List<Map<String, dynamic>> get fitData => _fitData;
   List<File> get gpxData => _gpxFile;
   Map<int, BestScore> get bestScore => _bestScore;
+  Map<int, BestScore> get bestScoreAt => _bestScoreAt;
   Map<int, SortManager<SegmentScore, int>> get bestSegment => _bestSegment;
 
   bool isLoading = false; // 是否正在加载数据
@@ -124,6 +126,9 @@ class DataLoader extends ChangeNotifier {
     _bestScore
       ..clear()
       ..addAll(result.bestScore);
+    _bestScoreAt
+      ..clear()
+      ..addAll(result.bestScoreAt);
     _bestSegment
       ..clear()
       ..addAll(result.bestSegment);
@@ -190,9 +195,9 @@ List<Map<String, dynamic>> _analyzeSummaryData(
 Map<String, dynamic> _analyzeBestScore(Map<String, dynamic> input) {
   final fitData = input['fitData'] as List<Map<String, dynamic>>;
   final routes = input['routes'] as List<List<LatLng>>;
-  final rideData = input['rideData'] as Map<String, dynamic>;
 
-  final bestScore = <int, BestScore>{};
+  final bestScoreTillTimestamp = <int, BestScore>{};
+  final bestScoreAtTimestamp = <int, BestScore>{};
   final bestSegment = <int, SortManager<SegmentScore, int>>{};
   final currBestScore = BestScore();
 
@@ -204,45 +209,51 @@ Map<String, dynamic> _analyzeBestScore(Map<String, dynamic> input) {
   for (var fitData in orderedFitData) {
     final timestamp = getTimestampFromDataMessage(fitData['sessions'][0]);
     final bestScoreForTimestamp = BestScore().update(fitData['records']);
-    bestScore[timestamp] = BestScore()..merge(currBestScore);
+    bestScoreTillTimestamp[timestamp] = BestScore()
+      ..merge(currBestScore); // copy
+    bestScoreAtTimestamp[timestamp] = bestScoreForTimestamp;
     currBestScore.merge(bestScoreForTimestamp);
 
     final routePoints = parseFitDataToRoute(fitData);
     final subRoutes = SegmentMatcher().findSegments(routePoints, routes);
     final analysisOfSubRoutes = subRoutes
-        .map((item) => parseSegmentToScore(item, rideData, routePoints));
-    analysisOfSubRoutes.map((item) {
+        .map((item) => parseSegmentToScore(item, fitData, routePoints));
+    for (var item in analysisOfSubRoutes) {
       if (bestSegment.containsKey(item.segment.segmentIndex)) {
         bestSegment[item.segment.segmentIndex]!
             .append(item, item.startTime.toInt());
       } else {
         bestSegment[item.segment.segmentIndex] =
-            SortManager<SegmentScore, int>((a, b) => a.startTime < b.startTime)
+            SortManager<SegmentScore, int>((a, b) => a.avgSpeed < b.avgSpeed)
               ..append(item, item.startTime.toInt());
       }
-    });
+    }
   }
 
-  return {'bestScore': bestScore, 'bestSegment': bestSegment};
+  return {
+    'bestScore': bestScoreTillTimestamp,
+    'bestScoreAt': bestScoreAtTimestamp,
+    'bestSegment': bestSegment
+  };
 }
 
 class SortManager<T, K> {
   final bool Function(T a, T b) _comparator;
-  final List<Entry<T, K>> _dataList = [];
+  final List<Entry<T, K>> dataList = [];
 
   SortManager(this._comparator);
 
   void append(T item, K key) {
-    _dataList.add(Entry(item, key));
+    dataList.add(Entry(item, key));
   }
 
   int getPosition(K index) {
-    final tIndex = _dataList.indexWhere((entry) => entry.key == index);
+    final tIndex = dataList.indexWhere((entry) => entry.key == index);
     if (tIndex == -1) {
       return -1;
     }
-    final target = _dataList[tIndex].item;
-    final subList = _dataList.sublist(0, tIndex + 1);
+    final target = dataList[tIndex];
+    final subList = dataList.sublist(0, tIndex + 1);
     subList.sort((a, b) => _comparator(a.item, b.item)
         ? 1
         : _comparator(b.item, a.item)
@@ -277,7 +288,6 @@ _DataLoadResult _dataLoadIsolateEntrySync(_DataLoadRequest request) {
   final bestScoreData = _analyzeBestScore({
     'fitData': parsedHistories['fitData'],
     'routes': parsedRoutes['routes'],
-    'rideData': rideData,
   });
 
   return _DataLoadResult(
@@ -288,6 +298,7 @@ _DataLoadResult _dataLoadIsolateEntrySync(_DataLoadRequest request) {
     rideData: rideData,
     summary: summary,
     bestScore: bestScoreData['bestScore'],
+    bestScoreAt: bestScoreData['bestScoreAt'],
     bestSegment: bestScoreData['bestSegment'],
   );
 }

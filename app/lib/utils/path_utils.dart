@@ -1,6 +1,5 @@
 import 'dart:math';
 
-import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/fit_parser.dart'
     show parseFitDataToMetric, parseFitDataToRoute, parseFitDataToSummary;
 import 'package:latlong2/latlong.dart';
@@ -290,7 +289,6 @@ class RideScore {
   late final List<LatLng> routePoints; // 骑行记录的路径点
   late final Map<String, dynamic> summary; // 骑行记录的统计数据
   List<SegmentMatch> segments; // 匹配到的赛段
-  late final BestScore bestScore; // 最佳成绩
 
   late final List<double> speed; // 速度数据
   late final List<double> distance; // 距离数据
@@ -306,7 +304,6 @@ class RideScore {
       segments = SegmentMatcher().findSegments(routePoints, routes);
     }
     summary = parseFitDataToSummary(rideData);
-    bestScore = BestScore().update(rideData['records']);
     final _speed = parseFitDataToMetric(rideData, "speed")
         .map((e) => e * 3.6)
         .toList(); // km/h

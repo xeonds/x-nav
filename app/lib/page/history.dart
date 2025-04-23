@@ -379,11 +379,12 @@ class _RideDetailPageState extends State<RideDetailPage> {
       rideData: rideData,
       routes: routes,
     );
-    final bestScoreDisplay = rideScore.bestScore.getBestData();
-    final bestScoreTillNow = dataLoader
-        .bestScore[getTimestampFromDataMessage(rideData['sessions'][0])]!;
+    final timestamp = getTimestampFromDataMessage(rideData['sessions'][0]);
+    final bestScore = dataLoader.bestScoreAt[timestamp]!;
+    final bestScoreDisplay = bestScore.getBestData();
+    final bestScoreTillNow = dataLoader.bestScore[timestamp]!;
     // 计算最佳成绩
-    final newBest = bestScoreTillNow.getBetterDataDiff(rideScore.bestScore);
+    final newBest = bestScoreTillNow.getBetterDataDiff(bestScore);
     final analysisOfSubRoutes = rideScore.segments
         .map((segment) => parseSegmentToScore(
               segment,
@@ -694,8 +695,8 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                     style: const TextStyle(fontSize: 16),
                                   ),
                                   if (dataLoader.bestSegment[
-                                              segment.segment.segmentIndex]
-                                          ?.getPosition(
+                                              segment.segment.segmentIndex]!
+                                          .getPosition(
                                               segment.startTime.toInt()) ==
                                       0)
                                     const Icon(
@@ -717,42 +718,45 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                       .indexOf(segment.segment);
                                 });
                                 // TODO: 赛段详情页面
-                                // Navigator.of(context).push(
-                                //   MaterialPageRoute(
-                                //     builder: (context) => Scaffold(
-                                //       body: FlutterMap(
-                                //         options: MapOptions(
-                                //           initialCenter: initCenter(
-                                //             routePoints,
-                                //           ),
-                                //           initialZoom: initZoom(
-                                //             routePoints,
-                                //           ),
-                                //         ),
-                                //         children: [
-                                //           TileLayer(
-                                //             urlTemplate:
-                                //                 "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                                //           ),
-                                //           PolylineLayer(
-                                //             polylines: [
-                                //               Polyline(
-                                //                 points: routePoints,
-                                //                 strokeWidth: 4.0,
-                                //                 color: Colors.blue,
-                                //               ),
-                                //               Polyline(
-                                //                 points: route,
-                                //                 strokeWidth: 4.0,
-                                //                 color: Colors.orange,
-                                //               ),
-                                //             ],
-                                //           ),
-                                //         ],
-                                //       ),
-                                //     ),
-                                //   ),
-                                // );
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => Scaffold(
+                                      body: Column(
+                                        children: [
+                                          // FlutterMap(
+                                          //   options: MapOptions(
+                                          //     initialCenter:
+                                          //         initCenter(segment.route),
+                                          //     initialZoom:
+                                          //         initZoom(segment.route),
+                                          //   ),
+                                          //   children: [
+                                          //     TileLayer(
+                                          //       urlTemplate:
+                                          //           "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                                          //     ),
+                                          //     PolylineLayer(
+                                          //       polylines: [
+                                          //         Polyline(
+                                          //           points: segment.route,
+                                          //           strokeWidth: 4.0,
+                                          //           color: Colors.blue,
+                                          //         ),
+                                          //       ],
+                                          //     ),
+                                          //   ],
+                                          // ),
+                                          ListTile(
+                                              title: Text(segment
+                                                  .segment.segmentIndex
+                                                  .toString()),
+                                              subtitle: Text(
+                                                  '${dataLoader.bestSegment[segment.segment.segmentIndex]!.getPosition(segment.startTime.toInt())}'))
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
                               },
                             );
                           }).toList(),
