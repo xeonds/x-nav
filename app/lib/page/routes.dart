@@ -55,19 +55,7 @@ class RoutesPageState extends State<RoutesPage> {
     final dataLoader = context.watch<DataLoader>(); // 监听 DataLoader 的状态
 
     return Scaffold(
-      appBar: _isFullScreen
-          ? null
-          : AppBar(
-              title: const Text('Routes'),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  onPressed: () async {
-                    await dataLoader.loadRouteData();
-                  },
-                ),
-              ],
-            ),
+      appBar: _isFullScreen ? null : AppBar(title: const Text('Routes')),
       body: Stack(
         children: [
           FlutterMap(

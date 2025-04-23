@@ -46,13 +46,7 @@ class RideHistoryState extends State<RideHistory> {
         children: [
           RideSummary(rideData: dataLoader.rideData),
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: () async {
-                await dataLoader.loadHistoryData();
-                await dataLoader.loadRideData();
-              },
-              child: RideHistoryList(history: dataLoader.fitData),
-            ),
+            child: RideHistoryList(history: dataLoader.fitData),
           ),
         ],
       ),
@@ -107,7 +101,7 @@ class RideSummaryState extends State<RideSummary> {
             '总里程: ${((totalDistance ?? 0.0) / 1000.0).toStringAsFixed(2)} km',
           ),
           Text('总次数: $totalRides 次'),
-          Text('总时间: ${((totalTime ?? 0) / 60.0).toStringAsFixed(2)} 分钟'),
+          Text('总时间: ${secondToFormatTime(totalTime)}'),
         ],
       ),
     );
@@ -286,9 +280,8 @@ class _RideDetailPageState extends State<RideDetailPage> {
       routes: routes,
     );
     final bestScoreDisplay = rideScore.bestScore.getBestData();
-    final bestScoreTillNow = dataLoader.bestScore[
-        getDateTimeFromDataMessage(rideData['sessions'][0])
-            .microsecondsSinceEpoch]!;
+    final bestScoreTillNow = dataLoader
+        .bestScore[getTimestampFromDataMessage(rideData['sessions'][0])]!;
     // 计算最佳成绩
     final newBest = bestScoreTillNow.getBetterDataDiff(rideScore.bestScore);
     final analysisOfSubRoutes = rideScore.segments
