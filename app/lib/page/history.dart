@@ -101,7 +101,7 @@ class RideSummaryState extends State<RideSummary> {
             '总里程: ${((totalDistance ?? 0.0) / 1000.0).toStringAsFixed(2)} km',
           ),
           Text('总次数: $totalRides 次'),
-          Text('总时间: ${secondToFormatTime(totalTime)}'),
+          Text('总时间: ${secondToFormatTime(totalTime ?? 0.0)}'),
         ],
       ),
     );
@@ -189,21 +189,121 @@ class RideHistoryListState extends State<RideHistoryList> {
         ),
       );
 
+    bool isMultiSelectMode = false;
+    Set<int> selectedIndices = {};
+
     return sortedHistory.isEmpty
         ? const Center(child: Text('没有骑行记录'))
-        : ListView.builder(
-            itemCount: sortedHistory.length,
-            itemBuilder: (context, index) {
-              return RideHistoryCard(
-                rideData: sortedHistory[index],
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          RideDetailPage(rideData: sortedHistory[index]),
+        : StatefulBuilder(
+            builder: (context, setState) {
+              return Column(
+                children: [
+                  if (isMultiSelectMode)
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '已选择 ${selectedIndices.length} 项',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete),
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('确认删除'),
+                                  content: const Text('确定要删除选中的骑行记录吗？'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(false),
+                                      child: const Text('取消'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(true),
+                                      child: const Text('删除'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) {
+                                for (var index in selectedIndices) {
+                                  final rideData = sortedHistory[index];
+                                  await File(rideData['path']).delete();
+                                }
+                                await DataLoader().loadHistoryData();
+                                setState(() {
+                                  selectedIndices.clear();
+                                  isMultiSelectMode = false;
+                                });
+                              }
+                            },
+                          ),
+                        ],
+                      ),
                     ),
-                  );
-                },
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: sortedHistory.length,
+                      itemBuilder: (context, index) {
+                        final isSelected = selectedIndices.contains(index);
+                        return GestureDetector(
+                          onLongPress: () {
+                            setState(() {
+                              isMultiSelectMode = true;
+                              selectedIndices.add(index);
+                            });
+                          },
+                          onTap: () {
+                            if (isMultiSelectMode) {
+                              setState(() {
+                                if (isSelected) {
+                                  selectedIndices.remove(index);
+                                  if (selectedIndices.isEmpty) {
+                                    isMultiSelectMode = false;
+                                  }
+                                } else {
+                                  selectedIndices.add(index);
+                                }
+                              });
+                            } else {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => RideDetailPage(
+                                    rideData: sortedHistory[index],
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          child: Container(
+                            color: isSelected
+                                ? Colors.grey.withOpacity(0.3)
+                                : Colors.transparent,
+                            child: RideHistoryCard(
+                              rideData: sortedHistory[index],
+                              onTap: () {
+                                if (!isMultiSelectMode) {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => RideDetailPage(
+                                        rideData: sortedHistory[index],
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               );
             },
           );
