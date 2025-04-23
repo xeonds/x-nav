@@ -202,9 +202,10 @@ Map<String, dynamic> _analyzeBestScore(Map<String, dynamic> input) {
             .toInt());
 
   for (var fitData in orderedFitData) {
-    final timestamp = fitData['sessions'][0].get('timestamp');
+    final timestamp = getDateTimeFromDataMessage(fitData['sessions'][0]);
     final bestScoreForTimestamp = BestScore().update(fitData['records']);
-    bestScore[timestamp.toInt()] = BestScore()..merge(currBestScore);
+    bestScore[timestamp.microsecondsSinceEpoch] = BestScore()
+      ..merge(currBestScore);
     currBestScore.merge(bestScoreForTimestamp);
 
     final routePoints = parseFitDataToRoute(fitData);

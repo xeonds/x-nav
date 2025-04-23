@@ -1,24 +1,19 @@
 import 'dart:io';
+
 import 'package:app/component/data.dart';
 import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit_parser.dart';
 import 'package:app/utils/path_utils.dart'
-    show
-        RideScore,
-        SegmentMatcher,
-        initCenter,
-        initZoom,
-        latlngToDistance,
-        parseSegmentToScore;
+    show RideScore, initCenter, initZoom, parseSegmentToScore;
 import 'package:app/utils/storage.dart';
-import 'package:collection/collection.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:fl_chart/fl_chart.dart'; // 用于图表
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart'; // 用于地图
 import 'package:latlong2/latlong.dart' show LatLng;
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 class RideHistory extends StatefulWidget {
   const RideHistory({super.key});
@@ -264,7 +259,7 @@ class RideHistoryCard extends StatelessWidget {
 
 class RideDetailPage extends StatefulWidget {
   final Map<String, dynamic> rideData;
-  RideDetailPage({super.key, required this.rideData});
+  const RideDetailPage({super.key, required this.rideData});
 
   @override
   State<RideDetailPage> createState() => _RideDetailPageState();
@@ -291,8 +286,9 @@ class _RideDetailPageState extends State<RideDetailPage> {
       routes: routes,
     );
     final bestScoreDisplay = rideScore.bestScore.getBestData();
-    final bestScoreTillNow =
-        dataLoader.bestScore[rideData['sessions'][0].get('timestamp')]!;
+    final bestScoreTillNow = dataLoader.bestScore[
+        getDateTimeFromDataMessage(rideData['sessions'][0])
+            .microsecondsSinceEpoch]!;
     // 计算最佳成绩
     final newBest = bestScoreTillNow.getBetterDataDiff(rideScore.bestScore);
     final analysisOfSubRoutes = rideScore.segments
@@ -307,6 +303,22 @@ class _RideDetailPageState extends State<RideDetailPage> {
       appBar: AppBar(
         title: const Text('骑行详情'),
         actions: [
+          IconButton(
+              onPressed: () async {
+                final file = File(rideData['path']);
+                try {
+                  await Share.shareXFiles(
+                      [XFile(file.path, mimeType: 'application/fit')],
+                      text: 'Sharing FIT file');
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to share FIT file: $e'),
+                    ),
+                  );
+                }
+              },
+              icon: const Icon(Icons.file_upload)),
           IconButton(
             icon: const Icon(Icons.delete),
             onPressed: () async {
@@ -671,11 +683,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                     ),
                                 ],
                               ),
-                              subtitle: Text(
-                                value is double
-                                    ? value.toStringAsFixed(2)
-                                    : value?.toString() ?? '未知',
-                              ),
+                              subtitle: Text(value),
                             );
                           }).toList(),
                         ),

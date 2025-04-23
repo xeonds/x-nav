@@ -9,15 +9,17 @@ class BestScore {
   double maxSpeed = 0.0;
   double maxAltitude = 0.0;
   double maxClimb = 0.0;
+  double maxPower = 0.0;
+  double maxDistance = 0.0;
+  int maxTime = 0; // 最大时间
   Map<int, double> bestSpeedByDistance = {}; // 里程（米）对应的最佳速度
   Map<int, double> bestPowerByTime = {}; // 时间段（秒）对应的最大功率
 
   void updateRecord(DataMessage record) {
     final speed = record.get('speed') ?? 0.0;
     final altitude = record.get('altitude') ?? 0.0;
-    // TODO:实现可选的数据项展示
+    final grade = record.get('grade') ?? 0.0;
     final power = record.get('power') ?? 0.0;
-    final distance = record.get('distance') ?? 0.0;
 
     // 更新最大速度
     if (speed > maxSpeed) {
@@ -30,8 +32,12 @@ class BestScore {
     }
 
     // 更新最大爬坡
-    if (record.get('grade') != null && record.get('grade') > maxClimb) {
-      maxClimb = record.get('grade');
+    if (grade > maxClimb) {
+      maxClimb = grade;
+    }
+
+    if (power > maxPower) {
+      maxPower = power;
     }
   }
 
@@ -39,28 +45,33 @@ class BestScore {
     for (var record in records) {
       updateRecord(record);
     }
-    // 更新各个里程的最佳速度
-    List<int> integerKmIndices = [];
+    final distance = records.last.get('distance') ?? 0.0;
+    maxDistance = maxDistance > distance ? maxDistance : distance;
 
-    // 找到所有里程为1km整数倍附近的点
-    double accumulatedDistance = 0.0;
+    final time = getTimestampFromDataMessage(records.last) -
+        getTimestampFromDataMessage(records.first);
+    maxTime = maxTime > time ? maxTime : time;
+
+    List<dynamic> alignedPoints = []; // 以1000m为间隔的点列表
+    double accu = 0.0;
+
     for (int i = 1; i < records.length; i++) {
-      accumulatedDistance += latlngToDistance([
-        latlngFromFitData(records[i - 1].get('position_lat'),
-            records[i - 1].get('position_long')),
-        latlngFromFitData(
-            records[i].get('position_lat'), records[i].get('position_long')),
+      accu += latlngToDistance([
+        getLatlngFromDataMessage(records[i - 1]),
+        getLatlngFromDataMessage(records[i]),
       ]);
-
-      if (accumulatedDistance >= 1000) {
-        integerKmIndices.add(i);
-        accumulatedDistance -= 1000; // 重置为0同时保留多余的部分，保证值都在整数位置上
+      if (accu >= 1000) {
+        alignedPoints.add({
+          'timestamp': records[i].get("timestamp"),
+          'pos': getLatlngFromDataMessage(records[i]),
+        });
+        accu -= 1000; // 重置为0同时保留多余的部分，保证值都在整数位置上
       }
     }
 
-    // 滑动窗口计算各个长度区间的最小用时
-    for (var distanceKey in [
-      // 1000,
+    // /*
+    bestSpeedByDistance = calculateMaxRangeAvgs([
+      1000,
       5000,
       10000,
       20000,
@@ -76,50 +87,51 @@ class BestScore {
       300000,
       400000,
       500000,
-    ]) {
-      double maxAvgSpeed = 0.0;
+    ], alignedPoints, (key, range) {
+      final accumulate = key; // in this case is range's length
+      final timeSpent = range.last['timestamp'] - range.first['timestamp'];
+      return timeSpent > 0 ? accumulate / timeSpent : 0; // in case of div 0
+    });
 
-      int windowSize = distanceKey ~/ 1000; // 滑动窗口大小，以整数公里为单位
-      for (int start = 0;
-          start + windowSize < integerKmIndices.length;
-          start++) {
-        int end = start + windowSize;
-        double segmentDistance = distanceKey.toDouble();
-        double totalTime = records[integerKmIndices[end]].get('timestamp') -
-            records[integerKmIndices[start]].get('timestamp'); // 单位 秒
-        if (totalTime > 0) {
-          double avgSpeed = segmentDistance / totalTime; // 单位 米/秒
-          if (avgSpeed > maxAvgSpeed) {
-            maxAvgSpeed = avgSpeed;
-          }
-        }
-      }
-
-      bestSpeedByDistance[distanceKey] = maxAvgSpeed;
-    }
-
-    // // 更新各个时间段的最大功率
-    // for (var timeKey in [5, 10, 30, 60, 300, 600]) {}
+    // ensure points are aligned to seconds
+    // here for performance reason assume points are aligned as seconds
+    final alignedPower = records
+        .map((e) => {
+              'power': e.get('power') ?? 0,
+              'timestamp': e.get('timestamp'),
+            })
+        .toList();
+    bestPowerByTime = calculateMaxRangeAvgs(
+        [5, 10, 30, 60, 300, 480, 1200, 1800, 3600], alignedPower,
+        (key, range) {
+      final accumulate = range.fold(0, (a, b) => a + b['power']);
+      return accumulate / key;
+    });
 
     return this;
   }
 
-  Map<String, dynamic> getBestData() {
-    final expandedBestSpeed = bestSpeedByDistance.entries
-        .where((entry) => entry.value > 0)
-        .map((entry) => MapEntry((entry.key / 1000).toInt(), entry.value));
-
+  Map<String, String> getBestData() {
     return {
       '最大速度': '${(maxSpeed * 3.6).toStringAsFixed(2)} km/h', // 转换为 km/h
       '最大海拔': '${maxAltitude.toStringAsFixed(2)} m', // 保持单位为米
       '最大爬坡': '${maxClimb.toStringAsFixed(2)} %', // 爬坡百分比
-      ...expandedBestSpeed.toList().asMap().map((index, entry) {
-        return MapEntry(
-          "${entry.key} km",
-          '${(entry.value * 3.6).toStringAsFixed(2)} km/h'
-              ' ${secondToFormatTime(entry.key * 1000.0 / entry.value)}',
-        );
-      }),
+      '最大功率': '${maxPower.toStringAsFixed(2)} w', // 功率单位为瓦特
+      '最大里程': '${(maxDistance / 1000).toInt()} km', // 转换为公里
+      '最长时间': secondToFormatTime(maxTime.toDouble()), // 转换为时分秒格式
+      ...Map.fromEntries(
+        bestSpeedByDistance.entries.where((e) => e.value > 0).map(
+              (e) => MapEntry(
+                  "${(e.key / 1000).toInt()} km",
+                  '${(e.value * 3.6).toStringAsFixed(2)} km/h'
+                      ' ${secondToFormatTime(e.key * 1000.0 / e.value)}'),
+            ),
+      ),
+      ...Map.fromEntries(
+          bestPowerByTime.entries.where((e) => e.value > 0).map((e) => MapEntry(
+                "功率： ${secondToFormatTime(e.key.toDouble())}",
+                "${e.value} w",
+              )))
     };
   }
 
@@ -189,4 +201,22 @@ String secondToFormatTime(double seconds) {
   } else {
     return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
+}
+
+// 计算给定滑动窗口尺寸列表的最大平均值算法
+Map<int, double> calculateMaxRangeAvgs(
+    List<int> keys, List<dynamic> values, Function calcRangeAvg) {
+  Map<int, double> res = {}; // 结果数组，key为keys, value为最大均值
+  for (var key in keys) {
+    // 处理不同区间长度
+    double maxAvg = 0.0; // 当前区间最大长度
+    for (int start = 0; start + key < values.length; start++) {
+      // 遍历所有可能的开头点
+      final range = values.sublist(start, start + key);
+      double avg = calcRangeAvg(key, range);
+      maxAvg = maxAvg > avg ? maxAvg : avg;
+    }
+    res[key] = maxAvg;
+  }
+  return res;
 }

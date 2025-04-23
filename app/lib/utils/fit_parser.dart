@@ -1,3 +1,4 @@
+import 'package:app/utils/fit_parser/src/data_message.dart';
 import 'package:app/utils/fit_parser/src/fit_file.dart';
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
@@ -182,6 +183,16 @@ List<double> parseFitDataToMetric(Map<String, dynamic> data, String metric) {
       .toList();
 }
 
-LatLng latlngFromFitData(double lat, double lng) {
-  return LatLng(lat / 11930465.0, lng / 11930465.0);
+LatLng getLatlngFromDataMessage(DataMessage item) {
+  return LatLng(item.get('position_lat') / 11930465.0,
+      item.get('position_long') / 11930465.0);
+}
+
+DateTime getDateTimeFromDataMessage(DataMessage item) {
+  return DateTime.fromMillisecondsSinceEpoch(
+      (item.get('timestamp') * 1000 + 631065600000).toInt());
+}
+
+int getTimestampFromDataMessage(DataMessage item) {
+  return ((item.get('timestamp') * 1000 + 631065600000) / 1000).toInt();
 }

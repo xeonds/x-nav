@@ -320,7 +320,7 @@ class RoutesPageState extends State<RoutesPage> {
                   _initializeData();
                 }
               },
-              child: const Icon(Icons.upload_file),
+              child: const Icon(Icons.file_upload),
             ),
           if (_selectedGpxFile == null) const SizedBox(height: 16),
           if (_selectedGpxFile == null)

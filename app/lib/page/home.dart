@@ -409,11 +409,7 @@ class _HomePageState extends State<HomePage> {
                   final value = entry.value;
                   return ListTile(
                     title: Text(key),
-                    subtitle: Text(
-                      value is double
-                          ? value.toStringAsFixed(2)
-                          : value?.toString() ?? '未知',
-                    ),
+                    subtitle: Text(value),
                   );
                 }).toList(),
               ),
