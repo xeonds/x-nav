@@ -717,78 +717,12 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                   highlightRouteIndex = rideScore.segments
                                       .indexOf(segment.segment);
                                 });
-                                // TODO: 赛段详情页面
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (context) => Scaffold(
-                                      body: Column(
-                                        children: [
-                                          // FlutterMap(
-                                          //   options: MapOptions(
-                                          //     initialCenter:
-                                          //         initCenter(segment.route),
-                                          //     initialZoom:
-                                          //         initZoom(segment.route),
-                                          //   ),
-                                          //   children: [
-                                          //     TileLayer(
-                                          //       urlTemplate:
-                                          //           "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                                          //     ),
-                                          //     PolylineLayer(
-                                          //       polylines: [
-                                          //         Polyline(
-                                          //           points: segment.route,
-                                          //           strokeWidth: 4.0,
-                                          //           color: Colors.blue,
-                                          //         ),
-                                          //       ],
-                                          //     ),
-                                          //   ],
-                                          // ),
-                                          const Text("路段详情"),
-                                          const SizedBox(height: 20),
-                                          Text(
-                                            '路段 ${rideScore.segments.indexOf(segment.segment) + 1}',
-                                            style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold),
-                                          ),
-                                          const SizedBox(height: 10),
-                                          Text(
-                                            '里程 ${segment.distance.toStringAsFixed(2)} km'
-                                            ' 耗时 ${secondToFormatTime(segment.duration)}'
-                                            ' 均速 ${segment.avgSpeed.toStringAsFixed(2)} km/h',
-                                            style:
-                                                const TextStyle(fontSize: 14),
-                                          ),
-                                          const SizedBox(height: 10),
-                                          Text('历史成绩'),
-                                          ListView.builder(
-                                            shrinkWrap: true,
-                                            physics:
-                                                const NeverScrollableScrollPhysics(),
-                                            itemCount: dataLoader
-                                                .bestSegment[segment
-                                                    .segment.segmentIndex]!
-                                                .dataList
-                                                .length,
-                                            itemBuilder: (context, index) {
-                                              final history = dataLoader
-                                                  .bestSegment[segment
-                                                      .segment.segmentIndex]!
-                                                  .dataList[index];
-                                              return ListTile(
-                                                  title: Text(
-                                                      parseFitTimestampToString(
-                                                          history.item.startTime
-                                                              .toInt())),
-                                                  subtitle: Text(
-                                                      '${secondToFormatTime(history.item.duration)} ${history.item.avgSpeed.toStringAsFixed(2)} km/h'));
-                                            },
-                                          ),
-                                        ],
-                                      ),
+                                    builder: (context) => SegmentDetailPage(
+                                      segment: segment,
+                                      rideScore: rideScore,
+                                      dataLoader: dataLoader,
                                     ),
                                   ),
                                 );
@@ -988,6 +922,338 @@ class _RideDetailPageState extends State<RideDetailPage> {
                 ),
               );
             },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SegmentDetailPage extends StatelessWidget {
+  final dynamic segment;
+  final RideScore rideScore;
+  final DataLoader dataLoader;
+
+  const SegmentDetailPage({
+    super.key,
+    required this.segment,
+    required this.rideScore,
+    required this.dataLoader,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDarkMode =
+        MediaQuery.of(context).platformBrightness == Brightness.dark;
+    final segmentIndex = segment.segment.segmentIndex;
+    final bestSegment = dataLoader.bestSegment[segmentIndex];
+    final segmentRecords = bestSegment?.dataList ?? [];
+    final userRecordIndex =
+        bestSegment?.getPosition(segment.startTime.toInt()) ?? -1;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('赛段 ${segmentIndex + 1} 详情'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // 赛段地图
+          SizedBox(
+            height: 200,
+            child: FlutterMap(
+              options: MapOptions(
+                initialCenter: initCenter(segment.route),
+                initialZoom: initZoom(segment.route),
+                // interactiveFlags: InteractiveFlag.all,
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                  tileProvider: dataLoader.tileProvider,
+                ),
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: segment.route,
+                      strokeWidth: 5.0,
+                      color: Colors.orange,
+                    ),
+                  ],
+                ),
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: segment.route.first,
+                      child:
+                          const Icon(Icons.flag, color: Colors.green, size: 28),
+                    ),
+                    Marker(
+                      point: segment.route.last,
+                      child:
+                          const Icon(Icons.flag, color: Colors.red, size: 28),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // 赛段基本信息
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                children: [
+                  Text(
+                    '赛段 ${segmentIndex + 1}',
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      Statistic(
+                        data: segment.distance.toStringAsFixed(2),
+                        label: 'km',
+                        subtitle: '距离',
+                      ),
+                      Statistic(
+                        data: secondToFormatTime(segment.duration),
+                        label: '',
+                        subtitle: '耗时',
+                      ),
+                      Statistic(
+                        data: segment.avgSpeed.toStringAsFixed(2),
+                        label: 'km/h',
+                        subtitle: '均速',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      Statistic(
+                        data: segment.maxSpeed.toStringAsFixed(2),
+                        label: 'km/h',
+                        subtitle: '最大速度',
+                      ),
+                      Statistic(
+                        data: segment.ascent.toStringAsFixed(0),
+                        label: 'm',
+                        subtitle: '爬升',
+                      ),
+                      Statistic(
+                        data: segment.descent.toStringAsFixed(0),
+                        label: 'm',
+                        subtitle: '下降',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // 速度图表
+          Text(
+            '速度分布',
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: isDarkMode ? Colors.white : Colors.black),
+          ),
+          SizedBox(
+            height: 180,
+            child: LineChart(
+              LineChartData(
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: List.generate(
+                      segment.speed.length,
+                      (i) => FlSpot(
+                        segment.distanceList[i],
+                        segment.speed[i],
+                      ),
+                    ),
+                    isCurved: false,
+                    color: Colors.deepOrange,
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: Colors.deepOrange.withOpacity(0.3),
+                    ),
+                    dotData: FlDotData(show: false),
+                  ),
+                ],
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 40,
+                      getTitlesWidget: (value, meta) =>
+                          Text('${value.toInt()} km/h'),
+                      interval: 10,
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 20,
+                      interval: segment.distance / 5,
+                      getTitlesWidget: (value, meta) =>
+                          Text('${value.toStringAsFixed(1)} km'),
+                    ),
+                  ),
+                  topTitles: AxisTitles(),
+                  rightTitles: AxisTitles(),
+                ),
+                borderData: FlBorderData(show: false),
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: true,
+                  drawHorizontalLine: true,
+                  horizontalInterval: 10,
+                  verticalInterval: 1,
+                  getDrawingHorizontalLine: (value) => FlLine(
+                    color: Colors.grey.withOpacity(0.5),
+                    strokeWidth: 0.5,
+                  ),
+                  getDrawingVerticalLine: (value) => FlLine(
+                    color: Colors.grey.withOpacity(0.5),
+                    strokeWidth: 0.5,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // 海拔图表
+          Text(
+            '海拔分布',
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: isDarkMode ? Colors.white : Colors.black),
+          ),
+          SizedBox(
+            height: 180,
+            child: LineChart(
+              LineChartData(
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: List.generate(
+                      segment.altitude.length,
+                      (i) => FlSpot(
+                        segment.distanceList[i],
+                        segment.altitude[i],
+                      ),
+                    ),
+                    isCurved: false,
+                    color: Colors.blueAccent,
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: Colors.blueAccent.withOpacity(0.3),
+                    ),
+                    dotData: FlDotData(show: false),
+                  ),
+                ],
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 40,
+                      getTitlesWidget: (value, meta) =>
+                          Text('${value.toInt()} m'),
+                      interval: 50,
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 20,
+                      interval: segment.distance / 5,
+                      getTitlesWidget: (value, meta) =>
+                          Text('${value.toStringAsFixed(1)} km'),
+                    ),
+                  ),
+                  topTitles: AxisTitles(),
+                  rightTitles: AxisTitles(),
+                ),
+                borderData: FlBorderData(show: false),
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: true,
+                  drawHorizontalLine: true,
+                  horizontalInterval: 50,
+                  verticalInterval: 1,
+                  getDrawingHorizontalLine: (value) => FlLine(
+                    color: Colors.grey.withOpacity(0.5),
+                    strokeWidth: 0.5,
+                  ),
+                  getDrawingVerticalLine: (value) => FlLine(
+                    color: Colors.grey.withOpacity(0.5),
+                    strokeWidth: 0.5,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // 排行榜
+          Text(
+            '排行榜',
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: isDarkMode ? Colors.white : Colors.black),
+          ),
+          Card(
+            child: ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: segmentRecords.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, idx) {
+                final record = segmentRecords[idx];
+                final isUser = idx == userRecordIndex;
+                return ListTile(
+                  leading: Text(
+                    '${idx + 1}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: isUser ? Colors.orange : null,
+                    ),
+                  ),
+                  title: Text(
+                    record.item.startTime.toString(),
+                    style: TextStyle(
+                      color: isUser ? Colors.orange : null,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '耗时: ${secondToFormatTime(record.item.duration)}  均速: ${(record.item.avgSpeed).toStringAsFixed(2)} km/h',
+                  ),
+                  trailing: isUser
+                      ? const Icon(Icons.emoji_events, color: Colors.amber)
+                      : null,
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          // 分享按钮
+          Center(
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.share),
+              label: const Text('分享赛段成绩'),
+              onPressed: () async {
+                final text =
+                    '我在赛段${segmentIndex + 1}骑行了${segment.distance.toStringAsFixed(2)}km，用时${secondToFormatTime(segment.duration)}，均速${segment.avgSpeed.toStringAsFixed(2)}km/h！';
+                await Share.share(text);
+              },
+            ),
           ),
         ],
       ),

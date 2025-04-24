@@ -84,16 +84,21 @@ class Storage {
     // create backup for gpx and fit files
     final gpxFiles = await getGpxFiles();
     final fitFiles = await getFitFiles();
-    final backupFile = File(
-      path.join(
-        (await getApplicationDocumentsDirectory()).absolute.path,
-        'backup.zip',
-      ),
-    );
+    final docDir = await getApplicationDocumentsDirectory();
+    final backupFile = File(path.join(docDir.path, 'backup.zip'));
     final encoder = ZipFileEncoder();
     encoder.create(backupFile.path);
-    for (final file in [...gpxFiles, ...fitFiles]) {
-      encoder.addFile(file);
+    for (final file in fitFiles) {
+      encoder.addFile(
+        file,
+        path.join('history', path.basename(file.path)),
+      );
+    }
+    for (final file in gpxFiles) {
+      encoder.addFile(
+        file,
+        path.join('route', path.basename(file.path)),
+      );
     }
     encoder.close();
   }
