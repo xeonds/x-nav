@@ -916,6 +916,19 @@ class _RideDetailPageState extends State<RideDetailPage> {
                             ),
                           ),
                         ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          '查看自定义区间',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        // TODO
+                        // 滑动条，选择区间开始结束
+                        // 固定地图，跟随滑动而缩放和重绘路线
+                        // 点击地图打开SegmentDetailPage的子页面展示区间成绩信息
                       ],
                     ),
                   ),
