@@ -20,8 +20,27 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final dataLoader = Provider.of<DataLoader>(context, listen: true);
 
-    if (!dataLoader.isInitialized) {
-      return const Center(child: CircularProgressIndicator());
+    if (dataLoader.isLoading) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(dataLoader.progressMessage ?? '数据加载中...'),
+          ],
+        ),
+      );
+    }
+    if (!dataLoader.isLoading && !dataLoader.isInitialized) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(dataLoader.progressMessage ?? '未知错误...'),
+          ],
+        ),
+      );
     }
 
     final bestScore = dataLoader.bestScore;

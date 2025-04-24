@@ -93,49 +93,69 @@ class DataLoader extends ChangeNotifier {
   Map<int, SortManager<SegmentScore, int>> get bestSegment => _bestSegment;
 
   bool isLoading = false; // 是否正在加载数据
+  String? progressMessage;
 
   Future<void> initialize() async {
     if (isLoading) return;
     isLoading = true;
     isInitialized = false;
-
-    // 传递appDocPath到isolate
-    final result = await runInIsolate<_DataLoadRequest, _DataLoadResult>(
-      (req) => _dataLoadIsolateEntrySync(req),
-      _DataLoadRequest(Storage.appDocPath!),
-    );
-
-    _routes
-      ..clear()
-      ..addAll(result.routes);
-    _fitData
-      ..clear()
-      ..addAll(result.fitData);
-    _gpxFile
-      ..clear()
-      ..addAll(result.gpxFiles);
-    _histories
-      ..clear()
-      ..addAll(result.histories);
-    _rideData
-      ..clear()
-      ..addAll(result.rideData);
-    _summary
-      ..clear()
-      ..addAll(result.summary);
-    _bestScore
-      ..clear()
-      ..addAll(result.bestScore);
-    _bestScoreAt
-      ..clear()
-      ..addAll(result.bestScoreAt);
-    _bestSegment
-      ..clear()
-      ..addAll(result.bestSegment);
-
-    isInitialized = true;
-    isLoading = false;
+    progressMessage = '准备加载数据...';
     notifyListeners();
+
+    try {
+      final result =
+          await runInIsolateWithProgress<_DataLoadRequest, _DataLoadResult>(
+        entry: _dataLoadIsolateEntryWithProgress,
+        parameter: _DataLoadRequest(Storage.appDocPath!),
+        onMessage: (msg) {
+          if (msg is Map && msg['progress'] != null) {
+            progressMessage = msg['progress'];
+            notifyListeners();
+          } else if (msg is Map && msg['error'] != null) {
+            progressMessage = '加载失败: ' + msg['error'];
+            isLoading = false;
+            isInitialized = false;
+            notifyListeners();
+          }
+        },
+      );
+      _routes
+        ..clear()
+        ..addAll(result.routes);
+      _fitData
+        ..clear()
+        ..addAll(result.fitData);
+      _gpxFile
+        ..clear()
+        ..addAll(result.gpxFiles);
+      _histories
+        ..clear()
+        ..addAll(result.histories);
+      _rideData
+        ..clear()
+        ..addAll(result.rideData);
+      _summary
+        ..clear()
+        ..addAll(result.summary);
+      _bestScore
+        ..clear()
+        ..addAll(result.bestScore);
+      _bestScoreAt
+        ..clear()
+        ..addAll(result.bestScoreAt);
+      _bestSegment
+        ..clear()
+        ..addAll(result.bestSegment);
+      isInitialized = true;
+      isLoading = false;
+      progressMessage = null;
+      notifyListeners();
+    } catch (e) {
+      progressMessage = '加载失败: ' + e.toString();
+      isLoading = false;
+      isInitialized = false;
+      notifyListeners();
+    }
   }
 
   Future<void> loadRouteData() async {}
@@ -301,4 +321,77 @@ _DataLoadResult _dataLoadIsolateEntrySync(_DataLoadRequest request) {
     bestScoreAt: bestScoreData['bestScoreAt'],
     bestSegment: bestScoreData['bestSegment'],
   );
+}
+
+void _dataLoadIsolateEntryWithProgress(
+    _DataLoadRequest request, SendPort sendPort) {
+  try {
+    sendPort.send({'progress': '正在初始化存储...'});
+    Storage.appDocPath = request.appDocPath;
+
+    sendPort.send({'progress': '正在读取GPX文件...'});
+    final gpxFiles = Storage().getGpxFilesSync();
+    final parsedRoutes = _parseGpxFiles(gpxFiles);
+
+    sendPort.send({'progress': '正在读取FIT文件...'});
+    final fitFiles = Storage().getFitFilesSync();
+    final parsedHistories = _parseFitFiles(fitFiles);
+
+    sendPort.send({'progress': '正在分析骑行摘要...'});
+    final summary = _analyzeSummaryData(parsedHistories['fitData']);
+
+    sendPort.send({'progress': '正在统计骑行数据...'});
+    final rideData = _analyzeRideData(summary);
+
+    sendPort.send({'progress': '正在分析最佳成绩...'});
+    final bestScoreData = _analyzeBestScore({
+      'fitData': parsedHistories['fitData'],
+      'routes': parsedRoutes['routes'],
+    });
+
+    sendPort.send({'progress': '数据加载完成'});
+    sendPort.send(_DataLoadResult(
+      routes: parsedRoutes['routes'],
+      fitData: parsedHistories['fitData'],
+      gpxFiles: parsedRoutes['files'],
+      histories: parsedHistories['histories'],
+      rideData: rideData,
+      summary: summary,
+      bestScore: bestScoreData['bestScore'],
+      bestScoreAt: bestScoreData['bestScoreAt'],
+      bestSegment: bestScoreData['bestSegment'],
+    ));
+  } catch (e, st) {
+    sendPort.send({'error': e.toString(), 'stack': st.toString()});
+  }
+}
+
+// 支持进度消息的异步任务
+Future<R> runInIsolateWithProgress<P, R>({
+  required void Function(P, SendPort) entry,
+  required P parameter,
+  required void Function(dynamic message) onMessage,
+}) async {
+  final receivePort = ReceivePort();
+  await Isolate.spawn<_IsolateProgressMessage<P>>(
+    (msg) => msg.entry(msg.parameter, msg.sendPort),
+    _IsolateProgressMessage(entry, parameter, receivePort.sendPort),
+  );
+  late R result;
+  await for (final message in receivePort) {
+    onMessage(message);
+    if (message is R) {
+      result = message;
+      break;
+    }
+  }
+  receivePort.close();
+  return result;
+}
+
+class _IsolateProgressMessage<P> {
+  final void Function(P, SendPort) entry;
+  final P parameter;
+  final SendPort sendPort;
+  _IsolateProgressMessage(this.entry, this.parameter, this.sendPort);
 }
