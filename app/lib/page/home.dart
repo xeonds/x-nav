@@ -45,8 +45,8 @@ class _HomePageState extends State<HomePage> {
 
     final bestScore = dataLoader.bestScore;
     // 取bestscore中key最大的值
-    final maxKey = bestScore.keys.reduce((a, b) => a > b ? a : b);
-    final bestScoreDisplay = (bestScore[maxKey] ?? BestScore()).getBestData();
+    final bestScoreDisplay =
+        (bestScore.entries.last.value ?? BestScore()).getBestData();
 
     final rideData = dataLoader.summaryList
         .map((e) => {

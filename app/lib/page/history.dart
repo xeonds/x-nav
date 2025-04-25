@@ -5,7 +5,7 @@ import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit_parser.dart';
 import 'package:app/utils/path_utils.dart'
-    show RideScore, SegmentScore, initCenter, initZoom, parseSegmentToScore;
+    show RideScore, SegmentScore, initCenter, initZoom;
 import 'package:app/utils/storage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:fl_chart/fl_chart.dart'; // 用于图表
@@ -375,23 +375,14 @@ class _RideDetailPageState extends State<RideDetailPage> {
     final dataLoader = context.watch<DataLoader>(); // 监听 DataLoader 的状态
     List<List<LatLng>> routes = dataLoader.routes;
 
-    final rideScore = RideScore(
-      rideData: rideData,
-      routes: routes,
-    );
+    final rideScore = RideScore(rideData: rideData, routes: routes);
     final timestamp = getTimestampFromDataMessage(rideData['sessions'][0]);
     final bestScore = dataLoader.bestScoreAt[timestamp]!;
     final bestScoreDisplay = bestScore.getBestData();
     final bestScoreTillNow = dataLoader.bestScore[timestamp]!;
     // 计算最佳成绩
     final newBest = bestScoreTillNow.getBetterDataDiff(bestScore);
-    final analysisOfSubRoutes = rideScore.segments
-        .map((segment) => parseSegmentToScore(
-              segment,
-              rideData,
-              rideScore.routePoints,
-            ))
-        .toList();
+    final analysisOfSubRoutes = dataLoader.subRoutesOfRoutes[timestamp]!;
 
     return Scaffold(
       appBar: AppBar(
@@ -660,7 +651,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
                             ),
                             Statistic(
                               subtitle: "路段",
-                              data: rideScore.segments.length.toString(),
+                              data: analysisOfSubRoutes.length.toString(),
                             ),
                             Statistic(
                                 subtitle: "成就",
@@ -686,7 +677,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
                               title: Row(
                                 children: [
                                   Text(
-                                    '路段 ${rideScore.segments.indexOf(segment.segment) + 1}',
+                                    '路段 ${segment.segment.segmentIndex + 1}',
                                     style: const TextStyle(fontSize: 16),
                                   ),
                                   if (dataLoader.bestSegment[
@@ -709,8 +700,8 @@ class _RideDetailPageState extends State<RideDetailPage> {
                               ),
                               onTap: () {
                                 setState(() {
-                                  highlightRouteIndex = rideScore.segments
-                                      .indexOf(segment.segment);
+                                  highlightRouteIndex =
+                                      segment.segment.segmentIndex;
                                 });
                                 Navigator.of(context).push(
                                   MaterialPageRoute(

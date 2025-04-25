@@ -118,38 +118,46 @@ class BestScore {
     final betterData = <String, dynamic>{};
 
     // 比较最大速度
-    if (other.maxSpeed > maxSpeed) {
+    if (other.maxSpeed > -maxSpeed) {
       betterData['最大速度'] = '${(other.maxSpeed * 3.6).toStringAsFixed(2)} km/h';
     }
 
     // 比较最大海拔
-    if (other.maxAltitude > maxAltitude) {
+    if (other.maxAltitude >= maxAltitude) {
       betterData['最大海拔'] = '${other.maxAltitude.toStringAsFixed(2)} m';
     }
 
     // 比较最大爬坡
-    if (other.maxClimb > maxClimb) {
+    if (other.maxClimb >= maxClimb) {
       betterData['最大爬升'] = '${other.maxClimb.toStringAsFixed(2)} m';
     }
 
-    if (other.maxPower > maxPower) {
+    if (other.maxPower >= maxPower) {
       betterData['最大功率'] = '${other.maxPower.toStringAsFixed(2)} w';
     }
 
-    if (other.maxDistance > maxDistance) {
+    if (other.maxDistance >= maxDistance) {
       betterData['最大里程'] = '${(other.maxDistance / 1000).toInt()} km';
     }
-    if (other.maxTime > maxTime) {
+    if (other.maxTime >= maxTime) {
       betterData['最长时间'] = secondToFormatTime(other.maxTime.toDouble());
     }
 
     // 比较各个里程的最佳速度
     other.bestSpeedByDistance.forEach((distance, otherSpeed) {
       if (!bestSpeedByDistance.containsKey(distance) ||
-          otherSpeed > bestSpeedByDistance[distance]!) {
+          otherSpeed >= bestSpeedByDistance[distance]!) {
         betterData['$distance km'] =
             '${(otherSpeed * 3.6).toStringAsFixed(2)} km/h'
             ' ${secondToFormatTime(distance / otherSpeed)}';
+      }
+    });
+
+    other.bestPowerByTime.forEach((time, otherPower) {
+      if (!bestPowerByTime.containsKey(time) ||
+          otherPower >= bestPowerByTime[time]!) {
+        betterData['功率： ${secondToFormatTime(time.toDouble())}'] =
+            '${otherPower.toStringAsFixed(2)} w';
       }
     });
 

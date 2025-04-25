@@ -47,6 +47,7 @@ class _DataLoadResult {
   final List<Map<String, dynamic>> summary;
   final Map<int, BestScore> bestScore, bestScoreAt;
   final Map<int, SortManager<SegmentScore, int>> bestSegment;
+  final Map<int, List<SegmentScore>> subRoutesOfRoutes;
 
   _DataLoadResult({
     required this.routes,
@@ -58,6 +59,7 @@ class _DataLoadResult {
     required this.bestScore,
     required this.bestScoreAt,
     required this.bestSegment,
+    required this.subRoutesOfRoutes,
   });
 }
 
@@ -77,6 +79,7 @@ class DataLoader extends ChangeNotifier {
   final Map<int, BestScore> _bestScore = {}, _bestScoreAt = {};
   final Map<int, SortManager<SegmentScore, int>> _bestSegment =
       {}; // 任意赛段，截至任意时间戳的最佳记录
+  final Map<int, List<SegmentScore>> _subRoutesOfRoutes = {};
   final FMTCTileProvider tileProvider = FMTCTileProvider(
     stores: const {'mapStore': BrowseStoreStrategy.readUpdateCreate},
   );
@@ -91,6 +94,7 @@ class DataLoader extends ChangeNotifier {
   Map<int, BestScore> get bestScore => _bestScore;
   Map<int, BestScore> get bestScoreAt => _bestScoreAt;
   Map<int, SortManager<SegmentScore, int>> get bestSegment => _bestSegment;
+  Map<int, List<SegmentScore>> get subRoutesOfRoutes => _subRoutesOfRoutes;
 
   bool isLoading = false; // 是否正在加载数据
   String? progressMessage;
@@ -146,6 +150,9 @@ class DataLoader extends ChangeNotifier {
       _bestSegment
         ..clear()
         ..addAll(result.bestSegment);
+      _subRoutesOfRoutes
+        ..clear()
+        ..addAll(result.subRoutesOfRoutes);
       isInitialized = true;
       isLoading = false;
       progressMessage = null;
@@ -216,10 +223,11 @@ Map<String, dynamic> _analyzeBestScore(Map<String, dynamic> input) {
   final fitData = input['fitData'] as List<Map<String, dynamic>>;
   final routes = input['routes'] as List<List<LatLng>>;
 
-  final bestScoreTillTimestamp = <int, BestScore>{};
+  final bestScoreTillNow = <int, BestScore>{};
   final bestScoreAtTimestamp = <int, BestScore>{};
   final bestSegment = <int, SortManager<SegmentScore, int>>{};
   final currBestScore = BestScore();
+  final subRoutesOfRoutes = <int, List<SegmentScore>>{};
 
   final orderedFitData = List<Map<String, dynamic>>.from(fitData)
     ..sort((a, b) => (getTimestampFromDataMessage(a['sessions'][0]) -
@@ -229,15 +237,16 @@ Map<String, dynamic> _analyzeBestScore(Map<String, dynamic> input) {
   for (var fitData in orderedFitData) {
     final timestamp = getTimestampFromDataMessage(fitData['sessions'][0]);
     final bestScoreForTimestamp = BestScore().update(fitData['records']);
-    bestScoreTillTimestamp[timestamp] = BestScore()
-      ..merge(currBestScore); // copy
-    bestScoreAtTimestamp[timestamp] = bestScoreForTimestamp;
+    // modified, because merge current bestscore don't mix new best's judgement
     currBestScore.merge(bestScoreForTimestamp);
-
+    bestScoreTillNow[timestamp] = BestScore()..merge(currBestScore); // copy
+    bestScoreAtTimestamp[timestamp] = bestScoreForTimestamp;
     final routePoints = parseFitDataToRoute(fitData);
     final subRoutes = SegmentMatcher().findSegments(routePoints, routes);
     final analysisOfSubRoutes = subRoutes
-        .map((item) => parseSegmentToScore(item, fitData, routePoints));
+        .map((item) => parseSegmentToScore(item, fitData, routePoints))
+        .toList();
+    subRoutesOfRoutes[timestamp] = analysisOfSubRoutes;
     for (var item in analysisOfSubRoutes) {
       if (bestSegment.containsKey(item.segment.segmentIndex)) {
         bestSegment[item.segment.segmentIndex]!
@@ -251,9 +260,10 @@ Map<String, dynamic> _analyzeBestScore(Map<String, dynamic> input) {
   }
 
   return {
-    'bestScore': bestScoreTillTimestamp,
+    'bestScore': bestScoreTillNow,
     'bestScoreAt': bestScoreAtTimestamp,
-    'bestSegment': bestSegment
+    'bestSegment': bestSegment,
+    'subRoutesOfRoutes': subRoutesOfRoutes,
   };
 }
 
@@ -352,6 +362,7 @@ void _dataLoadIsolateEntryWithProgress(
       bestScore: bestScoreData['bestScore'],
       bestScoreAt: bestScoreData['bestScoreAt'],
       bestSegment: bestScoreData['bestSegment'],
+      subRoutesOfRoutes: bestScoreData['subRoutesOfRoutes'],
     ));
   } catch (e, st) {
     sendPort.send({'error': e.toString(), 'stack': st.toString()});

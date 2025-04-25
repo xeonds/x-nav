@@ -60,21 +60,21 @@ class SegmentMatcher {
 
   /// 赛段匹配的最小百分比阈值，低于此值不视为匹配
   final double minMatchPercentage;
+  final double maxMatchPercentage;
 
   /// 距离计算器
   final Distance distance = const Distance();
 
-  SegmentMatcher({
-    this.distanceThreshold = 30.0, // 默认30米
-    this.minMatchPercentage = 0.9, // 默认90%匹配度
-  });
+  SegmentMatcher(
+      {this.distanceThreshold = 30.0, // 默认30米
+      this.minMatchPercentage = 0.9, // 默认90%匹配度
+      this.maxMatchPercentage = 1.1});
 
   /// 检查骑行记录是否包含指定的赛段
   /// 返回所有匹配的赛段及其在骑行记录中的位置
   List<SegmentMatch> findSegments(
       List<LatLng> ridePoints, List<List<LatLng>> allSegments) {
     List<SegmentMatch> matches = [];
-
     for (int i = 0; i < allSegments.length; i++) {
       final segment = allSegments[i];
       // 赛段过短（少于2个点）则跳过
@@ -93,6 +93,7 @@ class SegmentMatcher {
       List<LatLng> ridePoints, List<LatLng> segmentPoints, int segId) {
     // 赛段起点在骑行记录中的可能位置
     List<int> possibleStartIndices = [];
+    final segDistance = latlngToDistance(segmentPoints);
 
     // 找到所有可能的起点（每圈只取一个起点，避免同一圈多次匹配）
     final minGap = (segmentPoints.length * minMatchPercentage)
@@ -119,9 +120,9 @@ class SegmentMatcher {
 
     // 对每个可能的起点进行完整匹配检查
     for (int startIndex in possibleStartIndices) {
-      int matchedPoints = 1; // 起点已匹配
       int pathIndex = startIndex + 1;
       int segmentIndex = 1;
+      int lastMatchedPathIndex = startIndex; // 跟踪最后一个匹配点的索引
 
       // 特殊情况：如果赛段只有一个点
       if (segmentPoints.length == 1) {
@@ -130,32 +131,31 @@ class SegmentMatcher {
         ];
       }
 
-      int unmatchedCount = 0;
       // 从起点后开始匹配剩余点
       while (segmentIndex < segmentPoints.length &&
           pathIndex < ridePoints.length) {
         // 检查当前骑行点是否匹配当前赛段点
         if (isPointMatch(ridePoints[pathIndex], segmentPoints[segmentIndex])) {
-          matchedPoints++;
           segmentIndex++;
-        } else {
-          unmatchedCount++;
+          lastMatchedPathIndex = pathIndex; // 更新最后匹配点
         }
-
-        if (unmatchedCount >= 10) {
-          break;
-        }
-
         pathIndex++;
       }
 
       // 计算匹配百分比
-      double matchPercentage = matchedPoints / segmentPoints.length;
+      final matchedSubRouteDistance = latlngToDistance(
+          ridePoints.sublist(startIndex, lastMatchedPathIndex));
+      double matchPercentage = matchedSubRouteDistance / segDistance;
 
-      // 更新最佳匹配
-      if (matchPercentage > minMatchPercentage) {
-        bestMatch.add(SegmentMatch(segmentPoints, startIndex,
-            startIndex + (pathIndex - startIndex - 1), matchPercentage, segId));
+      if (matchPercentage > minMatchPercentage &&
+          matchPercentage < maxMatchPercentage) {
+        bestMatch.add(SegmentMatch(
+          segmentPoints,
+          startIndex,
+          lastMatchedPathIndex,
+          matchPercentage,
+          segId,
+        ));
       }
     }
 
@@ -297,7 +297,6 @@ class RideScore {
   final Map<String, dynamic> rideData; // fitData原始数据
   late final List<LatLng> routePoints; // 骑行记录的路径点
   late final Map<String, dynamic> summary; // 骑行记录的统计数据
-  List<SegmentMatch> segments; // 匹配到的赛段
 
   late final List<double> speed; // 速度数据
   late final List<double> distance; // 距离数据
@@ -305,31 +304,27 @@ class RideScore {
 
   RideScore({
     required this.rideData,
-    this.segments = const [],
     required routes,
   }) {
     routePoints = parseFitDataToRoute(rideData);
-    if (segments.isEmpty) {
-      segments = SegmentMatcher().findSegments(routePoints, routes);
-    }
     summary = parseFitDataToSummary(rideData);
-    final _speed = parseFitDataToMetric(rideData, "speed")
+    final preSpeed = parseFitDataToMetric(rideData, "speed")
         .map((e) => e * 3.6)
         .toList(); // km/h
-    final _distance = parseFitDataToMetric(
+    final preDistance = parseFitDataToMetric(
       rideData,
       "distance",
     ).map((e) => e / 1000.0).toList(); // km
-    final _altitude = parseFitDataToMetric(rideData, "altitude"); // m
+    final preAltitude = parseFitDataToMetric(rideData, "altitude"); // m
     // TODO: 处理数据长度不一致的问题
     final minLength = [
-      _speed.length,
-      _distance.length,
-      _altitude.length,
+      preSpeed.length,
+      preDistance.length,
+      preAltitude.length,
     ].reduce((a, b) => a < b ? a : b);
-    speed = _speed.sublist(0, minLength);
-    distance = _distance.sublist(0, minLength);
-    altitude = _altitude.sublist(0, minLength);
+    speed = preSpeed.sublist(0, minLength);
+    distance = preDistance.sublist(0, minLength);
+    altitude = preAltitude.sublist(0, minLength);
   }
 }
 
