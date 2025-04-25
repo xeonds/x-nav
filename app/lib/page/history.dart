@@ -1134,8 +1134,10 @@ class SegmentDetailPage extends StatelessWidget {
               itemCount: segmentRecords.length,
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (context, idx) {
-                final record = segmentRecords[idx];
-                final isUser = idx == userRecordIndex;
+                // 逆序索引，最新到最旧排序
+                final reverseIdx = segmentRecords.length - 1 - idx;
+                final record = segmentRecords[reverseIdx];
+                final isUser = reverseIdx == userRecordIndex;
                 final position = bestSegment?.getPositionOfFullList(
                         record.item.startTime.toInt()) ??
                     0;
