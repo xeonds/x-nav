@@ -95,7 +95,8 @@ class SegmentMatcher {
     List<int> possibleStartIndices = [];
 
     // 找到所有可能的起点（每圈只取一个起点，避免同一圈多次匹配）
-    const minGap = 10; // 两个起点索引之间的最小间隔，避免同一圈多次匹配
+    final minGap = (segmentPoints.length * minMatchPercentage)
+        .toInt(); // 两个起点索引之间的最小间隔，避免同一圈多次匹配
     int? lastAddedIndex;
     for (int i = 0; i < ridePoints.length; i++) {
       double dist =
@@ -119,7 +120,7 @@ class SegmentMatcher {
     // 对每个可能的起点进行完整匹配检查
     for (int startIndex in possibleStartIndices) {
       int matchedPoints = 1; // 起点已匹配
-      int currentRideIndex = startIndex + 1;
+      int pathIndex = startIndex + 1;
       int segmentIndex = 1;
 
       // 特殊情况：如果赛段只有一个点
@@ -129,30 +130,32 @@ class SegmentMatcher {
         ];
       }
 
+      int unmatchedCount = 0;
       // 从起点后开始匹配剩余点
       while (segmentIndex < segmentPoints.length &&
-          currentRideIndex < ridePoints.length) {
+          pathIndex < ridePoints.length) {
         // 检查当前骑行点是否匹配当前赛段点
-        if (isPointMatch(
-            ridePoints[currentRideIndex], segmentPoints[segmentIndex])) {
+        if (isPointMatch(ridePoints[pathIndex], segmentPoints[segmentIndex])) {
           matchedPoints++;
           segmentIndex++;
+        } else {
+          unmatchedCount++;
         }
 
-        currentRideIndex++;
+        if (unmatchedCount >= 10) {
+          break;
+        }
+
+        pathIndex++;
       }
 
       // 计算匹配百分比
       double matchPercentage = matchedPoints / segmentPoints.length;
 
       // 更新最佳匹配
-      if (matchPercentage > minMatchPercentage) {
-        bestMatch.add(SegmentMatch(
-            segmentPoints,
-            startIndex,
-            startIndex + (currentRideIndex - startIndex - 1),
-            matchPercentage,
-            segId));
+      if (matchPercentage > minMatchPercentage && unmatchedCount < 10) {
+        bestMatch.add(SegmentMatch(segmentPoints, startIndex,
+            startIndex + (pathIndex - startIndex - 1), matchPercentage, segId));
       }
     }
 
