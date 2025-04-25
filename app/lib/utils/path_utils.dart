@@ -94,10 +94,23 @@ class SegmentMatcher {
     // 赛段起点在骑行记录中的可能位置
     List<int> possibleStartIndices = [];
 
-    // 先找到所有可能的起点
+    // 找到所有可能的起点（每圈只取一个起点，避免同一圈多次匹配）
+    const minGap = 10; // 两个起点索引之间的最小间隔，避免同一圈多次匹配
+    int? lastAddedIndex;
     for (int i = 0; i < ridePoints.length; i++) {
-      if (isPointMatch(ridePoints[i], segmentPoints[0])) {
-        possibleStartIndices.add(i);
+      double dist =
+          distance.as(LengthUnit.Meter, ridePoints[i], segmentPoints[0]);
+      if (dist <= distanceThreshold) {
+        if (lastAddedIndex == null || i - lastAddedIndex >= minGap) {
+          possibleStartIndices.add(i);
+          lastAddedIndex = i;
+        } else if (dist <
+            distance.as(LengthUnit.Meter, ridePoints[lastAddedIndex],
+                segmentPoints[0])) {
+          // 如果当前点比上一个已添加点更接近起点，则替换
+          possibleStartIndices[possibleStartIndices.length - 1] = i;
+          lastAddedIndex = i;
+        }
       }
     }
 
