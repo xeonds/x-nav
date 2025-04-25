@@ -33,10 +33,10 @@ class BestScore {
         getTimestampFromDataMessage(records.first);
     final distance = records.last.get('distance') ?? 0.0;
     var ascent = 0.0;
-    records
+    final altitudes = records
         .map((e) => e.get('altitude') ?? double.negativeInfinity)
-        .where((e) => e != double.negativeInfinity)
-        .fold(records.first.get('altitude'), (a, b) {
+        .where((e) => e != double.negativeInfinity);
+    altitudes.fold(altitudes.first, (a, b) {
       ascent += (a < b ? b - a : 0.0);
       return b;
     });
