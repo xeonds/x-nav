@@ -66,7 +66,7 @@ class SegmentMatcher {
 
   SegmentMatcher({
     this.distanceThreshold = 30.0, // 默认30米
-    this.minMatchPercentage = 0.8, // 默认80%匹配度
+    this.minMatchPercentage = 0.9, // 默认90%匹配度
   });
 
   /// 检查骑行记录是否包含指定的赛段
@@ -81,17 +81,15 @@ class SegmentMatcher {
       if (segment.length < 2) continue;
 
       // 寻找此赛段在骑行记录中的匹配
-      SegmentMatch? match = matchSegment(ridePoints, segment, i);
-      if (match != null) {
-        matches.add(match);
-      }
+      final match = matchSegment(ridePoints, segment, i);
+      matches.addAll(match);
     }
 
     return matches;
   }
 
   /// 匹配单个赛段
-  SegmentMatch? matchSegment(
+  List<SegmentMatch> matchSegment(
       List<LatLng> ridePoints, List<LatLng> segmentPoints, int segId) {
     // 赛段起点在骑行记录中的可能位置
     List<int> possibleStartIndices = [];
@@ -103,8 +101,7 @@ class SegmentMatcher {
       }
     }
 
-    SegmentMatch? bestMatch;
-    double bestMatchPercentage = 0;
+    List<SegmentMatch> bestMatch = [];
 
     // 对每个可能的起点进行完整匹配检查
     for (int startIndex in possibleStartIndices) {
@@ -114,7 +111,9 @@ class SegmentMatcher {
 
       // 特殊情况：如果赛段只有一个点
       if (segmentPoints.length == 1) {
-        return SegmentMatch(segmentPoints, startIndex, startIndex, 1.0, segId);
+        return [
+          SegmentMatch(segmentPoints, startIndex, startIndex, 1.0, segId)
+        ];
       }
 
       // 从起点后开始匹配剩余点
@@ -134,23 +133,17 @@ class SegmentMatcher {
       double matchPercentage = matchedPoints / segmentPoints.length;
 
       // 更新最佳匹配
-      if (matchPercentage > bestMatchPercentage) {
-        bestMatchPercentage = matchPercentage;
-        bestMatch = SegmentMatch(
+      if (matchPercentage > minMatchPercentage) {
+        bestMatch.add(SegmentMatch(
             segmentPoints,
             startIndex,
             startIndex + (currentRideIndex - startIndex - 1),
             matchPercentage,
-            segId);
+            segId));
       }
     }
 
-    // 如果匹配度达到阈值，返回匹配结果
-    if (bestMatch != null && bestMatch.matchPercentage >= minMatchPercentage) {
-      return bestMatch;
-    }
-
-    return null;
+    return bestMatch;
   }
 
   /// 使用改进的路径匹配算法（基于动态规划思想）

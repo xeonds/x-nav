@@ -1031,11 +1031,6 @@ class SegmentDetailPage extends StatelessWidget {
                         subtitle: '均速',
                       ),
                       Statistic(
-                        data: segment.avgSpeed.toStringAsFixed(2),
-                        label: 'km/h',
-                        subtitle: '平均速度',
-                      ),
-                      Statistic(
                         data: parseFitTimestampToDateTimeString(
                             segment.startTime),
                         subtitle: '开始时间',
