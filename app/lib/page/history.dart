@@ -947,8 +947,7 @@ class SegmentDetailPage extends StatelessWidget {
     final bestSegment = dataLoader.bestSegment[segmentIndex];
     final segmentRecords = bestSegment?.dataList ?? [];
     final userRecordIndex =
-        bestSegment?.getPositionTillCurrentIndex(segment.startTime.toInt()) ??
-            -1;
+        bestSegment?.getPositionOfFullList(segment.startTime.toInt()) ?? -1;
 
     return Scaffold(
       appBar: AppBar(
