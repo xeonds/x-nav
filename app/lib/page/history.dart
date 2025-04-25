@@ -664,7 +664,17 @@ class _RideDetailPageState extends State<RideDetailPage> {
                             ),
                             Statistic(
                                 subtitle: "成就",
-                                data: newBest.length.toString()),
+                                data: (newBest.length +
+                                        analysisOfSubRoutes
+                                            .map((e) =>
+                                                dataLoader.bestSegment[
+                                                        e.segment.segmentIndex]!
+                                                    .getPositionTillCurrentIndex(
+                                                        e.startTime.toInt()) ==
+                                                0)
+                                            .toList()
+                                            .fold(0, (a, b) => a + (b ? 1 : 0)))
+                                    .toString()),
                           ],
                         ),
                         const Text('路段'),
