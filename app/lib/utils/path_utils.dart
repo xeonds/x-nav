@@ -153,7 +153,7 @@ class SegmentMatcher {
       double matchPercentage = matchedPoints / segmentPoints.length;
 
       // 更新最佳匹配
-      if (matchPercentage > minMatchPercentage && unmatchedCount < 10) {
+      if (matchPercentage > minMatchPercentage) {
         bestMatch.add(SegmentMatch(segmentPoints, startIndex,
             startIndex + (pathIndex - startIndex - 1), matchPercentage, segId));
       }
