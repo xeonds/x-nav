@@ -267,13 +267,33 @@ class SortManager<T, K> {
     dataList.add(Entry(item, key));
   }
 
-  int getPosition(K index) {
+  int getPositionTillCurrentIndex(K index) {
     final tIndex = dataList.indexWhere((entry) => entry.key == index);
     if (tIndex == -1) {
       return -1;
     }
     final target = dataList[tIndex];
     final subList = dataList.sublist(0, tIndex + 1);
+    subList.sort((a, b) => _comparator(a.item, b.item)
+        ? 1
+        : _comparator(b.item, a.item)
+            ? -1
+            : 0);
+    for (int i = 0; i < subList.length; i++) {
+      if (identical(subList[i], target)) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  int getPositionOfFullList(K index) {
+    final tIndex = dataList.indexWhere((entry) => entry.key == index);
+    if (tIndex == -1) {
+      return -1;
+    }
+    final target = dataList[tIndex];
+    final subList = dataList.sublist(0, dataList.length);
     subList.sort((a, b) => _comparator(a.item, b.item)
         ? 1
         : _comparator(b.item, a.item)
@@ -293,34 +313,6 @@ class Entry<T, K> {
   final K key;
 
   Entry(this.item, this.key);
-}
-
-_DataLoadResult _dataLoadIsolateEntrySync(_DataLoadRequest request) {
-  // isolate中设置Storage的appDocPath
-  Storage.appDocPath = request.appDocPath;
-
-  final gpxFiles = Storage().getGpxFilesSync();
-  final parsedRoutes = _parseGpxFiles(gpxFiles);
-  final fitFiles = Storage().getFitFilesSync();
-  final parsedHistories = _parseFitFiles(fitFiles);
-  final summary = _analyzeSummaryData(parsedHistories['fitData']);
-  final rideData = _analyzeRideData(summary);
-  final bestScoreData = _analyzeBestScore({
-    'fitData': parsedHistories['fitData'],
-    'routes': parsedRoutes['routes'],
-  });
-
-  return _DataLoadResult(
-    routes: parsedRoutes['routes'],
-    fitData: parsedHistories['fitData'],
-    gpxFiles: parsedRoutes['files'],
-    histories: parsedHistories['histories'],
-    rideData: rideData,
-    summary: summary,
-    bestScore: bestScoreData['bestScore'],
-    bestScoreAt: bestScoreData['bestScoreAt'],
-    bestSegment: bestScoreData['bestSegment'],
-  );
 }
 
 void _dataLoadIsolateEntryWithProgress(

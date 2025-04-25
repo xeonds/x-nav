@@ -594,10 +594,11 @@ class RouteEditPageState extends State<RouteEditPage> {
                     .map((point) => Marker(
                           point: point,
                           child: Icon(
-                            Icons.location_on,
+                            Icons.circle,
                             color: isCustomPointMap[point] == true
                                 ? Colors.green
                                 : Colors.red,
+                            size: 14,
                           ),
                         ))
                     .toList(),
@@ -608,9 +609,9 @@ class RouteEditPageState extends State<RouteEditPage> {
                     Marker(
                       point: _centerPoint!,
                       child: const Icon(
-                        Icons.location_on,
+                        Icons.circle,
                         color: Colors.orange,
-                        size: 40,
+                        size: 14,
                       ),
                     ),
                   ],
@@ -620,9 +621,9 @@ class RouteEditPageState extends State<RouteEditPage> {
           if (_isSelectingPoint)
             const Center(
               child: Icon(
-                Icons.location_on,
+                Icons.circle,
                 color: Colors.red,
-                size: 40,
+                size: 14,
               ),
             ),
           Positioned(
@@ -684,7 +685,7 @@ class RouteEditPageState extends State<RouteEditPage> {
                 if (!_isSearching)
                   SizedBox(
                     height:
-                        waypoints.length < 3 ? waypoints.length * 52.0 : 150,
+                        waypoints.length < 3 ? waypoints.length * 52.0 : 156,
                     child: Card(
                       child: ReorderableListView(
                         onReorder: _reorderWaypoints,
@@ -694,7 +695,9 @@ class RouteEditPageState extends State<RouteEditPage> {
                             key: ValueKey(point),
                             dense: true, // Reduce height of each item
                             title: Text(
-                              'Point ${index + 1}: (${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)})',
+                              'Point ${index + 1}'
+                              // ': (${point.latitude.toStringAsFixed(2)}, ${point.longitude.toStringAsFixed(2)})'
+                              ,
                               style: const TextStyle(fontSize: 14),
                             ),
                             trailing: Row(

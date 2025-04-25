@@ -5,7 +5,7 @@ import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit_parser.dart';
 import 'package:app/utils/path_utils.dart'
-    show RideScore, initCenter, initZoom, parseSegmentToScore;
+    show RideScore, SegmentScore, initCenter, initZoom, parseSegmentToScore;
 import 'package:app/utils/storage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:fl_chart/fl_chart.dart'; // 用于图表
@@ -565,23 +565,8 @@ class _RideDetailPageState extends State<RideDetailPage> {
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          () {
-                            final dateTime =
-                                DateTime.fromMillisecondsSinceEpoch(
-                              (rideScore.summary['start_time'] * 1000 +
-                                      631065600000)
-                                  .toInt(),
-                            ).toLocal();
-                            final now = DateTime.now();
-                            final difference = now.difference(dateTime).inDays;
-                            if (difference == 0) {
-                              return '今天 ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
-                            } else if (difference == 1) {
-                              return '昨天 ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
-                            } else {
-                              return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
-                            }
-                          }(),
+                          parseFitTimestampToDateTimeString(
+                              rideScore.summary['start_time']),
                           style: TextStyle(
                             color: isDarkMode ? Colors.white70 : Colors.black87,
                           ),
@@ -696,7 +681,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                   ),
                                   if (dataLoader.bestSegment[
                                               segment.segment.segmentIndex]!
-                                          .getPosition(
+                                          .getPositionTillCurrentIndex(
                                               segment.startTime.toInt()) ==
                                       0)
                                     const Icon(
@@ -943,7 +928,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
 }
 
 class SegmentDetailPage extends StatelessWidget {
-  final dynamic segment;
+  final SegmentScore segment;
   final RideScore rideScore;
   final DataLoader dataLoader;
 
@@ -962,7 +947,8 @@ class SegmentDetailPage extends StatelessWidget {
     final bestSegment = dataLoader.bestSegment[segmentIndex];
     final segmentRecords = bestSegment?.dataList ?? [];
     final userRecordIndex =
-        bestSegment?.getPosition(segment.startTime.toInt()) ?? -1;
+        bestSegment?.getPositionTillCurrentIndex(segment.startTime.toInt()) ??
+            -1;
 
     return Scaffold(
       appBar: AppBar(
@@ -977,7 +963,7 @@ class SegmentDetailPage extends StatelessWidget {
             child: FlutterMap(
               options: MapOptions(
                 initialCenter: initCenter(segment.route),
-                initialZoom: initZoom(segment.route),
+                initialZoom: initZoom(segment.route) - 0.5,
                 // interactiveFlags: InteractiveFlag.all,
               ),
               children: [
@@ -998,13 +984,13 @@ class SegmentDetailPage extends StatelessWidget {
                   markers: [
                     Marker(
                       point: segment.route.first,
-                      child:
-                          const Icon(Icons.flag, color: Colors.green, size: 28),
+                      child: const Icon(Icons.circle,
+                          color: Colors.green, size: 14),
                     ),
                     Marker(
                       point: segment.route.last,
                       child:
-                          const Icon(Icons.flag, color: Colors.red, size: 28),
+                          const Icon(Icons.circle, color: Colors.red, size: 14),
                     ),
                   ],
                 ),
@@ -1024,8 +1010,11 @@ class SegmentDetailPage extends StatelessWidget {
                         fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  GridView.count(
+                    crossAxisCount: 2, // 每行显示3个元素
+                    shrinkWrap: true, // 适配内容高度
+                    physics: const NeverScrollableScrollPhysics(), // 禁止滚动
+                    childAspectRatio: 3,
                     children: [
                       Statistic(
                         data: segment.distance.toStringAsFixed(2),
@@ -1042,26 +1031,15 @@ class SegmentDetailPage extends StatelessWidget {
                         label: 'km/h',
                         subtitle: '均速',
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
                       Statistic(
-                        data: segment.maxSpeed.toStringAsFixed(2),
+                        data: segment.avgSpeed.toStringAsFixed(2),
                         label: 'km/h',
-                        subtitle: '最大速度',
+                        subtitle: '平均速度',
                       ),
                       Statistic(
-                        data: segment.ascent.toStringAsFixed(0),
-                        label: 'm',
-                        subtitle: '爬升',
-                      ),
-                      Statistic(
-                        data: segment.descent.toStringAsFixed(0),
-                        label: 'm',
-                        subtitle: '下降',
+                        data: parseFitTimestampToDateTimeString(
+                            segment.startTime),
+                        subtitle: '开始时间',
                       ),
                     ],
                   ),
@@ -1069,150 +1047,78 @@ class SegmentDetailPage extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          // 速度图表
-          Text(
-            '速度分布',
-            style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: isDarkMode ? Colors.white : Colors.black),
-          ),
-          SizedBox(
-            height: 180,
-            child: LineChart(
-              LineChartData(
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: List.generate(
-                      segment.speed.length,
-                      (i) => FlSpot(
-                        segment.distanceList[i],
-                        segment.speed[i],
-                      ),
-                    ),
-                    isCurved: false,
-                    color: Colors.deepOrange,
-                    belowBarData: BarAreaData(
-                      show: true,
-                      color: Colors.deepOrange.withOpacity(0.3),
-                    ),
-                    dotData: FlDotData(show: false),
-                  ),
-                ],
-                titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 40,
-                      getTitlesWidget: (value, meta) =>
-                          Text('${value.toInt()} km/h'),
-                      interval: 10,
-                    ),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 20,
-                      interval: segment.distance / 5,
-                      getTitlesWidget: (value, meta) =>
-                          Text('${value.toStringAsFixed(1)} km'),
-                    ),
-                  ),
-                  topTitles: AxisTitles(),
-                  rightTitles: AxisTitles(),
-                ),
-                borderData: FlBorderData(show: false),
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: true,
-                  drawHorizontalLine: true,
-                  horizontalInterval: 10,
-                  verticalInterval: 1,
-                  getDrawingHorizontalLine: (value) => FlLine(
-                    color: Colors.grey.withOpacity(0.5),
-                    strokeWidth: 0.5,
-                  ),
-                  getDrawingVerticalLine: (value) => FlLine(
-                    color: Colors.grey.withOpacity(0.5),
-                    strokeWidth: 0.5,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          // 海拔图表
-          Text(
-            '海拔分布',
-            style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: isDarkMode ? Colors.white : Colors.black),
-          ),
-          SizedBox(
-            height: 180,
-            child: LineChart(
-              LineChartData(
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: List.generate(
-                      segment.altitude.length,
-                      (i) => FlSpot(
-                        segment.distanceList[i],
-                        segment.altitude[i],
-                      ),
-                    ),
-                    isCurved: false,
-                    color: Colors.blueAccent,
-                    belowBarData: BarAreaData(
-                      show: true,
-                      color: Colors.blueAccent.withOpacity(0.3),
-                    ),
-                    dotData: FlDotData(show: false),
-                  ),
-                ],
-                titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 40,
-                      getTitlesWidget: (value, meta) =>
-                          Text('${value.toInt()} m'),
-                      interval: 50,
-                    ),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 20,
-                      interval: segment.distance / 5,
-                      getTitlesWidget: (value, meta) =>
-                          Text('${value.toStringAsFixed(1)} km'),
-                    ),
-                  ),
-                  topTitles: AxisTitles(),
-                  rightTitles: AxisTitles(),
-                ),
-                borderData: FlBorderData(show: false),
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: true,
-                  drawHorizontalLine: true,
-                  horizontalInterval: 50,
-                  verticalInterval: 1,
-                  getDrawingHorizontalLine: (value) => FlLine(
-                    color: Colors.grey.withOpacity(0.5),
-                    strokeWidth: 0.5,
-                  ),
-                  getDrawingVerticalLine: (value) => FlLine(
-                    color: Colors.grey.withOpacity(0.5),
-                    strokeWidth: 0.5,
-                  ),
-                ),
-              ),
-            ),
-          ),
+          // const SizedBox(height: 16),
+          // // 速度图表
+          // Text(
+          //   '速度分布',
+          //   style: TextStyle(
+          //       fontWeight: FontWeight.bold,
+          //       fontSize: 16,
+          //       color: isDarkMode ? Colors.white : Colors.black),
+          // ),
+          // SizedBox(
+          //   height: 180,
+          //   child: LineChart(
+          //     LineChartData(
+          //       lineBarsData: [
+          //         LineChartBarData(
+          //           spots: List.generate(
+          //             segment.route.length,
+          //             (i) => FlSpot(
+          //               segment.route[i].latitude,
+          //               segment.route[i].latitude,
+          //             ),
+          //           ),
+          //           isCurved: false,
+          //           color: Colors.deepOrange,
+          //           belowBarData: BarAreaData(
+          //             show: true,
+          //             color: Colors.deepOrange.withOpacity(0.3),
+          //           ),
+          //           dotData: FlDotData(show: false),
+          //         ),
+          //       ],
+          //       titlesData: FlTitlesData(
+          //         leftTitles: AxisTitles(
+          //           sideTitles: SideTitles(
+          //             showTitles: true,
+          //             reservedSize: 40,
+          //             getTitlesWidget: (value, meta) =>
+          //                 Text('${value.toInt()} km/h'),
+          //             interval: 10,
+          //           ),
+          //         ),
+          //         bottomTitles: AxisTitles(
+          //           sideTitles: SideTitles(
+          //             showTitles: true,
+          //             reservedSize: 20,
+          //             interval: segment.distance / 5,
+          //             getTitlesWidget: (value, meta) =>
+          //                 Text('${value.toStringAsFixed(1)} km'),
+          //           ),
+          //         ),
+          //         topTitles: AxisTitles(),
+          //         rightTitles: AxisTitles(),
+          //       ),
+          //       borderData: FlBorderData(show: false),
+          //       gridData: FlGridData(
+          //         show: true,
+          //         drawVerticalLine: true,
+          //         drawHorizontalLine: true,
+          //         horizontalInterval: 10,
+          //         verticalInterval: 1,
+          //         getDrawingHorizontalLine: (value) => FlLine(
+          //           color: Colors.grey.withOpacity(0.5),
+          //           strokeWidth: 0.5,
+          //         ),
+          //         getDrawingVerticalLine: (value) => FlLine(
+          //           color: Colors.grey.withOpacity(0.5),
+          //           strokeWidth: 0.5,
+          //         ),
+          //       ),
+          //     ),
+          //   ),
+          // ),
           const SizedBox(height: 16),
           // 排行榜
           Text(
@@ -1231,16 +1137,19 @@ class SegmentDetailPage extends StatelessWidget {
               itemBuilder: (context, idx) {
                 final record = segmentRecords[idx];
                 final isUser = idx == userRecordIndex;
+                final position = bestSegment?.getPositionOfFullList(
+                        record.item.startTime.toInt()) ??
+                    0;
                 return ListTile(
                   leading: Text(
-                    '${idx + 1}',
+                    '${position + 1}',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: isUser ? Colors.orange : null,
                     ),
                   ),
                   title: Text(
-                    record.item.startTime.toString(),
+                    parseFitTimestampToDateTimeString(record.item.startTime),
                     style: TextStyle(
                       color: isUser ? Colors.orange : null,
                     ),
@@ -1248,7 +1157,7 @@ class SegmentDetailPage extends StatelessWidget {
                   subtitle: Text(
                     '耗时: ${secondToFormatTime(record.item.duration)}  均速: ${(record.item.avgSpeed).toStringAsFixed(2)} km/h',
                   ),
-                  trailing: isUser
+                  trailing: position == 0
                       ? const Icon(Icons.emoji_events, color: Colors.amber)
                       : null,
                 );

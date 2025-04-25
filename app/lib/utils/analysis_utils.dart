@@ -108,7 +108,7 @@ class BestScore {
       ...Map.fromEntries(
           bestPowerByTime.entries.where((e) => e.value > 0).map((e) => MapEntry(
                 "功率： ${secondToFormatTime(e.key.toDouble())}",
-                "${e.value} w",
+                "${e.value.toStringAsFixed(2)} w",
               )))
     };
   }

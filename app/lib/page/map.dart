@@ -224,7 +224,7 @@ class MapPageState extends State<MapPage> {
                   polylines.add(Polyline(
                     points: route,
                     color: Colors.deepOrange,
-                    strokeWidth: 5,
+                    strokeWidth: 3,
                   ));
                 }
                 return polylines;
@@ -238,7 +238,7 @@ class MapPageState extends State<MapPage> {
                   polylines.add(Polyline(
                     points: history,
                     color: Colors.orange,
-                    strokeWidth: 5,
+                    strokeWidth: 3,
                   ));
                 }
                 return polylines;

@@ -197,9 +197,17 @@ int getTimestampFromDataMessage(DataMessage item) {
   return ((item.get('timestamp') * 1000 + 631065600000) / 1000).toInt();
 }
 
-String parseFitTimestampToString(num timestamp) {
-  return DateTime.fromMillisecondsSinceEpoch(
-          (timestamp * 1000 + 631065600000).toInt())
-      .toLocal()
-      .toString();
+String parseFitTimestampToDateTimeString(num timestamp) {
+  final dateTime = DateTime.fromMillisecondsSinceEpoch(
+    (timestamp * 1000 + 631065600000).toInt(),
+  ).toLocal();
+  final now = DateTime.now();
+  final difference = now.difference(dateTime).inDays;
+  if (difference == 0) {
+    return '今天 ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+  } else if (difference == 1) {
+    return '昨天 ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+  } else {
+    return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+  }
 }
