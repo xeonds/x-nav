@@ -220,7 +220,7 @@ class UserPage extends StatelessWidget {
 
               最大速度和最大功率的计算使用滑动区间法，也就是按照区间长度遍历每一个骑行记录的每一个子段，也就导致了非常大的计算量所以加载才这么慢而且为了避免一致性的问题所以目前还没有设计缓存系统等后面大体架构确认了再说（咕咕咕
 
-              xeonds.timestamp() == 20250425162741
+              xeonds.timestamp() == 20250425170741
                                   ''',
                                         style: TextStyle(fontSize: 16),
                                       ),
