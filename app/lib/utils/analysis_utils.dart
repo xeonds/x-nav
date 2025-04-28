@@ -118,7 +118,7 @@ class BestScore {
     final betterData = <String, dynamic>{};
 
     // 比较最大速度
-    if (other.maxSpeed > -maxSpeed) {
+    if (other.maxSpeed >= maxSpeed) {
       betterData['最大速度'] = '${(other.maxSpeed * 3.6).toStringAsFixed(2)} km/h';
     }
 
