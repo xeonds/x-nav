@@ -34,7 +34,7 @@ dependencies:
   flutter_polyline_points: ^2.1.0
   share_plus: ^10.1.4
   provider: ^6.1.4
-  flutter_map_heatmap: ^0.0.8
+  # flutter_map_heatmap: ^0.0.8
   flutter_map_tile_caching: ^10.0.0
   archive: ^4.0.6
 

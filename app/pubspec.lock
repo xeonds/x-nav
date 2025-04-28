@@ -358,14 +358,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "7.0.2"
-  flutter_map_heatmap:
-    dependency: "direct main"
-    description:
-      name: flutter_map_heatmap
-      sha256: "9b3062c8bc68caceb85d8cbad1c2f475809b07deb0b292717569ed4ceefb9c46"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.0.8"
   flutter_map_tile_caching:
     dependency: "direct main"
     description:

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:app/page/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:flutter_map_heatmap/flutter_map_heatmap.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
@@ -26,7 +25,6 @@ class MapPageState extends State<MapPage> {
   bool _showMap = false;
   List<List<LatLng>> _routes = [];
   List<List<LatLng>> _histories = [];
-  List<WeightedLatLng> _heatMapData = [];
   LatLng _currentPosition = const LatLng(37.7749, -122.4194);
   Marker selectedMarker = const Marker(
     point: LatLng(34.1301578, 108.8277069),
@@ -74,14 +72,6 @@ class MapPageState extends State<MapPage> {
     setState(() {
       _routes = dataloader.routes;
       _histories = dataloader.histories;
-      _heatMapData = _histories
-          .map(
-            (route) => route.map((point) {
-              return WeightedLatLng(point, 1);
-            }).toList(),
-          )
-          .expand((i) => i)
-          .toList();
     });
   }
 
@@ -244,17 +234,31 @@ class MapPageState extends State<MapPage> {
                 return polylines;
               }(),
             ),
-          if (_showHistory == 2 && _heatMapData.isNotEmpty)
-            HeatMapLayer(
-              heatMapDataSource: InMemoryHeatMapDataSource(
-                data: _heatMapData,
-              ),
-              heatMapOptions: HeatMapOptions(
-                gradient: HeatMapOptions.defaultGradient,
-                minOpacity: 0.1,
-                radius: 3,
-              ),
-              reset: _rebuildStream.stream,
+          // if (_showHistory == 2 && _heatMapData.isNotEmpty)
+          //   HeatMapLayer(
+          //     heatMapDataSource: InMemoryHeatMapDataSource(
+          //       data: _heatMapData,
+          //     ),
+          //     heatMapOptions: HeatMapOptions(
+          //       gradient: HeatMapOptions.defaultGradient,
+          //       minOpacity: 0.1,
+          //       radius: 3,
+          //     ),
+          //     reset: _rebuildStream.stream,
+          //   ),
+          if (_showHistory == 2 && _histories.isNotEmpty)
+            PolylineLayer(
+              polylines: () {
+                final polylines = <Polyline>[];
+                for (var history in _histories) {
+                  polylines.add(Polyline(
+                    points: history,
+                    color: Colors.blue.withOpacity(0.15),
+                    strokeWidth: 4,
+                  ));
+                }
+                return polylines;
+              }(),
             ),
           MarkerLayer(
             markers: [selectedMarker],
