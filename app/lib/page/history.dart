@@ -361,21 +361,22 @@ class RideDetailPage extends StatefulWidget {
 
 class _RideDetailPageState extends State<RideDetailPage> {
   late final Map<String, dynamic> rideData;
+  late final RideScore rideScore;
+  late final DataLoader dataLoader;
   late int highlightRouteIndex;
 
   @override
   void initState() {
     super.initState();
+    dataLoader = DataLoader(); // 监听 DataLoader 的状态
     rideData = widget.rideData;
     highlightRouteIndex = -1;
+    rideScore = RideScore(rideData: rideData, routes: dataLoader.routes);
+    chartMaxX = rideScore.distance.isNotEmpty ? rideScore.distance.last : 0;
   }
 
   @override
   Widget build(BuildContext context) {
-    final dataLoader = context.watch<DataLoader>(); // 监听 DataLoader 的状态
-    List<List<LatLng>> routes = dataLoader.routes;
-
-    final rideScore = RideScore(rideData: rideData, routes: routes);
     final timestamp = getTimestampFromDataMessage(rideData['sessions'][0]);
     late final BestScore bestScore, bestScoreTillNow;
     late final List<SegmentScore> analysisOfSubRoutes;
@@ -390,6 +391,26 @@ class _RideDetailPageState extends State<RideDetailPage> {
     }
     final bestScoreDisplay = bestScore.getBestData();
     final newBest = bestScoreTillNow.getBetterDataDiff(bestScore);
+
+    // right, dataanalysis page state
+    final idx = selectedIndex.clamp(0, rideScore.distance.length - 1);
+    final info = {
+      '速度': rideScore.speed[idx],
+      '里程': rideScore.distance[idx],
+      // '时间': rideScore.elapsedTime[idx],
+      // '心率': rideScore.heartRate.isNotEmpty ? rideScore.heartRate[idx] : null,
+      '海拔': rideScore.altitude[idx],
+      // '功率': rideScore.power.isNotEmpty ? rideScore.power[idx] : null,
+    };
+    final chartY = chartType == 0 ? rideScore.speed : rideScore.altitude;
+    final chartX = rideScore.distance;
+    // final chartX = xType == 0 ? rideScore.distance : rideScore.elapsedTime;
+    final chartLabelY = chartType == 0 ? '速度 (km/h)' : '海拔 (m)';
+    final chartLabelX = xType == 0 ? '里程 (km)' : '时间 (s)';
+    final chartSpots = List.generate(
+      chartX.length,
+      (i) => FlSpot(chartX[i], chartY[i]),
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -451,7 +472,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
       ),
       body: Stack(
         children: [
-          // 地图展示
+          // 地图始终在上方
           Positioned.fill(
             child: FlutterMap(
               options: MapOptions(
@@ -482,45 +503,63 @@ class _RideDetailPageState extends State<RideDetailPage> {
                       (segment) => Polyline(
                         points: segment.route,
                         strokeWidth: 4.0,
-                        color: (highlightRouteIndex ==
-                                segment.segment.startIndex) //fix
-                            ? Colors.orange
-                            : Colors.transparent,
+                        color:
+                            (highlightRouteIndex == segment.segment.startIndex)
+                                ? Colors.orange
+                                : Colors.transparent,
                       ),
                     ),
                   ],
                 ),
                 MarkerLayer(
                   markers: [
-                    ...analysisOfSubRoutes.map((segment) {
-                      final index = segment.segment.startIndex;
-                      return Marker(
-                        point: LatLng(
-                          segment.route[0].latitude,
-                          segment.route[0].longitude,
-                        ),
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              highlightRouteIndex = index;
-                            });
-                          },
-                          child: Icon(
-                            Icons.emoji_events,
-                            color: (highlightRouteIndex == index)
-                                ? Colors.transparent
-                                : Colors.amber,
-                            size: 30,
+                    ...analysisOfSubRoutes.map(
+                      (segment) {
+                        final index = segment.segment.startIndex;
+                        return Marker(
+                          point: LatLng(
+                            segment.route[0].latitude,
+                            segment.route[0].longitude,
                           ),
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                highlightRouteIndex = index;
+                              });
+                            },
+                            child: Icon(
+                              Icons.emoji_events,
+                              color: (highlightRouteIndex == index)
+                                  ? Colors.transparent
+                                  : Colors.amber,
+                              size: 30,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    Marker(
+                      point: rideScore.routePoints[idx],
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.red,
+                          border: Border.all(color: Colors.white, width: 4),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.red.withOpacity(0.3),
+                              blurRadius: 4,
+                              spreadRadius: 1,
+                            ),
+                          ],
                         ),
-                      );
-                    }),
+                      ),
+                    ),
                   ],
                 ),
               ],
             ),
           ),
-          // BottomSheet
           DraggableScrollableSheet(
             initialChildSize: 0.3,
             minChildSize: 0.1,
@@ -537,419 +576,615 @@ class _RideDetailPageState extends State<RideDetailPage> {
                     top: Radius.circular(16.0),
                   ),
                 ),
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 下拉把柄
-                        Center(
-                          child: Container(
-                            width: 40,
-                            height: 5,
-                            margin: const EdgeInsets.only(bottom: 10),
-                            decoration: BoxDecoration(
-                              color: isDarkMode
-                                  ? Colors.grey[700]
-                                  : Colors.grey[300],
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '骑行标题: ${rideScore.summary['title'] ?? '未知'}',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: isDarkMode ? Colors.white : Colors.black,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          parseFitTimestampToDateTimeString(
-                              rideScore.summary['start_time']),
-                          style: TextStyle(
-                            color: isDarkMode ? Colors.white70 : Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        GridView.count(
-                          crossAxisCount: 3, // 每行显示3个元素
-                          shrinkWrap: true, // 适配内容高度
-                          physics: const NeverScrollableScrollPhysics(), // 禁止滚动
-                          childAspectRatio: 1.8,
+                child: DefaultTabController(
+                  length: 2,
+                  child: Column(
+                    children: [
+                      const TabBar(
+                        tabs: [
+                          Tab(text: '成绩'),
+                          Tab(text: '数据分析'),
+                        ],
+                      ),
+                      Expanded(
+                        child: TabBarView(
+                          physics: NeverScrollableScrollPhysics(),
                           children: [
-                            Statistic(
-                              data:
-                                  '${(rideScore.summary['total_distance'] / 1000.0).toStringAsFixed(2)}',
-                              label: 'km',
-                              subtitle: '总里程',
+                            // 左tab：原有内容
+                            SingleChildScrollView(
+                              controller: scrollController,
+                              child: Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '骑行标题: ${rideScore.summary['title'] ?? '未知'}',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: isDarkMode
+                                            ? Colors.white
+                                            : Colors.black,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      parseFitTimestampToDateTimeString(
+                                          rideScore.summary['start_time']),
+                                      style: TextStyle(
+                                        color: isDarkMode
+                                            ? Colors.white70
+                                            : Colors.black87,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    GridView.count(
+                                      crossAxisCount: 3, // 每行显示3个元素
+                                      shrinkWrap: true, // 适配内容高度
+                                      physics:
+                                          const NeverScrollableScrollPhysics(), // 禁止滚动
+                                      childAspectRatio: 1.8,
+                                      children: [
+                                        Statistic(
+                                          data:
+                                              '${(rideScore.summary['total_distance'] / 1000.0).toStringAsFixed(2)}',
+                                          label: 'km',
+                                          subtitle: '总里程',
+                                        ),
+                                        Statistic(
+                                          data:
+                                              '${(rideScore.summary['total_elapsed_time'] / 60).toStringAsFixed(2)}',
+                                          label: '分钟',
+                                          subtitle: '总耗时',
+                                        ),
+                                        Statistic(
+                                          data:
+                                              '${(rideScore.summary['avg_speed'] * 3.6).toStringAsFixed(2)}',
+                                          label: 'km/h',
+                                          subtitle: '均速',
+                                        ),
+                                        Statistic(
+                                          data:
+                                              '${(rideScore.summary['max_speed'] * 3.6).toStringAsFixed(2)}',
+                                          label: 'km/h',
+                                          subtitle: '最大速度',
+                                        ),
+                                        Statistic(
+                                          data:
+                                              '${rideScore.summary['total_ascent']}',
+                                          label: 'm',
+                                          subtitle: '总爬升',
+                                        ),
+                                        Statistic(
+                                          data:
+                                              '${rideScore.summary['total_descent']}',
+                                          label: 'm',
+                                          subtitle: '总下降',
+                                        ),
+                                        Statistic(
+                                          data:
+                                              '${rideScore.summary['avg_heart_rate'] ?? '未知'}',
+                                          label: 'bpm',
+                                          subtitle: '平均心率',
+                                        ),
+                                        Statistic(
+                                          data:
+                                              '${rideScore.summary['max_heart_rate'] ?? '未知'}',
+                                          label: 'bpm',
+                                          subtitle: '最大心率',
+                                        ),
+                                        Statistic(
+                                          data:
+                                              '${rideScore.summary['avg_power'] ?? '未知'}',
+                                          label: 'W',
+                                          subtitle: '平均功率',
+                                        ),
+                                        Statistic(
+                                          data:
+                                              '${rideScore.summary['max_power'] ?? '未知'}',
+                                          label: 'W',
+                                          subtitle: '最大功率',
+                                        ),
+                                        Statistic(
+                                          data:
+                                              '${rideScore.summary['total_calories'] ?? '未知'}',
+                                          label: 'kcal',
+                                          subtitle: '总卡路里',
+                                        ),
+                                      ],
+                                    ),
+                                    if (dataLoader.bestScoreLoaded) ...[
+                                      const SizedBox(height: 20),
+                                      const Text(
+                                        '成绩',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 20),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceAround,
+                                        children: [
+                                          Statistic(
+                                            subtitle: "最佳成绩",
+                                            data: bestScoreDisplay.length
+                                                .toString(),
+                                          ),
+                                          Statistic(
+                                            subtitle: "路段",
+                                            data: analysisOfSubRoutes.length
+                                                .toString(),
+                                          ),
+                                          Statistic(
+                                              subtitle: "成就",
+                                              data: (newBest.length +
+                                                      analysisOfSubRoutes
+                                                          .map((e) =>
+                                                              dataLoader
+                                                                  .bestSegment[e
+                                                                      .segment
+                                                                      .segmentIndex]!
+                                                                  .getPositionTillCurrentIndex(e
+                                                                      .startTime
+                                                                      .toInt()) ==
+                                                              0)
+                                                          .toList()
+                                                          .fold(
+                                                              0,
+                                                              (a, b) =>
+                                                                  a +
+                                                                  (b ? 1 : 0)))
+                                                  .toString()),
+                                        ],
+                                      ),
+                                      const Text('路段'),
+                                      if (analysisOfSubRoutes.isEmpty)
+                                        Center(
+                                          child: const Padding(
+                                            padding: EdgeInsets.all(8),
+                                            child: Text('No sub routes'),
+                                          ),
+                                        )
+                                      else
+                                        ListView(
+                                          shrinkWrap: true,
+                                          physics:
+                                              const NeverScrollableScrollPhysics(),
+                                          children: analysisOfSubRoutes
+                                              .map((segment) {
+                                            return ListTile(
+                                              title: Row(
+                                                children: [
+                                                  Text(
+                                                    '路段 ${segment.segment.segmentIndex + 1}',
+                                                    style: const TextStyle(
+                                                        fontSize: 16),
+                                                  ),
+                                                  if (dataLoader
+                                                          .bestSegment[segment
+                                                              .segment
+                                                              .segmentIndex]!
+                                                          .getPositionTillCurrentIndex(
+                                                              segment.startTime
+                                                                  .toInt()) ==
+                                                      0)
+                                                    const Icon(
+                                                      Icons.emoji_events,
+                                                      color: Colors.amber,
+                                                      size: 18,
+                                                    ),
+                                                ],
+                                              ),
+                                              subtitle: Text(
+                                                '里程 ${segment.distance.toStringAsFixed(2)} km'
+                                                ' 耗时 ${secondToFormatTime(segment.duration)}'
+                                                ' 均速 ${segment.avgSpeed.toStringAsFixed(2)} km/h',
+                                                style: const TextStyle(
+                                                    fontSize: 14),
+                                              ),
+                                              onTap: () {
+                                                setState(() {
+                                                  highlightRouteIndex = segment
+                                                      .segment.segmentIndex;
+                                                });
+                                                Navigator.of(context).push(
+                                                  MaterialPageRoute(
+                                                    builder: (context) =>
+                                                        SegmentDetailPage(
+                                                      segment: segment,
+                                                      rideScore: rideScore,
+                                                      dataLoader: dataLoader,
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            );
+                                          }).toList(),
+                                        ),
+                                      const Text('最佳成绩'),
+                                      if (bestScoreDisplay.isEmpty)
+                                        Center(
+                                          child: const Padding(
+                                            padding: EdgeInsets.all(8),
+                                            child: Text('No best score'),
+                                          ),
+                                        )
+                                      else
+                                        ListView(
+                                          shrinkWrap: true,
+                                          physics:
+                                              const NeverScrollableScrollPhysics(),
+                                          children: bestScoreDisplay.entries
+                                              .map((entry) {
+                                            final key = entry.key;
+                                            final value = entry.value;
+                                            return ListTile(
+                                              title: Row(
+                                                children: [
+                                                  Text(key),
+                                                  if (newBest.containsKey(key))
+                                                    const Icon(
+                                                      Icons.emoji_events,
+                                                      color: Colors.amber,
+                                                      size: 18,
+                                                    ),
+                                                ],
+                                              ),
+                                              subtitle: Text(value),
+                                            );
+                                          }).toList(),
+                                        ),
+                                    ],
+                                    const SizedBox(height: 20),
+                                    const Text(
+                                      '速度',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      height: 240,
+                                      child: LineChart(
+                                        LineChartData(
+                                          lineBarsData: [
+                                            LineChartBarData(
+                                              spots: () {
+                                                const reductionFactor = 10;
+                                                return List.generate(
+                                                  (rideScore.speed.length /
+                                                          reductionFactor)
+                                                      .ceil(),
+                                                  (index) => FlSpot(
+                                                    rideScore.distance[index *
+                                                        reductionFactor],
+                                                    rideScore.speed[index *
+                                                        reductionFactor],
+                                                  ),
+                                                );
+                                              }(),
+                                              isCurved: false,
+                                              color: Colors.deepOrange,
+                                              belowBarData: BarAreaData(
+                                                show: true,
+                                                color: Colors.deepOrange
+                                                    .withOpacity(0.3),
+                                              ),
+                                              dotData: FlDotData(show: false),
+                                            ),
+                                          ],
+                                          titlesData: FlTitlesData(
+                                            topTitles: AxisTitles(),
+                                            leftTitles: AxisTitles(),
+                                            rightTitles: AxisTitles(
+                                              sideTitles: SideTitles(
+                                                showTitles: true,
+                                                reservedSize: 60,
+                                                getTitlesWidget:
+                                                    (value, meta) => Text(
+                                                        '${value.toInt()} km/h'),
+                                                interval: 10,
+                                              ),
+                                            ),
+                                            bottomTitles: AxisTitles(
+                                              sideTitles: SideTitles(
+                                                showTitles: true,
+                                                reservedSize: 20,
+                                                interval: rideScore.summary[
+                                                        'total_distance'] /
+                                                    5 /
+                                                    1000,
+                                                getTitlesWidget:
+                                                    (value, meta) => Text(
+                                                  '${value.toStringAsFixed(1)} km',
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          borderData: FlBorderData(show: false),
+                                          gridData: FlGridData(
+                                            show: true,
+                                            drawVerticalLine: true,
+                                            drawHorizontalLine: true,
+                                            horizontalInterval: 10,
+                                            verticalInterval: 1,
+                                            getDrawingHorizontalLine: (value) =>
+                                                FlLine(
+                                              color:
+                                                  Colors.grey.withOpacity(0.5),
+                                              strokeWidth: 0.5,
+                                            ),
+                                            getDrawingVerticalLine: (value) =>
+                                                FlLine(
+                                              color:
+                                                  Colors.grey.withOpacity(0.5),
+                                              strokeWidth: 0.5,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    const Text(
+                                      '海拔',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      height: 240,
+                                      child: LineChart(
+                                        LineChartData(
+                                          lineBarsData: [
+                                            LineChartBarData(
+                                              spots: () {
+                                                const reductionFactor = 10;
+                                                return List.generate(
+                                                  (rideScore.altitude.length /
+                                                          reductionFactor)
+                                                      .ceil(),
+                                                  (index) => FlSpot(
+                                                    rideScore.distance[index *
+                                                        reductionFactor],
+                                                    rideScore.altitude[index *
+                                                        reductionFactor],
+                                                  ),
+                                                );
+                                              }(),
+                                              isCurved: false,
+                                              color: Colors.blueAccent,
+                                              belowBarData: BarAreaData(
+                                                show: true,
+                                                color: Colors.blueAccent
+                                                    .withOpacity(0.3),
+                                              ),
+                                              dotData: FlDotData(show: false),
+                                            ),
+                                          ],
+                                          titlesData: FlTitlesData(
+                                            topTitles: AxisTitles(),
+                                            leftTitles: AxisTitles(),
+                                            rightTitles: AxisTitles(
+                                              sideTitles: SideTitles(
+                                                showTitles: true,
+                                                reservedSize: 60,
+                                                getTitlesWidget: (value,
+                                                        meta) =>
+                                                    Text('${value.toInt()} m'),
+                                                interval: 50,
+                                              ),
+                                            ),
+                                            bottomTitles: AxisTitles(
+                                              sideTitles: SideTitles(
+                                                showTitles: true,
+                                                reservedSize: 20,
+                                                interval: rideScore.summary[
+                                                        'total_distance'] /
+                                                    5 /
+                                                    1000,
+                                                getTitlesWidget:
+                                                    (value, meta) => Text(
+                                                  '${value.toStringAsFixed(1)} km',
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          borderData: FlBorderData(show: false),
+                                          gridData: FlGridData(
+                                            show: true,
+                                            drawVerticalLine: true,
+                                            drawHorizontalLine: true,
+                                            horizontalInterval: 50,
+                                            verticalInterval: 10,
+                                            getDrawingHorizontalLine: (value) =>
+                                                FlLine(
+                                              color:
+                                                  Colors.grey.withOpacity(0.5),
+                                              strokeWidth: 0.5,
+                                            ),
+                                            getDrawingVerticalLine: (value) =>
+                                                FlLine(
+                                              color:
+                                                  Colors.grey.withOpacity(0.5),
+                                              strokeWidth: 0.5,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                            Statistic(
-                              data:
-                                  '${(rideScore.summary['total_elapsed_time'] / 60).toStringAsFixed(2)}',
-                              label: '分钟',
-                              subtitle: '总耗时',
-                            ),
-                            Statistic(
-                              data:
-                                  '${(rideScore.summary['avg_speed'] * 3.6).toStringAsFixed(2)}',
-                              label: 'km/h',
-                              subtitle: '均速',
-                            ),
-                            Statistic(
-                              data:
-                                  '${(rideScore.summary['max_speed'] * 3.6).toStringAsFixed(2)}',
-                              label: 'km/h',
-                              subtitle: '最大速度',
-                            ),
-                            Statistic(
-                              data: '${rideScore.summary['total_ascent']}',
-                              label: 'm',
-                              subtitle: '总爬升',
-                            ),
-                            Statistic(
-                              data: '${rideScore.summary['total_descent']}',
-                              label: 'm',
-                              subtitle: '总下降',
-                            ),
-                            Statistic(
-                              data:
-                                  '${rideScore.summary['avg_heart_rate'] ?? '未知'}',
-                              label: 'bpm',
-                              subtitle: '平均心率',
-                            ),
-                            Statistic(
-                              data:
-                                  '${rideScore.summary['max_heart_rate'] ?? '未知'}',
-                              label: 'bpm',
-                              subtitle: '最大心率',
-                            ),
-                            Statistic(
-                              data: '${rideScore.summary['avg_power'] ?? '未知'}',
-                              label: 'W',
-                              subtitle: '平均功率',
-                            ),
-                            Statistic(
-                              data: '${rideScore.summary['max_power'] ?? '未知'}',
-                              label: 'W',
-                              subtitle: '最大功率',
-                            ),
-                            Statistic(
-                              data:
-                                  '${rideScore.summary['total_calories'] ?? '未知'}',
-                              label: 'kcal',
-                              subtitle: '总卡路里',
-                            ),
+                            // 右tab：数据分析
+                            SingleChildScrollView(
+                              controller: scrollController,
+                              child: Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Card(
+                                    //   margin: const EdgeInsets.all(8),
+                                    //   child: Padding(
+                                    //     padding: const EdgeInsets.all(12),
+                                    //     child: Row(
+                                    //       mainAxisAlignment:
+                                    //           MainAxisAlignment.spaceAround,
+                                    //       children: info.entries.map((e) {
+                                    //         return Column(
+                                    //           children: [
+                                    //             Text(
+                                    //               e.key,
+                                    //               style: const TextStyle(
+                                    //                   fontSize: 14,
+                                    //                   color: Colors.grey),
+                                    //             ),
+                                    //             Text(
+                                    //               e.value != null
+                                    //                   ? e.value
+                                    //                       .toStringAsFixed(1)
+                                    //                   : '-',
+                                    //               style: const TextStyle(
+                                    //                   fontSize: 16,
+                                    //                   fontWeight:
+                                    //                       FontWeight.bold),
+                                    //             ),
+                                    //           ],
+                                    //         );
+                                    //       }).toList(),
+                                    //     ),
+                                    //   ),
+                                    // ),
+                                    // 切换按钮
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        SegmentedButton<int>(
+                                          segments: const [
+                                            ButtonSegment(
+                                              value: 0,
+                                              label: Text('速度'),
+                                            ),
+                                            ButtonSegment(
+                                              value: 1,
+                                              label: Text('海拔'),
+                                            ),
+                                          ],
+                                          selected: {chartType},
+                                          onSelectionChanged: (selected) =>
+                                              setState(() =>
+                                                  chartType = selected.first),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        SegmentedButton<int>(
+                                          segments: const [
+                                            ButtonSegment(
+                                              value: 0,
+                                              label: Text('里程'),
+                                            ),
+                                            ButtonSegment(
+                                              value: 1,
+                                              label: Text('时间'),
+                                            ),
+                                          ],
+                                          selected: {xType},
+                                          onSelectionChanged: (selected) =>
+                                              setState(
+                                                  () => xType = selected.first),
+                                        ),
+                                      ],
+                                    ),
+                                    // 图表
+                                    SizedBox(
+                                      height: 200,
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(8.0),
+                                        child: LineChart(
+                                          LineChartData(
+                                            minX: chartX.first,
+                                            maxX: chartX.last,
+                                            minY: chartY.reduce(
+                                                (a, b) => a < b ? a : b),
+                                            maxY: chartY.reduce(
+                                                (a, b) => a > b ? a : b),
+                                            lineBarsData: [
+                                              LineChartBarData(
+                                                spots: chartSpots,
+                                                isCurved: false,
+                                                color: chartType == 0
+                                                    ? Colors.deepOrange
+                                                    : Colors.blueAccent,
+                                                belowBarData: BarAreaData(
+                                                  show: true,
+                                                  color: (chartType == 0
+                                                          ? Colors.deepOrange
+                                                          : Colors.blueAccent)
+                                                      .withOpacity(0.2),
+                                                ),
+                                                dotData: FlDotData(show: false),
+                                              ),
+                                            ],
+                                            titlesData: FlTitlesData(
+                                              leftTitles: AxisTitles(
+                                                sideTitles: SideTitles(
+                                                    showTitles: true,
+                                                    reservedSize: 40),
+                                              ),
+                                              bottomTitles: AxisTitles(
+                                                sideTitles: SideTitles(
+                                                    showTitles: true,
+                                                    reservedSize: 24),
+                                              ),
+                                              topTitles: AxisTitles(),
+                                              rightTitles: AxisTitles(),
+                                            ),
+                                            borderData:
+                                                FlBorderData(show: false),
+                                            gridData: FlGridData(show: true),
+                                            lineTouchData: LineTouchData(
+                                              touchCallback: (event, res) {
+                                                if (res != null &&
+                                                    res.lineBarSpots != null &&
+                                                    res.lineBarSpots!
+                                                        .isNotEmpty) {
+                                                  _onChartTap(res
+                                                      .lineBarSpots!.first.x);
+                                                }
+                                              },
+                                              handleBuiltInTouches: true,
+                                              touchTooltipData:
+                                                  LineTouchTooltipData(
+                                                // tooltipBgColor: Colors.black54,
+                                                getTooltipItems: (spots) =>
+                                                    spots
+                                                        .map((s) =>
+                                                            LineTooltipItem(
+                                                              '${chartLabelX}: ${s.x.toStringAsFixed(1)}\n${chartLabelY}: ${s.y.toStringAsFixed(1)}',
+                                                              const TextStyle(
+                                                                  color: Colors
+                                                                      .white),
+                                                            ))
+                                                        .toList(),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
                           ],
                         ),
-                        if (dataLoader.bestScoreLoaded) ...[
-                          const SizedBox(height: 20),
-                          const Text(
-                            '成绩',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: [
-                              Statistic(
-                                subtitle: "最佳成绩",
-                                data: bestScoreDisplay.length.toString(),
-                              ),
-                              Statistic(
-                                subtitle: "路段",
-                                data: analysisOfSubRoutes.length.toString(),
-                              ),
-                              Statistic(
-                                  subtitle: "成就",
-                                  data: (newBest.length +
-                                          analysisOfSubRoutes
-                                              .map((e) =>
-                                                  dataLoader.bestSegment[e
-                                                          .segment
-                                                          .segmentIndex]!
-                                                      .getPositionTillCurrentIndex(
-                                                          e.startTime
-                                                              .toInt()) ==
-                                                  0)
-                                              .toList()
-                                              .fold(
-                                                  0, (a, b) => a + (b ? 1 : 0)))
-                                      .toString()),
-                            ],
-                          ),
-                          const Text('路段'),
-                          if (analysisOfSubRoutes.isEmpty)
-                            Center(
-                              child: const Padding(
-                                padding: EdgeInsets.all(8),
-                                child: Text('No sub routes'),
-                              ),
-                            )
-                          else
-                            ListView(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              children: analysisOfSubRoutes.map((segment) {
-                                return ListTile(
-                                  title: Row(
-                                    children: [
-                                      Text(
-                                        '路段 ${segment.segment.segmentIndex + 1}',
-                                        style: const TextStyle(fontSize: 16),
-                                      ),
-                                      if (dataLoader.bestSegment[
-                                                  segment.segment.segmentIndex]!
-                                              .getPositionTillCurrentIndex(
-                                                  segment.startTime.toInt()) ==
-                                          0)
-                                        const Icon(
-                                          Icons.emoji_events,
-                                          color: Colors.amber,
-                                          size: 18,
-                                        ),
-                                    ],
-                                  ),
-                                  subtitle: Text(
-                                    '里程 ${segment.distance.toStringAsFixed(2)} km'
-                                    ' 耗时 ${secondToFormatTime(segment.duration)}'
-                                    ' 均速 ${segment.avgSpeed.toStringAsFixed(2)} km/h',
-                                    style: const TextStyle(fontSize: 14),
-                                  ),
-                                  onTap: () {
-                                    setState(() {
-                                      highlightRouteIndex =
-                                          segment.segment.segmentIndex;
-                                    });
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (context) => SegmentDetailPage(
-                                          segment: segment,
-                                          rideScore: rideScore,
-                                          dataLoader: dataLoader,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                );
-                              }).toList(),
-                            ),
-                          const Text('最佳成绩'),
-                          if (bestScoreDisplay.isEmpty)
-                            Center(
-                              child: const Padding(
-                                padding: EdgeInsets.all(8),
-                                child: Text('No best score'),
-                              ),
-                            )
-                          else
-                            ListView(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              children: bestScoreDisplay.entries.map((entry) {
-                                final key = entry.key;
-                                final value = entry.value;
-                                return ListTile(
-                                  title: Row(
-                                    children: [
-                                      Text(key),
-                                      if (newBest.containsKey(key))
-                                        const Icon(
-                                          Icons.emoji_events,
-                                          color: Colors.amber,
-                                          size: 18,
-                                        ),
-                                    ],
-                                  ),
-                                  subtitle: Text(value),
-                                );
-                              }).toList(),
-                            ),
-                        ],
-                        const SizedBox(height: 20),
-                        const Text(
-                          '速度',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(
-                          height: 240,
-                          child: LineChart(
-                            LineChartData(
-                              lineBarsData: [
-                                LineChartBarData(
-                                  spots: () {
-                                    const reductionFactor = 10;
-                                    return List.generate(
-                                      (rideScore.speed.length / reductionFactor)
-                                          .ceil(),
-                                      (index) => FlSpot(
-                                        rideScore
-                                            .distance[index * reductionFactor],
-                                        rideScore
-                                            .speed[index * reductionFactor],
-                                      ),
-                                    );
-                                  }(),
-                                  isCurved: false,
-                                  color: Colors.deepOrange,
-                                  belowBarData: BarAreaData(
-                                    show: true,
-                                    color: Colors.deepOrange.withOpacity(0.3),
-                                  ),
-                                  dotData: FlDotData(show: false),
-                                ),
-                              ],
-                              titlesData: FlTitlesData(
-                                topTitles: AxisTitles(),
-                                leftTitles: AxisTitles(),
-                                rightTitles: AxisTitles(
-                                  sideTitles: SideTitles(
-                                    showTitles: true,
-                                    reservedSize: 60,
-                                    getTitlesWidget: (value, meta) =>
-                                        Text('${value.toInt()} km/h'),
-                                    interval: 10,
-                                  ),
-                                ),
-                                bottomTitles: AxisTitles(
-                                  sideTitles: SideTitles(
-                                    showTitles: true,
-                                    reservedSize: 20,
-                                    interval:
-                                        rideScore.summary['total_distance'] /
-                                            5 /
-                                            1000,
-                                    getTitlesWidget: (value, meta) => Text(
-                                      '${value.toStringAsFixed(1)} km',
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              borderData: FlBorderData(show: false),
-                              gridData: FlGridData(
-                                show: true,
-                                drawVerticalLine: true,
-                                drawHorizontalLine: true,
-                                horizontalInterval: 10,
-                                verticalInterval: 1,
-                                getDrawingHorizontalLine: (value) => FlLine(
-                                  color: Colors.grey.withOpacity(0.5),
-                                  strokeWidth: 0.5,
-                                ),
-                                getDrawingVerticalLine: (value) => FlLine(
-                                  color: Colors.grey.withOpacity(0.5),
-                                  strokeWidth: 0.5,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          '海拔',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(
-                          height: 240,
-                          child: LineChart(
-                            LineChartData(
-                              lineBarsData: [
-                                LineChartBarData(
-                                  spots: () {
-                                    const reductionFactor = 10;
-                                    return List.generate(
-                                      (rideScore.altitude.length /
-                                              reductionFactor)
-                                          .ceil(),
-                                      (index) => FlSpot(
-                                        rideScore
-                                            .distance[index * reductionFactor],
-                                        rideScore
-                                            .altitude[index * reductionFactor],
-                                      ),
-                                    );
-                                  }(),
-                                  isCurved: false,
-                                  color: Colors.blueAccent,
-                                  belowBarData: BarAreaData(
-                                    show: true,
-                                    color: Colors.blueAccent.withOpacity(0.3),
-                                  ),
-                                  dotData: FlDotData(show: false),
-                                ),
-                              ],
-                              titlesData: FlTitlesData(
-                                topTitles: AxisTitles(),
-                                leftTitles: AxisTitles(),
-                                rightTitles: AxisTitles(
-                                  sideTitles: SideTitles(
-                                    showTitles: true,
-                                    reservedSize: 60,
-                                    getTitlesWidget: (value, meta) =>
-                                        Text('${value.toInt()} m'),
-                                    interval: 50,
-                                  ),
-                                ),
-                                bottomTitles: AxisTitles(
-                                  sideTitles: SideTitles(
-                                    showTitles: true,
-                                    reservedSize: 20,
-                                    interval:
-                                        rideScore.summary['total_distance'] /
-                                            5 /
-                                            1000,
-                                    getTitlesWidget: (value, meta) => Text(
-                                      '${value.toStringAsFixed(1)} km',
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              borderData: FlBorderData(show: false),
-                              gridData: FlGridData(
-                                show: true,
-                                drawVerticalLine: true,
-                                drawHorizontalLine: true,
-                                horizontalInterval: 50,
-                                verticalInterval: 10,
-                                getDrawingHorizontalLine: (value) => FlLine(
-                                  color: Colors.grey.withOpacity(0.5),
-                                  strokeWidth: 0.5,
-                                ),
-                                getDrawingVerticalLine: (value) => FlLine(
-                                  color: Colors.grey.withOpacity(0.5),
-                                  strokeWidth: 0.5,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          '查看自定义区间',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        // TODO
-                        // 滑动条，选择区间开始结束
-                        // 固定地图，跟随滑动而缩放和重绘路线
-                        // 点击地图打开SegmentDetailPage的子页面展示区间成绩信息
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -958,6 +1193,27 @@ class _RideDetailPageState extends State<RideDetailPage> {
         ],
       ),
     );
+  }
+
+  int selectedIndex = 0;
+  int chartType = 0; // 0: 速度, 1: 海拔
+  int xType = 0; // 0: 里程, 1: 时间
+  double chartMinX = 0;
+  double chartMaxX = 0;
+
+  void _onChartTap(double x) {
+    // x为横轴值，找到最近的点
+    int idx = 0;
+    if (xType == 0) {
+      idx = rideScore.distance.indexWhere((d) => d >= x);
+    } else {
+      idx = rideScore.distance.indexWhere((d) => d >= x);
+      // idx = widget.rideScore.elapsedTime.indexWhere((t) => t >= x);
+    }
+    if (idx < 0) idx = 0;
+    setState(() {
+      selectedIndex = idx;
+    });
   }
 }
 
