@@ -377,16 +377,28 @@ class _RideDetailPageState extends State<RideDetailPage> {
 
     final rideScore = RideScore(rideData: rideData, routes: routes);
     final timestamp = getTimestampFromDataMessage(rideData['sessions'][0]);
-    final bestScore = dataLoader.bestScoreAt[timestamp]!;
+    late final BestScore bestScore, bestScoreTillNow;
+    late final List<SegmentScore> analysisOfSubRoutes;
+    if (!dataLoader.bestScoreLoaded) {
+      bestScore = BestScore();
+      bestScoreTillNow = BestScore();
+      analysisOfSubRoutes = [];
+    } else {
+      bestScore = dataLoader.bestScoreAt[timestamp]!;
+      bestScoreTillNow = dataLoader.bestScore[timestamp]!;
+      analysisOfSubRoutes = dataLoader.subRoutesOfRoutes[timestamp]!;
+    }
     final bestScoreDisplay = bestScore.getBestData();
-    final bestScoreTillNow = dataLoader.bestScore[timestamp]!;
-    // 计算最佳成绩
     final newBest = bestScoreTillNow.getBetterDataDiff(bestScore);
-    final analysisOfSubRoutes = dataLoader.subRoutesOfRoutes[timestamp]!;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('骑行详情'),
+        title: Row(
+          children: [
+            const Text('骑行详情'),
+            if (!dataLoader.bestScoreLoaded) CircularProgressIndicator()
+          ],
+        ),
         actions: [
           IconButton(
               onPressed: () async {
@@ -633,112 +645,133 @@ class _RideDetailPageState extends State<RideDetailPage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          '成绩',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                        if (dataLoader.bestScoreLoaded) ...[
+                          const SizedBox(height: 20),
+                          const Text(
+                            '成绩',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            Statistic(
-                              subtitle: "最佳成绩",
-                              data: bestScoreDisplay.length.toString(),
-                            ),
-                            Statistic(
-                              subtitle: "路段",
-                              data: analysisOfSubRoutes.length.toString(),
-                            ),
-                            Statistic(
-                                subtitle: "成就",
-                                data: (newBest.length +
-                                        analysisOfSubRoutes
-                                            .map((e) =>
-                                                dataLoader.bestSegment[
-                                                        e.segment.segmentIndex]!
-                                                    .getPositionTillCurrentIndex(
-                                                        e.startTime.toInt()) ==
-                                                0)
-                                            .toList()
-                                            .fold(0, (a, b) => a + (b ? 1 : 0)))
-                                    .toString()),
-                          ],
-                        ),
-                        const Text('路段'),
-                        ListView(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          children: analysisOfSubRoutes.map((segment) {
-                            return ListTile(
-                              title: Row(
-                                children: [
-                                  Text(
-                                    '路段 ${segment.segment.segmentIndex + 1}',
-                                    style: const TextStyle(fontSize: 16),
-                                  ),
-                                  if (dataLoader.bestSegment[
-                                              segment.segment.segmentIndex]!
-                                          .getPositionTillCurrentIndex(
-                                              segment.startTime.toInt()) ==
-                                      0)
-                                    const Icon(
-                                      Icons.emoji_events,
-                                      color: Colors.amber,
-                                      size: 18,
-                                    ),
-                                ],
+                          const SizedBox(height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              Statistic(
+                                subtitle: "最佳成绩",
+                                data: bestScoreDisplay.length.toString(),
                               ),
-                              subtitle: Text(
-                                '里程 ${segment.distance.toStringAsFixed(2)} km'
-                                ' 耗时 ${secondToFormatTime(segment.duration)}'
-                                ' 均速 ${segment.avgSpeed.toStringAsFixed(2)} km/h',
-                                style: const TextStyle(fontSize: 14),
+                              Statistic(
+                                subtitle: "路段",
+                                data: analysisOfSubRoutes.length.toString(),
                               ),
-                              onTap: () {
-                                setState(() {
-                                  highlightRouteIndex =
-                                      segment.segment.segmentIndex;
-                                });
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => SegmentDetailPage(
-                                      segment: segment,
-                                      rideScore: rideScore,
-                                      dataLoader: dataLoader,
-                                    ),
+                              Statistic(
+                                  subtitle: "成就",
+                                  data: (newBest.length +
+                                          analysisOfSubRoutes
+                                              .map((e) =>
+                                                  dataLoader.bestSegment[e
+                                                          .segment
+                                                          .segmentIndex]!
+                                                      .getPositionTillCurrentIndex(
+                                                          e.startTime
+                                                              .toInt()) ==
+                                                  0)
+                                              .toList()
+                                              .fold(
+                                                  0, (a, b) => a + (b ? 1 : 0)))
+                                      .toString()),
+                            ],
+                          ),
+                          const Text('路段'),
+                          if (analysisOfSubRoutes.isEmpty)
+                            Center(
+                              child: const Padding(
+                                padding: EdgeInsets.all(8),
+                                child: Text('No sub routes'),
+                              ),
+                            )
+                          else
+                            ListView(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              children: analysisOfSubRoutes.map((segment) {
+                                return ListTile(
+                                  title: Row(
+                                    children: [
+                                      Text(
+                                        '路段 ${segment.segment.segmentIndex + 1}',
+                                        style: const TextStyle(fontSize: 16),
+                                      ),
+                                      if (dataLoader.bestSegment[
+                                                  segment.segment.segmentIndex]!
+                                              .getPositionTillCurrentIndex(
+                                                  segment.startTime.toInt()) ==
+                                          0)
+                                        const Icon(
+                                          Icons.emoji_events,
+                                          color: Colors.amber,
+                                          size: 18,
+                                        ),
+                                    ],
                                   ),
+                                  subtitle: Text(
+                                    '里程 ${segment.distance.toStringAsFixed(2)} km'
+                                    ' 耗时 ${secondToFormatTime(segment.duration)}'
+                                    ' 均速 ${segment.avgSpeed.toStringAsFixed(2)} km/h',
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                  onTap: () {
+                                    setState(() {
+                                      highlightRouteIndex =
+                                          segment.segment.segmentIndex;
+                                    });
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) => SegmentDetailPage(
+                                          segment: segment,
+                                          rideScore: rideScore,
+                                          dataLoader: dataLoader,
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 );
-                              },
-                            );
-                          }).toList(),
-                        ),
-                        const Text('最佳成绩'),
-                        ListView(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          children: bestScoreDisplay.entries.map((entry) {
-                            final key = entry.key;
-                            final value = entry.value;
-                            return ListTile(
-                              title: Row(
-                                children: [
-                                  Text(key),
-                                  if (newBest.containsKey(key))
-                                    const Icon(
-                                      Icons.emoji_events,
-                                      color: Colors.amber,
-                                      size: 18,
-                                    ),
-                                ],
+                              }).toList(),
+                            ),
+                          const Text('最佳成绩'),
+                          if (bestScoreDisplay.isEmpty)
+                            Center(
+                              child: const Padding(
+                                padding: EdgeInsets.all(8),
+                                child: Text('No best score'),
                               ),
-                              subtitle: Text(value),
-                            );
-                          }).toList(),
-                        ),
+                            )
+                          else
+                            ListView(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              children: bestScoreDisplay.entries.map((entry) {
+                                final key = entry.key;
+                                final value = entry.value;
+                                return ListTile(
+                                  title: Row(
+                                    children: [
+                                      Text(key),
+                                      if (newBest.containsKey(key))
+                                        const Icon(
+                                          Icons.emoji_events,
+                                          color: Colors.amber,
+                                          size: 18,
+                                        ),
+                                    ],
+                                  ),
+                                  subtitle: Text(value),
+                                );
+                              }).toList(),
+                            ),
+                        ],
                         const SizedBox(height: 20),
                         const Text(
                           '速度',

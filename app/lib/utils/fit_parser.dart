@@ -211,3 +211,7 @@ String parseFitTimestampToDateTimeString(num timestamp) {
     return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 }
+
+int timestampFromFitTimestamp(int fitTimestamp) {
+  return fitTimestamp * 1000 + 631065600000;
+}

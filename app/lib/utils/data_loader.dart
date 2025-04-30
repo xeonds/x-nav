@@ -85,6 +85,22 @@ class DataLoader extends ChangeNotifier {
   );
   bool isInitialized = false;
 
+  // 新增：阶段性加载状态
+  bool isLoading = false;
+  String? progressMessage;
+  bool gpxLoaded = false;
+  bool fitLoaded = false;
+  bool summaryLoaded = false;
+  bool rideDataLoaded = false;
+  bool bestScoreLoaded = false;
+
+  // 新增：阶段性回调
+  VoidCallback? onGpxLoaded;
+  VoidCallback? onFitLoaded;
+  VoidCallback? onSummaryLoaded;
+  VoidCallback? onRideDataLoaded;
+  VoidCallback? onBestScoreLoaded;
+
   List<List<LatLng>> get routes => _routes;
   List<List<LatLng>> get histories => _histories;
   Map<String, dynamic> get rideData => _rideData;
@@ -96,69 +112,89 @@ class DataLoader extends ChangeNotifier {
   Map<int, SortManager<SegmentScore, int>> get bestSegment => _bestSegment;
   Map<int, List<SegmentScore>> get subRoutesOfRoutes => _subRoutesOfRoutes;
 
-  bool isLoading = false; // 是否正在加载数据
-  String? progressMessage;
-
   Future<void> initialize() async {
     if (isLoading) return;
     isLoading = true;
     isInitialized = false;
     progressMessage = '准备加载数据...';
+    gpxLoaded = false;
+    fitLoaded = false;
+    summaryLoaded = false;
+    rideDataLoaded = false;
+    bestScoreLoaded = false;
     notifyListeners();
 
     try {
-      final result =
-          await runInIsolateWithProgress<_DataLoadRequest, _DataLoadResult>(
-        entry: _dataLoadIsolateEntryWithProgress,
+      await runInIsolateWithProgress<_DataLoadRequest, _DataLoadResult>(
+        entry: _dataLoadIsolateEntryWithProgressPhased,
         parameter: _DataLoadRequest(Storage.appDocPath!),
         onMessage: (msg) {
           if (msg is Map && msg['progress'] != null) {
             progressMessage = msg['progress'];
             notifyListeners();
           } else if (msg is Map && msg['error'] != null) {
-            progressMessage = '加载失败: ' + msg['error'];
+            progressMessage = '加载失败: ${msg['error']}';
             isLoading = false;
             isInitialized = false;
+            notifyListeners();
+          } else if (msg is Map && msg['phase'] == 'gpx') {
+            _routes
+              ..clear()
+              ..addAll(msg['routes']);
+            _gpxFile
+              ..clear()
+              ..addAll(msg['gpxFiles']);
+            gpxLoaded = true;
+            if (onGpxLoaded != null) onGpxLoaded!();
+            notifyListeners();
+          } else if (msg is Map && msg['phase'] == 'fit') {
+            _fitData
+              ..clear()
+              ..addAll(msg['fitData']);
+            _histories
+              ..clear()
+              ..addAll(msg['histories']);
+            fitLoaded = true;
+            if (onFitLoaded != null) onFitLoaded!();
+            notifyListeners();
+          } else if (msg is Map && msg['phase'] == 'summary') {
+            _summary
+              ..clear()
+              ..addAll(msg['summary']);
+            summaryLoaded = true;
+            if (onSummaryLoaded != null) onSummaryLoaded!();
+            notifyListeners();
+          } else if (msg is Map && msg['phase'] == 'rideData') {
+            _rideData
+              ..clear()
+              ..addAll(msg['rideData']);
+            rideDataLoaded = true;
+            if (onRideDataLoaded != null) onRideDataLoaded!();
+            notifyListeners();
+          } else if (msg is Map && msg['phase'] == 'bestScore') {
+            _bestScore
+              ..clear()
+              ..addAll(msg['bestScore']);
+            _bestScoreAt
+              ..clear()
+              ..addAll(msg['bestScoreAt']);
+            _bestSegment
+              ..clear()
+              ..addAll(msg['bestSegment']);
+            _subRoutesOfRoutes
+              ..clear()
+              ..addAll(msg['subRoutesOfRoutes']);
+            bestScoreLoaded = true;
+            if (onBestScoreLoaded != null) onBestScoreLoaded!();
+            isInitialized = true;
+            isLoading = false;
+            progressMessage = null;
             notifyListeners();
           }
         },
       );
-      _routes
-        ..clear()
-        ..addAll(result.routes);
-      _fitData
-        ..clear()
-        ..addAll(result.fitData);
-      _gpxFile
-        ..clear()
-        ..addAll(result.gpxFiles);
-      _histories
-        ..clear()
-        ..addAll(result.histories);
-      _rideData
-        ..clear()
-        ..addAll(result.rideData);
-      _summary
-        ..clear()
-        ..addAll(result.summary);
-      _bestScore
-        ..clear()
-        ..addAll(result.bestScore);
-      _bestScoreAt
-        ..clear()
-        ..addAll(result.bestScoreAt);
-      _bestSegment
-        ..clear()
-        ..addAll(result.bestSegment);
-      _subRoutesOfRoutes
-        ..clear()
-        ..addAll(result.subRoutesOfRoutes);
-      isInitialized = true;
-      isLoading = false;
-      progressMessage = null;
-      notifyListeners();
     } catch (e) {
-      progressMessage = '加载失败: ' + e.toString();
+      progressMessage = '加载失败: ${e.toString()}';
       isLoading = false;
       isInitialized = false;
       notifyListeners();
@@ -267,108 +303,6 @@ Map<String, dynamic> _analyzeBestScore(Map<String, dynamic> input) {
   };
 }
 
-class SortManager<T, K> {
-  final bool Function(T a, T b) _comparator;
-  final List<Entry<T, K>> dataList = [];
-
-  SortManager(this._comparator);
-
-  void append(T item, K key) {
-    dataList.add(Entry(item, key));
-  }
-
-  int getPositionTillCurrentIndex(K index) {
-    final tIndex = dataList.indexWhere((entry) => entry.key == index);
-    if (tIndex == -1) {
-      return -1;
-    }
-    final target = dataList[tIndex];
-    final subList = dataList.sublist(0, tIndex + 1);
-    subList.sort((a, b) => _comparator(a.item, b.item)
-        ? 1
-        : _comparator(b.item, a.item)
-            ? -1
-            : 0);
-    for (int i = 0; i < subList.length; i++) {
-      if (identical(subList[i], target)) {
-        return i;
-      }
-    }
-    return -1;
-  }
-
-  int getPositionOfFullList(K index) {
-    final tIndex = dataList.indexWhere((entry) => entry.key == index);
-    if (tIndex == -1) {
-      return -1;
-    }
-    final target = dataList[tIndex];
-    final subList = dataList.sublist(0, dataList.length);
-    subList.sort((a, b) => _comparator(a.item, b.item)
-        ? 1
-        : _comparator(b.item, a.item)
-            ? -1
-            : 0);
-    for (int i = 0; i < subList.length; i++) {
-      if (identical(subList[i], target)) {
-        return i;
-      }
-    }
-    return -1;
-  }
-}
-
-class Entry<T, K> {
-  final T item;
-  final K key;
-
-  Entry(this.item, this.key);
-}
-
-void _dataLoadIsolateEntryWithProgress(
-    _DataLoadRequest request, SendPort sendPort) {
-  try {
-    sendPort.send({'progress': '正在初始化存储...'});
-    Storage.appDocPath = request.appDocPath;
-
-    sendPort.send({'progress': '正在读取GPX文件...'});
-    final gpxFiles = Storage().getGpxFilesSync();
-    final parsedRoutes = _parseGpxFiles(gpxFiles);
-
-    sendPort.send({'progress': '正在读取FIT文件...'});
-    final fitFiles = Storage().getFitFilesSync();
-    final parsedHistories = _parseFitFiles(fitFiles);
-
-    sendPort.send({'progress': '正在分析骑行摘要...'});
-    final summary = _analyzeSummaryData(parsedHistories['fitData']);
-
-    sendPort.send({'progress': '正在统计骑行数据...'});
-    final rideData = _analyzeRideData(summary);
-
-    sendPort.send({'progress': '正在分析最佳成绩...'});
-    final bestScoreData = _analyzeBestScore({
-      'fitData': parsedHistories['fitData'],
-      'routes': parsedRoutes['routes'],
-    });
-
-    sendPort.send({'progress': '数据加载完成'});
-    sendPort.send(_DataLoadResult(
-      routes: parsedRoutes['routes'],
-      fitData: parsedHistories['fitData'],
-      gpxFiles: parsedRoutes['files'],
-      histories: parsedHistories['histories'],
-      rideData: rideData,
-      summary: summary,
-      bestScore: bestScoreData['bestScore'],
-      bestScoreAt: bestScoreData['bestScoreAt'],
-      bestSegment: bestScoreData['bestSegment'],
-      subRoutesOfRoutes: bestScoreData['subRoutesOfRoutes'],
-    ));
-  } catch (e, st) {
-    sendPort.send({'error': e.toString(), 'stack': st.toString()});
-  }
-}
-
 // 支持进度消息的异步任务
 Future<R> runInIsolateWithProgress<P, R>({
   required void Function(P, SendPort) entry,
@@ -397,4 +331,74 @@ class _IsolateProgressMessage<P> {
   final P parameter;
   final SendPort sendPort;
   _IsolateProgressMessage(this.entry, this.parameter, this.sendPort);
+}
+
+// 新增：分阶段并行加载的isolate入口
+void _dataLoadIsolateEntryWithProgressPhased(
+    _DataLoadRequest request, SendPort sendPort) async {
+  try {
+    sendPort.send({'progress': '正在初始化存储...'});
+    Storage.appDocPath = request.appDocPath;
+
+    // 并行读取GPX和FIT文件
+    final gpxFuture = Future(() {
+      final gpxFiles = Storage().getGpxFilesSync();
+      final parsedRoutes = _parseGpxFiles(gpxFiles);
+      return parsedRoutes;
+    });
+    final fitFuture = Future(() {
+      final fitFiles = Storage().getFitFilesSync();
+      final parsedHistories = _parseFitFiles(fitFiles);
+      return parsedHistories;
+    });
+
+    // GPX
+    final parsedRoutes = await gpxFuture;
+    sendPort.send({
+      'phase': 'gpx',
+      'routes': parsedRoutes['routes'],
+      'gpxFiles': parsedRoutes['files'],
+    });
+
+    // FIT
+    final parsedHistories = await fitFuture;
+    sendPort.send({
+      'phase': 'fit',
+      'fitData': parsedHistories['fitData'],
+      'histories': parsedHistories['histories'],
+    });
+
+    // 摘要
+    sendPort.send({'progress': '正在分析骑行摘要...'});
+    final summary =
+        await Future(() => _analyzeSummaryData(parsedHistories['fitData']));
+    sendPort.send({
+      'phase': 'summary',
+      'summary': summary,
+    });
+
+    // 统计
+    sendPort.send({'progress': '正在统计骑行数据...'});
+    final rideData = await Future(() => _analyzeRideData(summary));
+    sendPort.send({
+      'phase': 'rideData',
+      'rideData': rideData,
+    });
+
+    // 最佳成绩
+    sendPort.send({'progress': '正在分析最佳成绩...'});
+    final bestScoreData = await Future(() => _analyzeBestScore({
+          'fitData': parsedHistories['fitData'],
+          'routes': parsedRoutes['routes'],
+        }));
+    sendPort.send({
+      'phase': 'bestScore',
+      'bestScore': bestScoreData['bestScore'],
+      'bestScoreAt': bestScoreData['bestScoreAt'],
+      'bestSegment': bestScoreData['bestSegment'],
+      'subRoutesOfRoutes': bestScoreData['subRoutesOfRoutes'],
+    });
+  } catch (e, st) {
+    sendPort.send({'error': e.toString(), 'stack': st.toString()});
+  }
 }

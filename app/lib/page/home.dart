@@ -1,14 +1,11 @@
-import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit_parser.dart';
-import 'package:app/widget/ride_stats_card.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:app/page/history.dart'; // 导入 RideHistoryCard
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 
 enum StatsRangeType { all, month, year, custom }
 
@@ -20,9 +17,6 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  StatsRangeType _statsRangeType = StatsRangeType.all;
-  DateTimeRange? _customRange;
-
   @override
   Widget build(BuildContext context) {
     final dataLoader = Provider.of<DataLoader>(context, listen: true);
@@ -49,16 +43,15 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     }
-
     final bestScore = dataLoader.bestScore;
-    // 取bestscore中key最大的值
     if (bestScore.isEmpty) {
       return const Center(
         child: Text('没有骑行记录，请先导入qaq'),
       );
     }
+    // 取bestscore中key最大的值
     final bestScoreDisplay = bestScore.entries.last.value.getBestData();
-
+    // 骑行数据按日分组
     final rideData = dataLoader.summaryList
         .map((e) => {
               'timestamp': DateTime.fromMillisecondsSinceEpoch(
@@ -85,44 +78,8 @@ class _HomePageState extends State<HomePage> {
     });
     final ValueNotifier<LineTouchResponse?> touchInteraction =
         ValueNotifier<LineTouchResponse?>(null);
-    ValueNotifier<DateTime> _focusedMonth =
+    ValueNotifier<DateTime> currentMonth =
         ValueNotifier<DateTime>(DateTime.now());
-
-    DateTime now = DateTime.now();
-    DateTime? rangeStart;
-    DateTime? rangeEnd;
-    switch (_statsRangeType) {
-      case StatsRangeType.all:
-        rangeStart = null;
-        rangeEnd = null;
-        break;
-      case StatsRangeType.month:
-        rangeStart = DateTime(now.year, now.month, 1);
-        rangeEnd = now;
-        break;
-      case StatsRangeType.year:
-        rangeStart = DateTime(now.year, 1, 1);
-        rangeEnd = now;
-        break;
-      case StatsRangeType.custom:
-        if (_customRange != null) {
-          rangeStart = _customRange!.start;
-          rangeEnd = _customRange!.end;
-        }
-        break;
-    }
-    final filteredRecords = rideData.entries.where((entry) {
-      if (rangeStart != null && entry.key.isBefore(rangeStart)) return false;
-      if (rangeEnd != null && entry.key.isAfter(rangeEnd)) return false;
-      return true;
-    });
-    final totalDistance = filteredRecords.fold<double>(
-        0.0, (sum, entry) => sum + (entry.value['total_distance'] ?? 0));
-    final totalAscent = filteredRecords.fold<double>(
-        0.0, (sum, entry) => sum + (entry.value['total_ascent'] ?? 0));
-    final totalTime = filteredRecords.fold<double>(
-        0.0, (sum, entry) => sum + (entry.value['total_moving_time'] ?? 0));
-    final totalRides = filteredRecords.length;
 
     return Scaffold(
       appBar: AppBar(
@@ -379,7 +336,7 @@ class _HomePageState extends State<HomePage> {
               ),
               // 新增：当月骑行统计卡片，随日历月份同步
               ValueListenableBuilder<DateTime>(
-                valueListenable: _focusedMonth,
+                valueListenable: currentMonth,
                 builder: (context, focusedMonth, _) {
                   // 计算当前日历显示月份的起止
                   final monthStart =
@@ -425,7 +382,7 @@ class _HomePageState extends State<HomePage> {
                               .reduce((a, b) => a.isBefore(b) ? a : b)
                               .subtract(const Duration(days: 1)),
                           lastDay: DateTime.now(),
-                          focusedDay: _focusedMonth.value,
+                          focusedDay: currentMonth.value,
                           calendarFormat: CalendarFormat.month,
                           daysOfWeekVisible: true,
                           availableGestures: AvailableGestures.none,
@@ -509,19 +466,9 @@ class _HomePageState extends State<HomePage> {
                           ),
                           // 禁用滑动，仅允许按钮切换月份
                           onPageChanged: (focusedDay) {
-                            _focusedMonth.value =
+                            currentMonth.value =
                                 DateTime(focusedDay.year, focusedDay.month, 1);
                           },
-                          // onLeftChevronTap: () {
-                          //   final prevMonth = DateTime(_focusedMonth.value.year,
-                          //       _focusedMonth.value.month - 1, 1);
-                          //   _focusedMonth.value = prevMonth;
-                          // },
-                          // onRightChevronTap: () {
-                          //   final nextMonth = DateTime(_focusedMonth.value.year,
-                          //       _focusedMonth.value.month + 1, 1);
-                          //   _focusedMonth.value = nextMonth;
-                          // },
                         ),
                       ),
               ),
@@ -541,80 +488,6 @@ class _HomePageState extends State<HomePage> {
                   );
                 }).toList(),
               ),
-              // const SizedBox(height: 20),
-              // const Text('骑行统计',
-              //     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              // SegmentedButton<StatsRangeType>(
-              //   segments: const [
-              //     ButtonSegment(
-              //       value: StatsRangeType.all,
-              //       label: Text('全部'),
-              //     ),
-              //     ButtonSegment(
-              //       value: StatsRangeType.month,
-              //       label: Text('月初至今'),
-              //     ),
-              //     ButtonSegment(
-              //       value: StatsRangeType.year,
-              //       label: Text('年初至今'),
-              //     ),
-              //     ButtonSegment(
-              //       value: StatsRangeType.custom,
-              //       label: Text('自定义'),
-              //     ),
-              //   ],
-              //   selected: {_statsRangeType},
-              //   onSelectionChanged: (newSelection) async {
-              //     final value = newSelection.first;
-              //     if (value == StatsRangeType.custom) {
-              //       final picked = await showDateRangePicker(
-              //         context: context,
-              //         firstDate: rideData.keys.isNotEmpty
-              //             ? rideData.keys
-              //                 .reduce((a, b) => a.isBefore(b) ? a : b)
-              //             : DateTime(2020),
-              //         lastDate: DateTime.now(),
-              //         initialDateRange: _customRange,
-              //       );
-              //       if (picked != null) {
-              //         setState(() {
-              //           _statsRangeType = value;
-              //           _customRange = picked;
-              //         });
-              //       }
-              //       return;
-              //     }
-              //     setState(() {
-              //       _statsRangeType = value;
-              //     });
-              //   },
-              //   style: SegmentedButton.styleFrom(
-              //     padding:
-              //         const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              //     visualDensity: VisualDensity.compact,
-              //   ),
-              // ),
-              // if (_statsRangeType == StatsRangeType.custom &&
-              //     _customRange != null)
-              //   Padding(
-              //     padding: const EdgeInsets.only(top: 4.0, left: 4.0),
-              //     child: Align(
-              //       alignment: Alignment.centerRight,
-              //       child: Text(
-              //         '${DateFormat('yyyy-MM-dd').format(_customRange!.start)} ~ ${DateFormat('yyyy-MM-dd').format(_customRange!.end)}',
-              //         style: const TextStyle(fontSize: 12, color: Colors.grey),
-              //       ),
-              //     ),
-              //   ),
-              // Padding(
-              //   padding: const EdgeInsets.symmetric(vertical: 8.0),
-              //   child: RideStatsCard(
-              //     totalRides: totalRides,
-              //     totalTime: totalTime,
-              //     totalDistance: totalDistance,
-              //     totalAscent: totalAscent,
-              //   ),
-              // ),
             ],
           ),
         ),

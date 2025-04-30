@@ -198,19 +198,62 @@ class BestScore {
   }
 }
 
-String secondToFormatTime(num seconds) {
-  if (seconds.isInfinite || seconds.isNaN) {
-    return '00:00';
-  }
-  int hours = seconds ~/ 3600;
-  int minutes = (seconds % 3600) ~/ 60;
-  int secs = seconds.toInt() % 60;
+class SortManager<T, K> {
+  final bool Function(T a, T b) _comparator;
+  final List<Entry<T, K>> dataList = [];
 
-  if (hours > 0) {
-    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
-  } else {
-    return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  SortManager(this._comparator);
+
+  void append(T item, K key) {
+    dataList.add(Entry(item, key));
   }
+
+  int getPositionTillCurrentIndex(K index) {
+    final tIndex = dataList.indexWhere((entry) => entry.key == index);
+    if (tIndex == -1) {
+      return -1;
+    }
+    final target = dataList[tIndex];
+    final subList = dataList.sublist(0, tIndex + 1);
+    subList.sort((a, b) => _comparator(a.item, b.item)
+        ? 1
+        : _comparator(b.item, a.item)
+            ? -1
+            : 0);
+    for (int i = 0; i < subList.length; i++) {
+      if (identical(subList[i], target)) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  int getPositionOfFullList(K index) {
+    final tIndex = dataList.indexWhere((entry) => entry.key == index);
+    if (tIndex == -1) {
+      return -1;
+    }
+    final target = dataList[tIndex];
+    final subList = dataList.sublist(0, dataList.length);
+    subList.sort((a, b) => _comparator(a.item, b.item)
+        ? 1
+        : _comparator(b.item, a.item)
+            ? -1
+            : 0);
+    for (int i = 0; i < subList.length; i++) {
+      if (identical(subList[i], target)) {
+        return i;
+      }
+    }
+    return -1;
+  }
+}
+
+class Entry<T, K> {
+  final T item;
+  final K key;
+
+  Entry(this.item, this.key);
 }
 
 // 计算给定滑动窗口尺寸列表的最大平均值算法
@@ -231,6 +274,17 @@ Map<int, double> calculateMaxRangeAvgs(
   return res;
 }
 
-int timestampFromFitTimestamp(int fitTimestamp) {
-  return fitTimestamp * 1000 + 631065600000;
+String secondToFormatTime(num seconds) {
+  if (seconds.isInfinite || seconds.isNaN) {
+    return '00:00';
+  }
+  int hours = seconds ~/ 3600;
+  int minutes = (seconds % 3600) ~/ 60;
+  int secs = seconds.toInt() % 60;
+
+  if (hours > 0) {
+    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  } else {
+    return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  }
 }
