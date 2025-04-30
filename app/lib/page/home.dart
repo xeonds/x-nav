@@ -1,3 +1,4 @@
+import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit_parser.dart';
 import 'package:collection/collection.dart';
@@ -21,61 +22,75 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final dataLoader = Provider.of<DataLoader>(context, listen: true);
 
-    if (dataLoader.isLoading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            Text(dataLoader.progressMessage ?? '数据加载中...'),
-          ],
-        ),
-      );
+    // if (dataLoader.isLoading) {
+    //   return Center(
+    //     child: Column(
+    //       mainAxisAlignment: MainAxisAlignment.center,
+    //       children: [
+    //         const CircularProgressIndicator(),
+    //         const SizedBox(height: 16),
+    //         Text(dataLoader.progressMessage ?? '数据加载中...'),
+    //       ],
+    //     ),
+    //   );
+    // }
+    // if (!dataLoader.isLoading && !dataLoader.isInitialized) {
+    //   return Center(
+    //     child: Column(
+    //       mainAxisAlignment: MainAxisAlignment.center,
+    //       children: [
+    //         Text(dataLoader.progressMessage ?? '未知错误...'),
+    //       ],
+    //     ),
+    //   );
+    // }
+    late final Map<int, BestScore> bestScore;
+    if (dataLoader.isInitialized && dataLoader.fitData.isEmpty) {
+      return Scaffold(
+          appBar: AppBar(
+            title: const Text('X-Nav'),
+          ),
+          body: const Center(
+            child: Text('没有骑行记录，请先导入qaq'),
+          ));
     }
-    if (!dataLoader.isLoading && !dataLoader.isInitialized) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(dataLoader.progressMessage ?? '未知错误...'),
-          ],
-        ),
-      );
-    }
-    final bestScore = dataLoader.bestScore;
-    if (bestScore.isEmpty) {
-      return const Center(
-        child: Text('没有骑行记录，请先导入qaq'),
-      );
+    if (dataLoader.bestScore.isNotEmpty) {
+      bestScore = dataLoader.bestScore;
+    } else {
+      bestScore = {0: BestScore()};
     }
     // 取bestscore中key最大的值
     final bestScoreDisplay = bestScore.entries.last.value.getBestData();
+    late final Map<DateTime, Map<String, dynamic>> rideData;
     // 骑行数据按日分组
-    final rideData = dataLoader.summaryList
-        .map((e) => {
-              'timestamp': DateTime.fromMillisecondsSinceEpoch(
-                      timestampFromFitTimestamp(e['start_time'].toInt()))
-                  .toLocal(),
-              'total_distance': e['total_distance'],
-              'total_ascent': e['total_ascent'],
-              'total_moving_time': e['total_moving_time'],
-            })
-        .groupFoldBy<DateTime, Map<String, dynamic>>(
-            (element) => DateTime(
-                element['timestamp'].year,
-                element['timestamp'].month,
-                element['timestamp'].day), (previousValue, element) {
-      previousValue ??= {
-        'total_distance': 0,
-        'total_ascent': 0,
-        'total_moving_time': 0,
-      };
-      previousValue['total_distance'] += element['total_distance'];
-      previousValue['total_ascent'] += element['total_ascent'];
-      previousValue['total_moving_time'] += element['total_moving_time'];
-      return previousValue;
-    });
+    if (dataLoader.summaryLoaded) {
+      rideData = dataLoader.summaryList
+          .map((e) => {
+                'timestamp': DateTime.fromMillisecondsSinceEpoch(
+                        timestampFromFitTimestamp(e['start_time'].toInt()))
+                    .toLocal(),
+                'total_distance': e['total_distance'],
+                'total_ascent': e['total_ascent'],
+                'total_moving_time': e['total_moving_time'],
+              })
+          .groupFoldBy<DateTime, Map<String, dynamic>>(
+              (element) => DateTime(
+                  element['timestamp'].year,
+                  element['timestamp'].month,
+                  element['timestamp'].day), (previousValue, element) {
+        previousValue ??= {
+          'total_distance': 0,
+          'total_ascent': 0,
+          'total_moving_time': 0,
+        };
+        previousValue['total_distance'] += element['total_distance'];
+        previousValue['total_ascent'] += element['total_ascent'];
+        previousValue['total_moving_time'] += element['total_moving_time'];
+        return previousValue;
+      });
+    } else {
+      rideData = {};
+    }
     final ValueNotifier<LineTouchResponse?> touchInteraction =
         ValueNotifier<LineTouchResponse?>(null);
     ValueNotifier<DateTime> currentMonth =
@@ -476,18 +491,26 @@ class _HomePageState extends State<HomePage> {
                 '最佳成绩',
                 style: TextStyle(fontSize: 20),
               ),
-              ListView(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                children: bestScoreDisplay.entries.map((entry) {
-                  final key = entry.key;
-                  final value = entry.value;
-                  return ListTile(
-                    title: Text(key),
-                    subtitle: Text(value),
-                  );
-                }).toList(),
-              ),
+              if (dataLoader.bestScoreLoaded)
+                ListView(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: bestScoreDisplay.entries.map((entry) {
+                    final key = entry.key;
+                    final value = entry.value;
+                    return ListTile(
+                      title: Text(key),
+                      subtitle: Text(value),
+                    );
+                  }).toList(),
+                )
+              else
+                Center(
+                  child: const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('Loading...'),
+                  ),
+                ),
             ],
           ),
         ),

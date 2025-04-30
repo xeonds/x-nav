@@ -75,7 +75,11 @@ class UserPage extends StatelessWidget {
             children: [
               ListTile(
                 title: const Text('重新加载分析所有数据'),
-                subtitle: Text("点完了等会吧"),
+                subtitle: Consumer<DataLoader>(
+                  builder: (context, dataLoader, child) {
+                    return Text(dataLoader.progressMessage ?? "点完了等会吧");
+                  },
+                ),
                 onTap: () async {
                   final dataLoader =
                       Provider.of<DataLoader>(context, listen: false);

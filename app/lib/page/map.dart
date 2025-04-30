@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:app/component/data.dart';
 import 'package:app/page/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -28,7 +29,7 @@ class MapPageState extends State<MapPage> {
   LatLng _currentPosition = const LatLng(37.7749, -122.4194);
   Marker selectedMarker = const Marker(
     point: LatLng(34.1301578, 108.8277069),
-    child: Icon(Icons.location_on),
+    child: NavPoint(color: Colors.blue),
   );
   bool _isFullScreen = false;
   final StreamController<void> _rebuildStream = StreamController.broadcast();
@@ -82,7 +83,7 @@ class MapPageState extends State<MapPage> {
       _controller.move(_currentPosition, 15);
       selectedMarker = Marker(
         point: _currentPosition,
-        child: const Icon(Icons.location_on),
+        child: NavPoint(color: Colors.blue),
       );
     });
   }
@@ -194,7 +195,7 @@ class MapPageState extends State<MapPage> {
             onTap: (tapPosition, point) {
               setState(() {
                 selectedMarker = Marker(
-                  child: const Icon(Icons.location_on),
+                  child: const NavPoint(color: Colors.blue),
                   point: point,
                 );
               });

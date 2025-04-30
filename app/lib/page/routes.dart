@@ -1,3 +1,4 @@
+import 'package:app/component/data.dart';
 import 'package:app/utils/path_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -593,12 +594,10 @@ class RouteEditPageState extends State<RouteEditPage> {
                 markers: waypoints
                     .map((point) => Marker(
                           point: point,
-                          child: Icon(
-                            Icons.circle,
+                          child: NavPoint(
                             color: isCustomPointMap[point] == true
                                 ? Colors.green
                                 : Colors.red,
-                            size: 14,
                           ),
                         ))
                     .toList(),
@@ -608,11 +607,7 @@ class RouteEditPageState extends State<RouteEditPage> {
                   markers: [
                     Marker(
                       point: _centerPoint!,
-                      child: const Icon(
-                        Icons.circle,
-                        color: Colors.orange,
-                        size: 14,
-                      ),
+                      child: NavPoint(color: Colors.orange),
                     ),
                   ],
                 ),
@@ -620,11 +615,7 @@ class RouteEditPageState extends State<RouteEditPage> {
           ),
           if (_isSelectingPoint)
             const Center(
-              child: Icon(
-                Icons.circle,
-                color: Colors.red,
-                size: 14,
-              ),
+              child: NavPoint(color: Colors.red),
             ),
           Positioned(
             top: 32,

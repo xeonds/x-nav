@@ -540,20 +540,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
                     ),
                     Marker(
                       point: rideScore.routePoints[idx],
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.red,
-                          border: Border.all(color: Colors.white, width: 4),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.red.withOpacity(0.3),
-                              blurRadius: 4,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                      ),
+                      child: NavPoint(),
                     ),
                   ],
                 ),
@@ -1273,13 +1260,11 @@ class SegmentDetailPage extends StatelessWidget {
                   markers: [
                     Marker(
                       point: segment.route.first,
-                      child: const Icon(Icons.circle,
-                          color: Colors.green, size: 14),
+                      child: NavPoint(color: Colors.green),
                     ),
                     Marker(
                       point: segment.route.last,
-                      child:
-                          const Icon(Icons.circle, color: Colors.red, size: 14),
+                      child: const NavPoint(color: Colors.red),
                     ),
                   ],
                 ),
