@@ -25,8 +25,6 @@ class RoutesPage extends StatefulWidget {
 }
 
 class RoutesPageState extends State<RoutesPage> {
-  List<File> gpxFiles = [];
-  List<List<LatLng>> polylines = [];
   bool _isFullScreen = false;
   String? _selectedGpxData;
   File? _selectedGpxFile = null;
@@ -37,18 +35,6 @@ class RoutesPageState extends State<RoutesPage> {
   @override
   void initState() {
     super.initState();
-    _initializeData();
-  }
-
-  Future<void> _initializeData() async {
-    final dataloader = Provider.of<DataLoader>(context, listen: false);
-    while (!dataloader.isInitialized) {
-      await Future.delayed(const Duration(milliseconds: 100));
-    }
-    setState(() {
-      polylines = dataloader.routes;
-      gpxFiles = dataloader.gpxData;
-    });
   }
 
   @override
@@ -127,7 +113,7 @@ class RoutesPageState extends State<RoutesPage> {
                                 ),
                               ),
                             ),
-                            gpxFiles.isEmpty
+                            dataLoader.gpxData.isEmpty
                                 ? SliverFillRemaining(
                                     child: Center(
                                       child: Text(
@@ -143,7 +129,7 @@ class RoutesPageState extends State<RoutesPage> {
                                 : SliverList(
                                     delegate: SliverChildBuilderDelegate(
                                       (context, index) {
-                                        final file = gpxFiles[index];
+                                        final file = dataLoader.gpxData[index];
                                         return Card(
                                           color: isDarkMode
                                               ? Colors.grey[800]
@@ -204,7 +190,7 @@ class RoutesPageState extends State<RoutesPage> {
                                           ),
                                         );
                                       },
-                                      childCount: gpxFiles.length,
+                                      childCount: dataLoader.gpxData.length,
                                     ),
                                   ),
                           ],
@@ -242,8 +228,6 @@ class RoutesPageState extends State<RoutesPage> {
                                         _previewPath = [];
                                         _previewGpx = null;
                                       });
-                                      await DataLoader().loadRouteData();
-                                      _initializeData();
                                     }
                                   }
                                 },
@@ -306,7 +290,6 @@ class RoutesPageState extends State<RoutesPage> {
                       await gpxFile.readAsBytes(),
                     );
                   }
-                  _initializeData();
                 }
               },
               child: const Icon(Icons.file_upload),

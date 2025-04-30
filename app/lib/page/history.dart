@@ -480,17 +480,17 @@ class _RideDetailPageState extends State<RideDetailPage> {
                 initialZoom: initZoom(rideScore.routePoints),
               ),
               children: [
-                GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      highlightRouteIndex = -1;
-                    });
-                  },
-                  child: TileLayer(
-                    urlTemplate:
-                        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                    tileProvider: dataLoader.tileProvider,
-                  ),
+                // GestureDetector(
+                //   onTap: () {
+                //     setState(() {
+                //       highlightRouteIndex = -1;
+                //     });
+                //   },
+                //   child:
+                // ),
+                TileLayer(
+                  urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                  tileProvider: dataLoader.tileProvider,
                 ),
                 PolylineLayer(
                   polylines: [
@@ -1310,6 +1310,10 @@ class SegmentDetailPage extends StatelessWidget {
                             segment.startTime),
                         subtitle: '开始时间',
                       ),
+                      Statistic(
+                        data: segmentRecords.length.toString(),
+                        subtitle: '挑战次数',
+                      ),
                     ],
                   ),
                 ],
@@ -1407,7 +1411,7 @@ class SegmentDetailPage extends StatelessWidget {
                 // 逆序索引，最新到最旧排序
                 final reverseIdx = segmentRecords.length - 1 - idx;
                 final record = segmentRecords[reverseIdx];
-                final isUser = reverseIdx == userRecordIndex;
+                final isUser = record.item.startTime == segment.startTime;
                 final position = bestSegment?.getPositionOfFullList(
                         record.item.startTime.toInt()) ??
                     0;
