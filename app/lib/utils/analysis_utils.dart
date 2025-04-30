@@ -198,7 +198,7 @@ class BestScore {
   }
 }
 
-String secondToFormatTime(double seconds) {
+String secondToFormatTime(num seconds) {
   if (seconds.isInfinite || seconds.isNaN) {
     return '00:00';
   }

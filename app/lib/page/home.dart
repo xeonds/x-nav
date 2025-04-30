@@ -45,8 +45,12 @@ class _HomePageState extends State<HomePage> {
 
     final bestScore = dataLoader.bestScore;
     // 取bestscore中key最大的值
-    final bestScoreDisplay =
-        (bestScore.entries.last.value ?? BestScore()).getBestData();
+    if (bestScore.isEmpty) {
+      return const Center(
+        child: Text('没有骑行记录，请先导入qaq'),
+      );
+    }
+    final bestScoreDisplay = bestScore.entries.last.value.getBestData();
 
     final rideData = dataLoader.summaryList
         .map((e) => {

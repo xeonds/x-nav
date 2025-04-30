@@ -142,22 +142,6 @@ class UserPage extends StatelessWidget {
           _buildSection(
             title: "MISC",
             children: [
-              // ListTile(
-              //   title: const Text('Notification'),
-              //   onTap: () {},
-              //   trailing: IconButton(
-              //     icon: const Icon(Icons.arrow_forward),
-              //     onPressed: () {},
-              //   ),
-              // ),
-              // ListTile(
-              //   title: const Text('Safety'),
-              //   onTap: () {},
-              //   trailing: IconButton(
-              //     icon: const Icon(Icons.arrow_forward),
-              //     onPressed: () {},
-              //   ),
-              // ),
               ListTile(
                 title: const Text('About'),
                 subtitle: const Text('Version 1.0.0'),
@@ -191,36 +175,36 @@ class UserPage extends StatelessWidget {
                                     child: SingleChildScrollView(
                                       child: Text(
                                         '''
-              ## (开发文档 || 日志).contains(画饼 | 幽默bug | 拟人算法)
+## (开发文档 || 日志).contains(画饼 | 幽默bug | 拟人算法)
 
-              匹配目前对于同一个骑行记录只能匹配一个赛段一次，也就是说绕圈的话只能匹配到第一圈，后续解决（咕
-              > 刚修了下算法现在应该好了不过顺带的影响是为了保证匹配到所以匹配准确度可能会稍微降低一点
+匹配目前对于同一个骑行记录只能匹配一个赛段一次，也就是说绕圈的话只能匹配到第一圈，后续解决（咕
+> 刚修了下算法现在应该好了不过顺带的影响是为了保证匹配到所以匹配准确度可能会稍微降低一点
 
-              地图有缓存机制，会下载地图到应用存储中，后续启动应用时已加载的地图无网络也可以随时使用
+地图有缓存机制，会下载地图到应用存储中，后续启动应用时已加载的地图无网络也可以随时使用
 
-              地图显示若出现错误了则可以考虑使用清除地图缓存功能然后重启app
+地图显示若出现错误了则可以考虑使用清除地图缓存功能然后重启app
 
-              另外地图目前使用的是openstreetmap的tile api所以需要挂梯子而且对于国内的路段情况更新也不是很及时后面有机会了整几个离线地图包
+另外地图目前使用的是openstreetmap的tile api所以需要挂梯子而且对于国内的路段情况更新也不是很及时后面有机会了整几个离线地图包
 
-              热力图功能现在暂时别用会卡死主要是用的叠加层库没有考虑到这种数据量特别大的情况后面有时间了我自己写一个热力图叠加层算法（咕咕
+热力图功能现在暂时别用会卡死主要是用的叠加层库没有考虑到这种数据量特别大的情况后面有时间了我自己写一个热力图叠加层算法（咕咕
 
-              路径规划功能用了在线的OSRM提供的免费公益api但是它用的路网数据也是openstreetmap的所以也存在国内路段更新不及时的问题导致有时候自动规划会给一些很神金的结果而且我设置的是骑行规划但是算法好像觉得国内的自行车能上高速导致有时候会给一些幽默结果
+路径规划功能用了在线的OSRM提供的免费公益api但是它用的路网数据也是openstreetmap的所以也存在国内路段更新不及时的问题导致有时候自动规划会给一些很神金的结果而且我设置的是骑行规划但是算法好像觉得国内的自行车能上高速导致有时候会给一些幽默结果
 
-              关于GPX路线数据的问题因为用的库疑似有点bug所以暂时不支持路段命名功能等后面自己写个实现给这功能修好再说（咕
+关于GPX路线数据的问题因为用的库疑似有点bug所以暂时不支持路段命名功能等后面自己写个实现给这功能修好再说（咕
 
-              每一个路段都是默认作为赛段参与骑行历史记录分析所以想创建赛段直接画个路线就好缺点就是容易和正经路线混成依托后面想个法子搓个分类整理系统吧（咕咕咕
+每一个路段都是默认作为赛段参与骑行历史记录分析所以想创建赛段直接画个路线就好缺点就是容易和正经路线混成依托后面想个法子搓个分类整理系统吧（咕咕咕
 
-              爬升计算目前使用遍历骑行记录对大于0的爬升段进行累计求和的算法但是和码表给出的骑行总结的信息似乎有些许差异后续研究研究别的像人点的算法（咕咕
+爬升计算目前使用遍历骑行记录对大于0的爬升段进行累计求和的算法但是和码表给出的骑行总结的信息似乎有些许差异后续研究研究别的像人点的算法（咕咕
 
-              数据备份和恢复目前不可用，实现有丶问题我后面再修复
+数据备份和恢复目前不可用，实现有丶问题我后面再修复
 
-              UI有点丑因为我完全没设计纯在堆功能而且我审美也就到这了（不是
+UI有点丑因为我完全没设计纯在堆功能而且我审美也就到这了（不是
 
-              FIT和GPX导入随时可用不需要等加载完成因为原理上是将原始文件导入app内置存储但是需要手动触发重新加载才能把它们也纳入本次计算
+FIT和GPX导入随时可用不需要等加载完成因为原理上是将原始文件导入app内置存储但是需要手动触发重新加载才能把它们也纳入本次计算
 
-              最大速度和最大功率的计算使用滑动区间法，也就是按照区间长度遍历每一个骑行记录的每一个子段，也就导致了非常大的计算量所以加载才这么慢而且为了避免一致性的问题所以目前还没有设计缓存系统等后面大体架构确认了再说（咕咕咕
+最大速度和最大功率的计算使用滑动区间法，也就是按照区间长度遍历每一个骑行记录的每一个子段，也就导致了非常大的计算量所以加载才这么慢而且为了避免一致性的问题所以目前还没有设计缓存系统等后面大体架构确认了再说（咕咕咕
 
-              xeonds.timestamp() == 20250425170741
+xeonds.timestamp() == 20250425170741
                                   ''',
                                         style: TextStyle(fontSize: 16),
                                       ),
@@ -237,17 +221,17 @@ class UserPage extends StatelessWidget {
                   },
                 ),
               ),
-              const SizedBox(height: 20),
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text('Copyright 2025 xeonds'),
-                  Text('All rights reserved')
-                ],
-              ),
-              const SizedBox(height: 20),
             ],
           ),
+          const SizedBox(height: 20),
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text('Copyright 2025 xeonds'),
+              Text('All rights reserved')
+            ],
+          ),
+          const SizedBox(height: 20),
         ],
       ),
     );
