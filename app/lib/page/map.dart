@@ -24,15 +24,12 @@ class MapPageState extends State<MapPage> {
   int _showHistory = 0;
   bool _showRoute = false;
   bool _showMap = false;
-  List<List<LatLng>> _routes = [];
-  List<List<LatLng>> _histories = [];
   LatLng _currentPosition = const LatLng(37.7749, -122.4194);
   Marker selectedMarker = const Marker(
     point: LatLng(34.1301578, 108.8277069),
     child: NavPoint(color: Colors.blue),
   );
   bool _isFullScreen = false;
-  final StreamController<void> _rebuildStream = StreamController.broadcast();
   late SharedPreferences prefs;
 
   @override
@@ -42,38 +39,12 @@ class MapPageState extends State<MapPage> {
     _controller = MapController();
   }
 
-  @override
-  void dispose() {
-    _rebuildStream.close();
-    super.dispose();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // 监听数据加载完成的事件
-    final dataloader = Provider.of<DataLoader>(context, listen: false);
-    dataloader.addListener(() {
-      if (dataloader.isInitialized) {
-        _rebuildStream.add(null);
-      }
-    });
-  }
-
   Future<void> _initializeData() async {
     final dataloader = Provider.of<DataLoader>(context, listen: false);
     prefs = await loadPreferences();
     _showHistory = getPreference<int>('showHistory', 0, prefs);
     _showRoute = getPreference<bool>('showRoute', false, prefs);
     _showMap = getPreference<bool>('showMap', false, prefs);
-
-    while (!dataloader.isInitialized) {
-      await Future.delayed(const Duration(milliseconds: 100));
-    }
-    setState(() {
-      _routes = dataloader.routes;
-      _histories = dataloader.histories;
-    });
   }
 
   void _locatePosition() async {
@@ -90,10 +61,9 @@ class MapPageState extends State<MapPage> {
 
   @override
   Widget build(BuildContext context) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _rebuildStream.add(null);
-    });
-    final dataloader = Provider.of<DataLoader>(context, listen: false);
+    final dataloader = Provider.of<DataLoader>(context, listen: true);
+    final routes = dataloader.routes; 
+    final histories = dataloader.histories;
 
     return Scaffold(
       appBar: _isFullScreen
@@ -207,11 +177,11 @@ class MapPageState extends State<MapPage> {
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               tileProvider: dataloader.tileProvider,
             ),
-          if (_showRoute)
+          if (_showRoute && routes.isNotEmpty)
             PolylineLayer(
               polylines: () {
                 final polylines = <Polyline>[];
-                for (var route in _routes) {
+                for (var route in routes) {
                   polylines.add(Polyline(
                     points: route,
                     color: Colors.deepOrange,
@@ -221,11 +191,11 @@ class MapPageState extends State<MapPage> {
                 return polylines;
               }(),
             ),
-          if (_showHistory == 1)
+          if (_showHistory == 1 && histories.isNotEmpty)
             PolylineLayer(
               polylines: () {
                 final polylines = <Polyline>[];
-                for (var history in _histories) {
+                for (var history in histories) {
                   polylines.add(Polyline(
                     points: history,
                     color: Colors.orange,
@@ -235,27 +205,15 @@ class MapPageState extends State<MapPage> {
                 return polylines;
               }(),
             ),
-          // if (_showHistory == 2 && _heatMapData.isNotEmpty)
-          //   HeatMapLayer(
-          //     heatMapDataSource: InMemoryHeatMapDataSource(
-          //       data: _heatMapData,
-          //     ),
-          //     heatMapOptions: HeatMapOptions(
-          //       gradient: HeatMapOptions.defaultGradient,
-          //       minOpacity: 0.1,
-          //       radius: 3,
-          //     ),
-          //     reset: _rebuildStream.stream,
-          //   ),
-          if (_showHistory == 2 && _histories.isNotEmpty)
+          if (_showHistory == 2 && histories.isNotEmpty)
             PolylineLayer(
               polylines: () {
                 final polylines = <Polyline>[];
-                for (var history in _histories) {
+                for (var history in histories) {
                   polylines.add(Polyline(
                     points: history,
                     color: Colors.blue.withOpacity(0.15),
-                    strokeWidth: 4,
+                    strokeWidth: 3,
                   ));
                 }
                 return polylines;
