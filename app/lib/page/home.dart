@@ -82,10 +82,12 @@ class _HomePageState extends State<HomePage> {
           'total_distance': 0,
           'total_ascent': 0,
           'total_moving_time': 0,
+          'count': 0,
         };
         previousValue['total_distance'] += element['total_distance'];
         previousValue['total_ascent'] += element['total_ascent'];
         previousValue['total_moving_time'] += element['total_moving_time'];
+        previousValue['count'] += 1;
         return previousValue;
       });
     } else {
@@ -378,7 +380,10 @@ class _HomePageState extends State<HomePage> {
                     child: RideSummary(
                       rideData: {
                         'totalDistance': totalDistance,
-                        'totalRides': monthRecords.length,
+                        'totalRides': monthRecords.fold<int>(
+                            0,
+                            (sum, entry) =>
+                                (sum + entry.value['count']).toInt()),
                         'totalTime': totalTime,
                         'totalAscent': totalAscent,
                       },
