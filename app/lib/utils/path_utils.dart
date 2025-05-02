@@ -105,10 +105,9 @@ class SegmentMatcher {
       if (dist <= distanceThreshold) {
         possibleStartIndices.add(i);
         // 跳转路径，直到走过minGap
-        for (double dist = 0;
-            dist < minGap;
-            dist += latlngPointDistance(ridePoints[i], ridePoints[i + 1]),
-            i++) {}
+        for (double dist = 0; dist < minGap && i < ridePoints.length - 1; i++) {
+          dist += latlngPointDistance(ridePoints[i], ridePoints[i + 1]);
+        }
       }
       // if (dist <= distanceThreshold) {
       //   if (lastAddedIndex == null || i - lastAddedIndex >= minGap) {
