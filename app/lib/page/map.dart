@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:app/component/data.dart';
 import 'package:app/page/user.dart';
 import 'package:flutter/material.dart';
@@ -8,7 +6,6 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:app/utils/data_loader.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key, this.onFullScreenToggle});
@@ -30,20 +27,14 @@ class MapPageState extends State<MapPage> {
     child: NavPoint(color: Colors.blue),
   );
   bool _isFullScreen = false;
-  late SharedPreferences prefs;
 
   @override
   void initState() {
     super.initState();
-    _initializeData();
+    _showHistory = getPreference<int>('showHistory', 0);
+    _showRoute = getPreference<bool>('showRoute', false);
+    _showMap = getPreference<bool>('showMap', false);
     _controller = MapController();
-  }
-
-  Future<void> _initializeData() async {
-    prefs = await loadPreferences();
-    _showHistory = getPreference<int>('showHistory', 0, prefs);
-    _showRoute = getPreference<bool>('showRoute', false, prefs);
-    _showMap = getPreference<bool>('showMap', false, prefs);
   }
 
   void _locatePosition() async {
@@ -115,7 +106,7 @@ class MapPageState extends State<MapPage> {
                                         _showHistory = newSelection.first;
                                       });
                                       setPreference<int>(
-                                          'showHistory', _showHistory, prefs);
+                                          'showHistory', _showHistory);
                                     },
                                   ),
                                 ),
@@ -130,7 +121,7 @@ class MapPageState extends State<MapPage> {
                                       _showRoute = value;
                                     });
                                     setPreference<bool>(
-                                        'showRoute', _showRoute, prefs);
+                                        'showRoute', _showRoute);
                                   },
                                 ),
                                 SwitchListTile(
@@ -143,8 +134,7 @@ class MapPageState extends State<MapPage> {
                                     setState(() {
                                       _showMap = value;
                                     });
-                                    setPreference<bool>(
-                                        'showMap', _showMap, prefs);
+                                    setPreference<bool>('showMap', _showMap);
                                   },
                                 ),
                               ],

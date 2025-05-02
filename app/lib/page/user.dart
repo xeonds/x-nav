@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:app/utils/data_loader.dart';
+import 'package:app/utils/prefs.dart';
 import 'package:app/utils/storage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -15,7 +16,8 @@ Future<SharedPreferences> loadPreferences() async {
   return prefs;
 }
 
-T getPreference<T>(String key, T defaultValue, SharedPreferences prefs) {
+T getPreference<T>(String key, T defaultValue, {SharedPreferences? prefs}) {
+  prefs ??= Prefs.prefs!;
   if (prefs.containsKey(key)) {
     try {
       final value = prefs.get(key);
@@ -23,12 +25,12 @@ T getPreference<T>(String key, T defaultValue, SharedPreferences prefs) {
         return value;
       } else {
         // If the type doesn't match, reset to default value
-        setPreference(key, defaultValue, prefs);
+        setPreference(key, defaultValue);
         return defaultValue;
       }
     } catch (e) {
       // In case of any unexpected error, reset to default value
-      setPreference(key, defaultValue, prefs);
+      setPreference(key, defaultValue);
       return defaultValue;
     }
   } else {
@@ -36,8 +38,9 @@ T getPreference<T>(String key, T defaultValue, SharedPreferences prefs) {
   }
 }
 
-Future<void> setPreference<T>(
-    String key, T value, SharedPreferences prefs) async {
+Future<void> setPreference<T>(String key, T value,
+    {SharedPreferences? prefs}) async {
+  prefs ??= Prefs.prefs!;
   if (value is String) {
     await prefs.setString(key, value);
   } else if (value is int) {
