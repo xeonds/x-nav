@@ -1063,7 +1063,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                           final endTime =
                                               records[endIdx].get('timestamp');
                                           final heartRateList =
-                                              parseFitDataToMetric<int>(
+                                              parseFitDataToMetric<double>(
                                             rideData,
                                             'heart_rate',
                                             startTime: startTime,
@@ -1076,14 +1076,13 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                             startTime: startTime,
                                             endTime: endTime,
                                           );
-                                          final avgHeartRate = 0;
-                                          heartRateList.isNotEmpty
+                                          final avgHeartRate = heartRateList
+                                                  .isNotEmpty
                                               ? heartRateList
                                                       .reduce((a, b) => a + b) /
                                                   heartRateList.length
-                                              : 0;
-                                          final avgPower = 0;
-                                          powerList.isNotEmpty
+                                              : 0.0;
+                                          final avgPower = powerList.isNotEmpty
                                               ? powerList
                                                       .reduce((a, b) => a + b) /
                                                   powerList.length
@@ -1151,7 +1150,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                                       avgPower > 0
                                                           ? avgPower
                                                               .toStringAsFixed(
-                                                                  0)
+                                                                  2)
                                                           : '--',
                                                       style: const TextStyle(
                                                           fontSize: 16,
