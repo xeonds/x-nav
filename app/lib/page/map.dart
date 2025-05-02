@@ -40,7 +40,6 @@ class MapPageState extends State<MapPage> {
   }
 
   Future<void> _initializeData() async {
-    final dataloader = Provider.of<DataLoader>(context, listen: false);
     prefs = await loadPreferences();
     _showHistory = getPreference<int>('showHistory', 0, prefs);
     _showRoute = getPreference<bool>('showRoute', false, prefs);
@@ -61,9 +60,9 @@ class MapPageState extends State<MapPage> {
 
   @override
   Widget build(BuildContext context) {
-    final dataloader = Provider.of<DataLoader>(context, listen: true);
-    final routes = dataloader.routes; 
-    final histories = dataloader.histories;
+    final dataLoader = context.watch<DataLoader>();
+    final routes = dataLoader.routes;
+    final histories = dataLoader.histories;
 
     return Scaffold(
       appBar: _isFullScreen
@@ -160,65 +159,46 @@ class MapPageState extends State<MapPage> {
             ),
       body: FlutterMap(
         options: MapOptions(
-            initialCenter: const LatLng(34.1301578, 108.8277069),
-            initialZoom: 10,
-            onTap: (tapPosition, point) {
-              setState(() {
-                selectedMarker = Marker(
-                  child: const NavPoint(color: Colors.blue),
-                  point: point,
-                );
-              });
-            }),
+          initialCenter: const LatLng(34.1301578, 108.8277069),
+          initialZoom: 10,
+          // onTap: (tapPosition, point) {
+          //   setState(() {
+          //     selectedMarker = Marker(
+          //       child: const NavPoint(color: Colors.blue),
+          //       point: point,
+          //     );
+          //   });
+          // },
+        ),
         mapController: _controller,
         children: [
           if (_showMap)
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              tileProvider: dataloader.tileProvider,
+              tileProvider: dataLoader.tileProvider,
             ),
-          if (_showRoute && routes.isNotEmpty)
-            PolylineLayer(
-              polylines: () {
-                final polylines = <Polyline>[];
-                for (var route in routes) {
-                  polylines.add(Polyline(
-                    points: route,
-                    color: Colors.deepOrange,
-                    strokeWidth: 3,
-                  ));
-                }
-                return polylines;
-              }(),
-            ),
-          if (_showHistory == 1 && histories.isNotEmpty)
-            PolylineLayer(
-              polylines: () {
-                final polylines = <Polyline>[];
-                for (var history in histories) {
-                  polylines.add(Polyline(
-                    points: history,
-                    color: Colors.orange,
-                    strokeWidth: 3,
-                  ));
-                }
-                return polylines;
-              }(),
-            ),
-          if (_showHistory == 2 && histories.isNotEmpty)
-            PolylineLayer(
-              polylines: () {
-                final polylines = <Polyline>[];
-                for (var history in histories) {
-                  polylines.add(Polyline(
-                    points: history,
-                    color: Colors.blue.withOpacity(0.15),
-                    strokeWidth: 3,
-                  ));
-                }
-                return polylines;
-              }(),
-            ),
+          PolylineLayer(
+            polylines: [
+              if (_showRoute && routes.isNotEmpty)
+                ...dataLoader.routes.map((points) => Polyline(
+                      points: points,
+                      color: Colors.deepOrange,
+                      strokeWidth: 3,
+                    )),
+              if (_showHistory == 1 && histories.isNotEmpty)
+                ...dataLoader.histories.map((points) => Polyline(
+                      points: points,
+                      color: Colors.deepOrange,
+                      strokeWidth: 3,
+                    )),
+              if (_showHistory == 2 && histories.isNotEmpty)
+                ...dataLoader.histories.map((points) => Polyline(
+                      points: points,
+                      color: Colors.deepPurple.withOpacity(0.15),
+                      strokeWidth: 3,
+                    ))
+            ],
+          ),
           MarkerLayer(
             markers: [selectedMarker],
           ),
