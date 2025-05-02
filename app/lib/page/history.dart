@@ -364,6 +364,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
   late final RideScore rideScore;
   late final DataLoader dataLoader;
   late int highlightRouteIndex;
+  late RangeValues chartRange;
 
   @override
   void initState() {
@@ -373,6 +374,10 @@ class _RideDetailPageState extends State<RideDetailPage> {
     highlightRouteIndex = -1;
     rideScore = RideScore(rideData: rideData, routes: dataLoader.routes);
     chartMaxX = rideScore.distance.isNotEmpty ? rideScore.distance.last : 0;
+    chartRange = RangeValues(
+      rideScore.distance.isNotEmpty ? rideScore.distance.first : 0,
+      rideScore.distance.isNotEmpty ? rideScore.distance.last : 1,
+    );
   }
 
   @override
@@ -394,14 +399,6 @@ class _RideDetailPageState extends State<RideDetailPage> {
 
     // right, dataanalysis page state
     final idx = selectedIndex.clamp(0, rideScore.distance.length - 1);
-    final info = {
-      '速度': rideScore.speed[idx],
-      '里程': rideScore.distance[idx],
-      // '时间': rideScore.elapsedTime[idx],
-      // '心率': rideScore.heartRate.isNotEmpty ? rideScore.heartRate[idx] : null,
-      '海拔': rideScore.altitude[idx],
-      // '功率': rideScore.power.isNotEmpty ? rideScore.power[idx] : null,
-    };
     final chartY = chartType == 0 ? rideScore.speed : rideScore.altitude;
     final chartX = rideScore.distance;
     // final chartX = xType == 0 ? rideScore.distance : rideScore.elapsedTime;
@@ -410,6 +407,20 @@ class _RideDetailPageState extends State<RideDetailPage> {
     final chartSpots = List.generate(
       chartX.length,
       (i) => FlSpot(chartX[i], chartY[i]),
+    );
+
+    // 只显示chartRange内的数据
+    List<int> filteredIndices = [];
+    for (int i = 0; i < chartX.length; i++) {
+      if (chartX[i] >= chartRange.start && chartX[i] <= chartRange.end) {
+        filteredIndices.add(i);
+      }
+    }
+    final filteredChartSpots =
+        filteredIndices.map((i) => FlSpot(chartX[i], chartY[i])).toList();
+    final filteredRoutePoints = rideScore.routePoints.sublist(
+      filteredIndices.isNotEmpty ? filteredIndices.first : 0,
+      filteredIndices.isNotEmpty ? filteredIndices.last + 1 : 1,
     );
 
     return Scaffold(
@@ -495,9 +506,11 @@ class _RideDetailPageState extends State<RideDetailPage> {
                 PolylineLayer(
                   polylines: [
                     Polyline(
-                      points: rideScore.routePoints,
-                      strokeWidth: 4.0,
-                      color: Colors.blue,
+                      points: filteredRoutePoints.isNotEmpty
+                          ? filteredRoutePoints
+                          : rideScore.routePoints,
+                      strokeWidth: 3.0,
+                      color: Colors.deepOrange,
                     ),
                     ...analysisOfSubRoutes.map(
                       (segment) => Polyline(
@@ -505,7 +518,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
                         strokeWidth: 4.0,
                         color:
                             (highlightRouteIndex == segment.segment.startIndex)
-                                ? Colors.orange
+                                ? Colors.amberAccent
                                 : Colors.transparent,
                       ),
                     ),
@@ -1015,38 +1028,156 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Card(
-                                    //   margin: const EdgeInsets.all(8),
-                                    //   child: Padding(
-                                    //     padding: const EdgeInsets.all(12),
-                                    //     child: Row(
-                                    //       mainAxisAlignment:
-                                    //           MainAxisAlignment.spaceAround,
-                                    //       children: info.entries.map((e) {
-                                    //         return Column(
-                                    //           children: [
-                                    //             Text(
-                                    //               e.key,
-                                    //               style: const TextStyle(
-                                    //                   fontSize: 14,
-                                    //                   color: Colors.grey),
-                                    //             ),
-                                    //             Text(
-                                    //               e.value != null
-                                    //                   ? e.value
-                                    //                       .toStringAsFixed(1)
-                                    //                   : '-',
-                                    //               style: const TextStyle(
-                                    //                   fontSize: 16,
-                                    //                   fontWeight:
-                                    //                       FontWeight.bold),
-                                    //             ),
-                                    //           ],
-                                    //         );
-                                    //       }).toList(),
-                                    //     ),
-                                    //   ),
-                                    // ),
+                                    Card(
+                                      margin: const EdgeInsets.all(8),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(12),
+                                        child: Builder(
+                                          builder: (context) {
+                                            // 获取区间内的起止索引
+                                            final startIdx =
+                                                filteredIndices.isNotEmpty
+                                                    ? filteredIndices.first
+                                                    : 0;
+                                            final endIdx =
+                                                filteredIndices.isNotEmpty
+                                                    ? filteredIndices.last
+                                                    : 0;
+
+                                            // 区间均速
+                                            final avgSpeed = startIdx < endIdx
+                                                ? rideScore.speed
+                                                        .sublist(startIdx,
+                                                            endIdx + 1)
+                                                        .reduce(
+                                                            (a, b) => a + b) /
+                                                    (endIdx - startIdx + 1)
+                                                : 0.0;
+                                            // 区间里程
+                                            final distance =
+                                                (rideScore.distance[endIdx] -
+                                                        rideScore
+                                                            .distance[startIdx])
+                                                    .abs();
+
+                                            // 区间平均心率和功率
+                                            final records = rideData['records']
+                                                as List<dynamic>;
+                                            final startTime =
+                                                records[startIdx]['timestamp'];
+                                            final endTime =
+                                                records[endIdx]['timestamp'];
+                                            final heartRateList =
+                                                parseFitDataToMetric(
+                                              rideData,
+                                              'heart_rate',
+                                              startTime: startTime,
+                                              endTime: endTime,
+                                            );
+                                            final powerList =
+                                                parseFitDataToMetric(
+                                              rideData,
+                                              'power',
+                                              startTime: startTime,
+                                              endTime: endTime,
+                                            );
+                                            final avgHeartRate =
+                                                heartRateList.isNotEmpty
+                                                    ? heartRateList.reduce(
+                                                            (a, b) => a + b) /
+                                                        heartRateList.length
+                                                    : 0.0;
+                                            final avgPower =
+                                                powerList.isNotEmpty
+                                                    ? powerList.reduce(
+                                                            (a, b) => a + b) /
+                                                        powerList.length
+                                                    : 0.0;
+
+                                            return Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.spaceAround,
+                                              children: [
+                                                Column(
+                                                  children: [
+                                                    const Text('区间均速',
+                                                        style: TextStyle(
+                                                            fontSize: 14,
+                                                            color:
+                                                                Colors.grey)),
+                                                    Text(
+                                                        avgSpeed
+                                                            .toStringAsFixed(1),
+                                                        style: const TextStyle(
+                                                            fontSize: 16,
+                                                            fontWeight:
+                                                                FontWeight
+                                                                    .bold)),
+                                                  ],
+                                                ),
+                                                Column(
+                                                  children: [
+                                                    const Text('区间里程',
+                                                        style: TextStyle(
+                                                            fontSize: 14,
+                                                            color:
+                                                                Colors.grey)),
+                                                    Text(
+                                                        distance
+                                                            .toStringAsFixed(2),
+                                                        style: const TextStyle(
+                                                            fontSize: 16,
+                                                            fontWeight:
+                                                                FontWeight
+                                                                    .bold)),
+                                                  ],
+                                                ),
+                                                Column(
+                                                  children: [
+                                                    const Text('平均心率',
+                                                        style: TextStyle(
+                                                            fontSize: 14,
+                                                            color:
+                                                                Colors.grey)),
+                                                    Text(
+                                                        avgHeartRate > 0
+                                                            ? avgHeartRate
+                                                                .toStringAsFixed(
+                                                                    0)
+                                                            : '--',
+                                                        style: const TextStyle(
+                                                            fontSize: 16,
+                                                            fontWeight:
+                                                                FontWeight
+                                                                    .bold)),
+                                                  ],
+                                                ),
+                                                Column(
+                                                  children: [
+                                                    const Text('平均功率',
+                                                        style: TextStyle(
+                                                            fontSize: 14,
+                                                            color:
+                                                                Colors.grey)),
+                                                    Text(
+                                                        avgPower > 0
+                                                            ? avgPower
+                                                                .toStringAsFixed(
+                                                                    0)
+                                                            : '--',
+                                                        style: const TextStyle(
+                                                            fontSize: 16,
+                                                            fontWeight:
+                                                                FontWeight
+                                                                    .bold)),
+                                                  ],
+                                                ),
+                                              ],
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
                                     // 切换按钮
                                     Row(
                                       mainAxisAlignment:
@@ -1094,15 +1225,28 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                         padding: const EdgeInsets.all(8.0),
                                         child: LineChart(
                                           LineChartData(
-                                            minX: chartX.first,
-                                            maxX: chartX.last,
-                                            minY: chartY.reduce(
-                                                (a, b) => a < b ? a : b),
-                                            maxY: chartY.reduce(
-                                                (a, b) => a > b ? a : b),
+                                            minX: chartRange.start,
+                                            maxX: chartRange.end,
+                                            minY: filteredChartSpots.isNotEmpty
+                                                ? filteredChartSpots
+                                                    .map((e) => e.y)
+                                                    .reduce(
+                                                        (a, b) => a < b ? a : b)
+                                                : chartY.reduce(
+                                                    (a, b) => a < b ? a : b),
+                                            maxY: filteredChartSpots.isNotEmpty
+                                                ? filteredChartSpots
+                                                    .map((e) => e.y)
+                                                    .reduce(
+                                                        (a, b) => a > b ? a : b)
+                                                : chartY.reduce(
+                                                    (a, b) => a > b ? a : b),
                                             lineBarsData: [
                                               LineChartBarData(
-                                                spots: chartSpots,
+                                                spots: filteredChartSpots
+                                                        .isNotEmpty
+                                                    ? filteredChartSpots
+                                                    : chartSpots,
                                                 isCurved: false,
                                                 color: chartType == 0
                                                     ? Colors.deepOrange
@@ -1117,51 +1261,35 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                                 dotData: FlDotData(show: false),
                                               ),
                                             ],
-                                            titlesData: FlTitlesData(
-                                              leftTitles: AxisTitles(
-                                                sideTitles: SideTitles(
-                                                    showTitles: true,
-                                                    reservedSize: 40),
-                                              ),
-                                              bottomTitles: AxisTitles(
-                                                sideTitles: SideTitles(
-                                                    showTitles: true,
-                                                    reservedSize: 24),
-                                              ),
-                                              topTitles: AxisTitles(),
-                                              rightTitles: AxisTitles(),
-                                            ),
+                                            // ...existing code...
                                             borderData:
                                                 FlBorderData(show: false),
                                             gridData: FlGridData(show: true),
                                             lineTouchData: LineTouchData(
-                                              touchCallback: (event, res) {
-                                                if (res != null &&
-                                                    res.lineBarSpots != null &&
-                                                    res.lineBarSpots!
-                                                        .isNotEmpty) {
-                                                  _onChartTap(res
-                                                      .lineBarSpots!.first.x);
-                                                }
-                                              },
-                                              handleBuiltInTouches: true,
-                                              touchTooltipData:
-                                                  LineTouchTooltipData(
-                                                // tooltipBgColor: Colors.black54,
-                                                getTooltipItems: (spots) =>
-                                                    spots
-                                                        .map((s) =>
-                                                            LineTooltipItem(
-                                                              '$chartLabelX: ${s.x.toStringAsFixed(1)}\n$chartLabelY: ${s.y.toStringAsFixed(1)}',
-                                                              const TextStyle(
-                                                                  color: Colors
-                                                                      .white),
-                                                            ))
-                                                        .toList(),
-                                              ),
-                                            ),
+                                                // ...existing code...
+                                                ),
                                           ),
                                         ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 8.0),
+                                      child: RangeSlider(
+                                        min: chartX.first,
+                                        max: chartX.last,
+                                        divisions: 100,
+                                        values: chartRange,
+                                        labels: RangeLabels(
+                                          chartRange.start.toStringAsFixed(1),
+                                          chartRange.end.toStringAsFixed(1),
+                                        ),
+                                        onChanged: (range) {
+                                          setState(() {
+                                            chartRange = range;
+                                          });
+                                        },
                                       ),
                                     ),
                                   ],

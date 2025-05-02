@@ -175,9 +175,21 @@ Map<String, dynamic> parseFitDataToSummary(Map<String, dynamic> data) {
   }
 }
 
-List<double> parseFitDataToMetric(Map<String, dynamic> data, String metric) {
+List<double> parseFitDataToMetric(
+  Map<String, dynamic> data,
+  String metric, {
+  int? startTime,
+  int? endTime,
+}) {
   return data['records']
-      .where((msg) => msg.get(metric) != null)
+      .where((msg) {
+        final value = msg.get(metric);
+        final ts = msg.get('timestamp');
+        if (value == null || ts == null) return false;
+        if (startTime != null && ts < startTime) return false;
+        if (endTime != null && ts > endTime) return false;
+        return true;
+      })
       .map((record) => record.get(metric)!)
       .cast<double>()
       .toList();
