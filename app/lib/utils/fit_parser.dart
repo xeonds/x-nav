@@ -175,11 +175,11 @@ Map<String, dynamic> parseFitDataToSummary(Map<String, dynamic> data) {
   }
 }
 
-List<double> parseFitDataToMetric(
+List<T> parseFitDataToMetric<T>(
   Map<String, dynamic> data,
   String metric, {
-  int? startTime,
-  int? endTime,
+  num? startTime,
+  num? endTime,
 }) {
   return data['records']
       .where((msg) {
@@ -191,7 +191,7 @@ List<double> parseFitDataToMetric(
         return true;
       })
       .map((record) => record.get(metric)!)
-      .cast<double>()
+      .cast<T>()
       .toList();
 }
 

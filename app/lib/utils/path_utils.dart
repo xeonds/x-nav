@@ -315,14 +315,14 @@ class RideScore {
   }) {
     routePoints = parseFitDataToRoute(rideData);
     summary = parseFitDataToSummary(rideData);
-    final preSpeed = parseFitDataToMetric(rideData, "speed")
+    final preSpeed = parseFitDataToMetric<double>(rideData, "speed")
         .map((e) => e * 3.6)
         .toList(); // km/h
-    final preDistance = parseFitDataToMetric(
+    final preDistance = parseFitDataToMetric<double>(
       rideData,
       "distance",
     ).map((e) => e / 1000.0).toList(); // km
-    final preAltitude = parseFitDataToMetric(rideData, "altitude"); // m
+    final preAltitude = parseFitDataToMetric<double>(rideData, "altitude"); // m
     // TODO: 处理数据长度不一致的问题
     final minLength = [
       preSpeed.length,

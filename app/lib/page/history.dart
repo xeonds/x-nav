@@ -562,10 +562,10 @@ class _RideDetailPageState extends State<RideDetailPage> {
           ),
           DraggableScrollableSheet(
             initialChildSize: 0.3,
-            minChildSize: 0.1,
+            minChildSize: 0.2,
             maxChildSize: 1.0,
             snap: true,
-            snapSizes: const [0.2, 0.5, 1.0],
+            snapSizes: const [0.2, 0.4, 0.5, 0.6, 1.0],
             builder: (context, scrollController) {
               final isDarkMode =
                   MediaQuery.of(context).platformBrightness == Brightness.dark;
@@ -1028,154 +1028,140 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Card(
-                                      margin: const EdgeInsets.all(8),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(12),
-                                        child: Builder(
-                                          builder: (context) {
-                                            // 获取区间内的起止索引
-                                            final startIdx =
-                                                filteredIndices.isNotEmpty
-                                                    ? filteredIndices.first
-                                                    : 0;
-                                            final endIdx =
-                                                filteredIndices.isNotEmpty
-                                                    ? filteredIndices.last
-                                                    : 0;
+                                    Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Builder(
+                                        builder: (context) {
+                                          // 获取区间内的起止索引
+                                          final startIdx =
+                                              filteredIndices.isNotEmpty
+                                                  ? filteredIndices.first
+                                                  : 0;
+                                          final endIdx =
+                                              filteredIndices.isNotEmpty
+                                                  ? filteredIndices.last
+                                                  : 0;
 
-                                            // 区间均速
-                                            final avgSpeed = startIdx < endIdx
-                                                ? rideScore.speed
-                                                        .sublist(startIdx,
-                                                            endIdx + 1)
-                                                        .reduce(
-                                                            (a, b) => a + b) /
-                                                    (endIdx - startIdx + 1)
-                                                : 0.0;
-                                            // 区间里程
-                                            final distance =
-                                                (rideScore.distance[endIdx] -
-                                                        rideScore
-                                                            .distance[startIdx])
-                                                    .abs();
+                                          // 区间均速
+                                          final avgSpeed = startIdx < endIdx
+                                              ? rideScore.speed
+                                                      .sublist(
+                                                          startIdx, endIdx + 1)
+                                                      .reduce((a, b) => a + b) /
+                                                  (endIdx - startIdx + 1)
+                                              : 0.0;
+                                          // 区间里程
+                                          final distance = (rideScore
+                                                      .distance[endIdx] -
+                                                  rideScore.distance[startIdx])
+                                              .abs();
 
-                                            // 区间平均心率和功率
-                                            final records = rideData['records']
-                                                as List<dynamic>;
-                                            final startTime =
-                                                records[startIdx]['timestamp'];
-                                            final endTime =
-                                                records[endIdx]['timestamp'];
-                                            final heartRateList =
-                                                parseFitDataToMetric(
-                                              rideData,
-                                              'heart_rate',
-                                              startTime: startTime,
-                                              endTime: endTime,
-                                            );
-                                            final powerList =
-                                                parseFitDataToMetric(
-                                              rideData,
-                                              'power',
-                                              startTime: startTime,
-                                              endTime: endTime,
-                                            );
-                                            final avgHeartRate =
-                                                heartRateList.isNotEmpty
-                                                    ? heartRateList.reduce(
-                                                            (a, b) => a + b) /
-                                                        heartRateList.length
-                                                    : 0.0;
-                                            final avgPower =
-                                                powerList.isNotEmpty
-                                                    ? powerList.reduce(
-                                                            (a, b) => a + b) /
-                                                        powerList.length
-                                                    : 0.0;
+                                          // 区间平均心率和功率
+                                          final records = rideData['records'];
+                                          final startTime = records[startIdx]
+                                              .get('timestamp');
+                                          final endTime =
+                                              records[endIdx].get('timestamp');
+                                          final heartRateList =
+                                              parseFitDataToMetric<int>(
+                                            rideData,
+                                            'heart_rate',
+                                            startTime: startTime,
+                                            endTime: endTime,
+                                          );
+                                          final powerList =
+                                              parseFitDataToMetric<double>(
+                                            rideData,
+                                            'power',
+                                            startTime: startTime,
+                                            endTime: endTime,
+                                          );
+                                          final avgHeartRate = 0;
+                                          heartRateList.isNotEmpty
+                                              ? heartRateList
+                                                      .reduce((a, b) => a + b) /
+                                                  heartRateList.length
+                                              : 0;
+                                          final avgPower = 0;
+                                          powerList.isNotEmpty
+                                              ? powerList
+                                                      .reduce((a, b) => a + b) /
+                                                  powerList.length
+                                              : 0.0;
 
-                                            return Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.spaceAround,
-                                              children: [
-                                                Column(
-                                                  children: [
-                                                    const Text('区间均速',
-                                                        style: TextStyle(
-                                                            fontSize: 14,
-                                                            color:
-                                                                Colors.grey)),
-                                                    Text(
-                                                        avgSpeed
-                                                            .toStringAsFixed(1),
-                                                        style: const TextStyle(
-                                                            fontSize: 16,
-                                                            fontWeight:
-                                                                FontWeight
-                                                                    .bold)),
-                                                  ],
-                                                ),
-                                                Column(
-                                                  children: [
-                                                    const Text('区间里程',
-                                                        style: TextStyle(
-                                                            fontSize: 14,
-                                                            color:
-                                                                Colors.grey)),
-                                                    Text(
-                                                        distance
-                                                            .toStringAsFixed(2),
-                                                        style: const TextStyle(
-                                                            fontSize: 16,
-                                                            fontWeight:
-                                                                FontWeight
-                                                                    .bold)),
-                                                  ],
-                                                ),
-                                                Column(
-                                                  children: [
-                                                    const Text('平均心率',
-                                                        style: TextStyle(
-                                                            fontSize: 14,
-                                                            color:
-                                                                Colors.grey)),
-                                                    Text(
-                                                        avgHeartRate > 0
-                                                            ? avgHeartRate
-                                                                .toStringAsFixed(
-                                                                    0)
-                                                            : '--',
-                                                        style: const TextStyle(
-                                                            fontSize: 16,
-                                                            fontWeight:
-                                                                FontWeight
-                                                                    .bold)),
-                                                  ],
-                                                ),
-                                                Column(
-                                                  children: [
-                                                    const Text('平均功率',
-                                                        style: TextStyle(
-                                                            fontSize: 14,
-                                                            color:
-                                                                Colors.grey)),
-                                                    Text(
-                                                        avgPower > 0
-                                                            ? avgPower
-                                                                .toStringAsFixed(
-                                                                    0)
-                                                            : '--',
-                                                        style: const TextStyle(
-                                                            fontSize: 16,
-                                                            fontWeight:
-                                                                FontWeight
-                                                                    .bold)),
-                                                  ],
-                                                ),
-                                              ],
-                                            );
-                                          },
-                                        ),
+                                          return Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceAround,
+                                            children: [
+                                              Column(
+                                                children: [
+                                                  const Text('区间均速',
+                                                      style: TextStyle(
+                                                          fontSize: 14,
+                                                          color: Colors.grey)),
+                                                  Text(
+                                                      avgSpeed
+                                                          .toStringAsFixed(1),
+                                                      style: const TextStyle(
+                                                          fontSize: 16,
+                                                          fontWeight:
+                                                              FontWeight.bold)),
+                                                ],
+                                              ),
+                                              Column(
+                                                children: [
+                                                  const Text('区间里程',
+                                                      style: TextStyle(
+                                                          fontSize: 14,
+                                                          color: Colors.grey)),
+                                                  Text(
+                                                      distance
+                                                          .toStringAsFixed(2),
+                                                      style: const TextStyle(
+                                                          fontSize: 16,
+                                                          fontWeight:
+                                                              FontWeight.bold)),
+                                                ],
+                                              ),
+                                              Column(
+                                                children: [
+                                                  const Text('平均心率',
+                                                      style: TextStyle(
+                                                          fontSize: 14,
+                                                          color: Colors.grey)),
+                                                  Text(
+                                                      avgHeartRate > 0
+                                                          ? avgHeartRate
+                                                              .toStringAsFixed(
+                                                                  0)
+                                                          : '--',
+                                                      style: const TextStyle(
+                                                          fontSize: 16,
+                                                          fontWeight:
+                                                              FontWeight.bold)),
+                                                ],
+                                              ),
+                                              Column(
+                                                children: [
+                                                  const Text('平均功率',
+                                                      style: TextStyle(
+                                                          fontSize: 14,
+                                                          color: Colors.grey)),
+                                                  Text(
+                                                      avgPower > 0
+                                                          ? avgPower
+                                                              .toStringAsFixed(
+                                                                  0)
+                                                          : '--',
+                                                      style: const TextStyle(
+                                                          fontSize: 16,
+                                                          fontWeight:
+                                                              FontWeight.bold)),
+                                                ],
+                                              ),
+                                            ],
+                                          );
+                                        },
                                       ),
                                     ),
                                     // 切换按钮
@@ -1261,13 +1247,49 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                                 dotData: FlDotData(show: false),
                                               ),
                                             ],
-                                            // ...existing code...
+                                            titlesData: FlTitlesData(
+                                              leftTitles: AxisTitles(
+                                                sideTitles: SideTitles(
+                                                    showTitles: true,
+                                                    reservedSize: 40),
+                                              ),
+                                              bottomTitles: AxisTitles(
+                                                sideTitles: SideTitles(
+                                                    showTitles: true,
+                                                    reservedSize: 24),
+                                              ),
+                                              topTitles: AxisTitles(),
+                                              rightTitles: AxisTitles(),
+                                            ),
                                             borderData:
                                                 FlBorderData(show: false),
                                             gridData: FlGridData(show: true),
                                             lineTouchData: LineTouchData(
-                                                // ...existing code...
-                                                ),
+                                              touchCallback: (event, res) {
+                                                if (res != null &&
+                                                    res.lineBarSpots != null &&
+                                                    res.lineBarSpots!
+                                                        .isNotEmpty) {
+                                                  _onChartTap(res
+                                                      .lineBarSpots!.first.x);
+                                                }
+                                              },
+                                              handleBuiltInTouches: true,
+                                              touchTooltipData:
+                                                  LineTouchTooltipData(
+                                                // tooltipBgColor: Colors.black54,
+                                                getTooltipItems: (spots) =>
+                                                    spots
+                                                        .map((s) =>
+                                                            LineTooltipItem(
+                                                              '$chartLabelX: ${s.x.toStringAsFixed(1)}\n$chartLabelY: ${s.y.toStringAsFixed(1)}',
+                                                              const TextStyle(
+                                                                  color: Colors
+                                                                      .white),
+                                                            ))
+                                                        .toList(),
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ),
