@@ -1152,7 +1152,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                                     spots
                                                         .map((s) =>
                                                             LineTooltipItem(
-                                                              '${chartLabelX}: ${s.x.toStringAsFixed(1)}\n${chartLabelY}: ${s.y.toStringAsFixed(1)}',
+                                                              '$chartLabelX: ${s.x.toStringAsFixed(1)}\n$chartLabelY: ${s.y.toStringAsFixed(1)}',
                                                               const TextStyle(
                                                                   color: Colors
                                                                       .white),
@@ -1223,8 +1223,6 @@ class SegmentDetailPage extends StatelessWidget {
     final segmentIndex = segment.segment.segmentIndex;
     final bestSegment = dataLoader.bestSegment[segmentIndex];
     final segmentRecords = bestSegment?.dataList ?? [];
-    final userRecordIndex =
-        bestSegment?.getPositionOfFullList(segment.startTime.toInt()) ?? -1;
 
     return Scaffold(
       appBar: AppBar(

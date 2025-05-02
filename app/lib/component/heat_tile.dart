@@ -10,7 +10,7 @@ List<LatLng> discretizePath(List<LatLng> path, double intervalMeters) {
   for (int i = 0; i < path.length - 1; i++) {
     LatLng start = path[i];
     LatLng end = path[i + 1];
-    double distance = calculateDistance(start, end);
+    double distance = latlngPointDistance(start, end);
     int steps = (distance / intervalMeters).ceil();
     for (int j = 0; j <= steps; j++) {
       double ratio = j / steps;

@@ -67,8 +67,8 @@ class SegmentMatcher {
 
   SegmentMatcher(
       {this.distanceThreshold = 30.0, // 默认30米
-      this.minMatchPercentage = 0.9, // 默认90%匹配度
-      this.maxMatchPercentage = 1.1});
+      this.minMatchPercentage = 0.8, // 默认90%匹配度
+      this.maxMatchPercentage = 1.2});
 
   /// 检查骑行记录是否包含指定的赛段
   /// 返回所有匹配的赛段及其在骑行记录中的位置
@@ -96,24 +96,32 @@ class SegmentMatcher {
     final segDistance = latlngToDistance(segmentPoints);
 
     // 找到所有可能的起点（每圈只取一个起点，避免同一圈多次匹配）
-    final minGap = (segmentPoints.length * minMatchPercentage)
-        .toInt(); // 两个起点索引之间的最小间隔，避免同一圈多次匹配
-    int? lastAddedIndex;
+    final minGap = (segmentPoints.length * minMatchPercentage).toInt();
+    // int? lastAddedIndex;
     for (int i = 0; i < ridePoints.length; i++) {
-      double dist =
+      final dist =
           distance.as(LengthUnit.Meter, ridePoints[i], segmentPoints[0]);
+      // 成功识别到第一个起点，那么直接添加点，并seek到minGap指示的点
       if (dist <= distanceThreshold) {
-        if (lastAddedIndex == null || i - lastAddedIndex >= minGap) {
-          possibleStartIndices.add(i);
-          lastAddedIndex = i;
-        } else if (dist <
-            distance.as(LengthUnit.Meter, ridePoints[lastAddedIndex],
-                segmentPoints[0])) {
-          // 如果当前点比上一个已添加点更接近起点，则替换
-          possibleStartIndices[possibleStartIndices.length - 1] = i;
-          lastAddedIndex = i;
-        }
+        possibleStartIndices.add(i);
+        // 跳转路径，直到走过minGap
+        for (double dist = 0;
+            dist < minGap;
+            dist += latlngPointDistance(ridePoints[i], ridePoints[i + 1]),
+            i++) {}
       }
+      // if (dist <= distanceThreshold) {
+      //   if (lastAddedIndex == null || i - lastAddedIndex >= minGap) {
+      //     possibleStartIndices.add(i);
+      //     lastAddedIndex = i;
+      //   } else if (dist <
+      //       distance.as(LengthUnit.Meter, ridePoints[lastAddedIndex],
+      //           segmentPoints[0])) {
+      //     // 如果当前点比上一个已添加点更接近起点，则替换
+      //     possibleStartIndices[possibleStartIndices.length - 1] = i;
+      //     lastAddedIndex = i;
+      //   }
+      // }
     }
 
     List<SegmentMatch> bestMatch = [];
@@ -339,6 +347,6 @@ double latlngToDistance(List<LatLng> points) {
 }
 
 // 计算两个LatLng点之间的距离（单位：米）
-double calculateDistance(LatLng point1, LatLng point2) {
+double latlngPointDistance(LatLng point1, LatLng point2) {
   return const Distance().as(LengthUnit.Meter, point1, point2);
 }
