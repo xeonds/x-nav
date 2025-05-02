@@ -67,8 +67,8 @@ class SegmentMatcher {
 
   SegmentMatcher(
       {this.distanceThreshold = 30.0, // 默认30米
-      this.minMatchPercentage = 0.8, // 默认90%匹配度
-      this.maxMatchPercentage = 1.2});
+      this.minMatchPercentage = 0.9, // 默认90%匹配度
+      this.maxMatchPercentage = 1.1});
 
   /// 检查骑行记录是否包含指定的赛段
   /// 返回所有匹配的赛段及其在骑行记录中的位置
@@ -96,7 +96,7 @@ class SegmentMatcher {
     final segDistance = latlngToDistance(segmentPoints);
 
     // 找到所有可能的起点（每圈只取一个起点，避免同一圈多次匹配）
-    final minGap = (segmentPoints.length * minMatchPercentage).toInt();
+    final minGap = segDistance * minMatchPercentage;
     // int? lastAddedIndex;
     for (int i = 0; i < ridePoints.length; i++) {
       final dist =
