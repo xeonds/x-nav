@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:app/page/mbtiles_manager.dart';
 
 Future<SharedPreferences> loadPreferences() async {
   final prefs = await SharedPreferences.getInstance();
@@ -142,7 +143,18 @@ class UserPage extends StatelessWidget {
                     ),
                   );
                 },
-              )
+              ),
+              ListTile(
+                title: const Text('离线地图管理'),
+                subtitle: const Text('管理离线 MBTiles 地图'),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const MbtilesManagerPage(),
+                    ),
+                  );
+                },
+              ),
             ],
           ),
           const SizedBox(height: 20),

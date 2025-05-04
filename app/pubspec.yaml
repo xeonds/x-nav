@@ -36,7 +36,9 @@ dependencies:
   provider: ^6.1.4
   # flutter_map_heatmap: ^0.0.8
   flutter_map_tile_caching: ^10.0.0
+  flutter_map_mbtiles: ^1.0.4
   archive: ^4.0.6
+  ffi: ^2.1.4
 
 dev_dependencies:
   flutter_test:
