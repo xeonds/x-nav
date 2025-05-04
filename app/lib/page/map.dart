@@ -3,13 +3,16 @@ import 'package:app/page/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:mbtiles/mbtiles.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:app/utils/data_loader.dart';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:flutter_map_mbtiles/flutter_map_mbtiles.dart';
+import 'package:vector_map_tiles/vector_map_tiles.dart';
+import 'package:vector_map_tiles_mbtiles/vector_map_tiles_mbtiles.dart';
+import 'package:vector_tile_renderer/vector_tile_renderer.dart' as vtr;
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key, this.onFullScreenToggle});
@@ -33,7 +36,7 @@ class MapPageState extends State<MapPage> {
     child: NavPoint(color: Colors.blue),
   );
   bool _isFullScreen = false;
-  MbTilesTileProvider? _mbtilesProvider;
+  MbTiles? _mbtilesProvider;
 
   @override
   void initState() {
@@ -64,9 +67,8 @@ class MapPageState extends State<MapPage> {
       _selectedMbtiles = pref;
     });
     if (_selectedMbtiles != null) {
-      final pvd = MbTilesTileProvider.fromPath(path: _selectedMbtiles!);
+      final pvd = MbTiles(mbtilesPath: _selectedMbtiles!, gzip: false);
       setState(() {
-        _mbtilesProvider?.dispose();
         _mbtilesProvider = pvd;
       });
     }
@@ -89,6 +91,7 @@ class MapPageState extends State<MapPage> {
     final dataLoader = context.watch<DataLoader>();
     final routes = dataLoader.routes;
     final histories = dataLoader.histories;
+    final _theme = vtr.ProvidedThemes.lightTheme();
 
     return Scaffold(
       appBar: _isFullScreen
@@ -220,10 +223,9 @@ class MapPageState extends State<MapPage> {
                                           setPreference<String>(
                                               'mbtilesFile', v);
                                           final mbt =
-                                              MbTilesTileProvider.fromPath(
-                                                  path: v);
+                                              MbTiles(
+                                                  mbtilesPath: v, gzip: false);
                                           setState(() {
-                                            _mbtilesProvider?.dispose();
                                             _mbtilesProvider = mbt;
                                           });
                                         }
@@ -261,8 +263,17 @@ class MapPageState extends State<MapPage> {
               tileProvider: dataLoader.tileProvider,
             ),
           if (_mapMode == 2 && _mbtilesProvider != null)
-            TileLayer(
-              tileProvider: _mbtilesProvider!,
+            // TileLayer(
+            //   tileProvider: _mbtilesProvider!,
+            // ),
+            VectorTileLayer(
+              theme: _theme,
+                tileProviders: TileProviders({
+                    'openmaptiles': MbTilesVectorTileProvider(
+                        mbtiles: _mbtilesProvider!,
+                    ),
+                }),
+                maximumZoom: 18,
             ),
           PolylineLayer(
             polylines: [

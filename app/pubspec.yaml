@@ -39,6 +39,10 @@ dependencies:
   flutter_map_mbtiles: ^1.0.4
   archive: ^4.0.6
   ffi: ^2.1.4
+  vector_map_tiles_mbtiles: ^1.2.0
+  mbtiles: ^0.4.2
+  vector_map_tiles: ^8.0.0
+  vector_tile_renderer: ^5.2.1
 
 dev_dependencies:
   flutter_test:
