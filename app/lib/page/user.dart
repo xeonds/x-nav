@@ -74,7 +74,7 @@ class UserPage extends StatelessWidget {
           const Text('Nav for enthusiasts'),
           // 功能1
           const SizedBox(height: 20),
-          _buildSection(
+          buildSection(
             title: "Miscellaneous",
             children: [
               ListTile(
@@ -158,7 +158,7 @@ class UserPage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
-          _buildSection(
+          buildSection(
             title: "MISC",
             children: [
               ListTile(
@@ -257,7 +257,7 @@ xeonds.timestamp() == 20250425170741
   }
 }
 
-Widget _buildListSubtitle(String text) => Row(children: [
+Widget buildListSubtitle(String text) => Row(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 0, 0),
         child: Text(
@@ -267,13 +267,13 @@ Widget _buildListSubtitle(String text) => Row(children: [
       )
     ]);
 
-Widget _buildSection({String title = '', required List<Widget> children}) =>
+Widget buildSection({String title = '', required List<Widget> children}) =>
     Card(
         child: Column(
             children: title != ''
                 ? [
                     const SizedBox(height: 10),
-                    _buildListSubtitle(title),
+                    buildListSubtitle(title),
                     ...children
                   ]
                 : [const SizedBox(height: 10), ...children]));

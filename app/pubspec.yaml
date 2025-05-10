@@ -43,6 +43,7 @@ dependencies:
   mbtiles: ^0.4.2
   vector_map_tiles: ^8.0.0
   vector_tile_renderer: ^5.2.1
+  wakelock: ^0.6.2
 
 dev_dependencies:
   flutter_test:
