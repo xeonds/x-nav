@@ -341,157 +341,19 @@ class MapPageState extends State<MapPage> {
           : AppBar(
               title: const Text('地图页面'),
               actions: [
-                // IconButton(
-                //     onPressed: () {
-                //       Navigator.of(context).push(
-                //         MaterialPageRoute(
-                //           builder: (context) => TachometerPage(),
-                //         ),
-                //       );
-                //     },
-                //     icon: const Icon(Icons.navigation)),
+                IconButton(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => TachometerPage(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.navigation)),
                 IconButton(
                   icon: const Icon(Icons.layers),
                   onPressed: () {
-                    showModalBottomSheet(
-                      context: context,
-                      builder: (_) {
-                        return StatefulBuilder(
-                          builder: (context, setModalState) {
-                            return Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const SizedBox(
-                                  height: 20,
-                                ),
-                                buildListSubtitle('地图控制'),
-                                ListTile(
-                                  title: const Text('历史活动'),
-                                  subtitle: Text(
-                                    _showHistory == 1
-                                        ? '普通地图'
-                                        : _showHistory == 2
-                                            ? '热力图'
-                                            : '隐藏',
-                                  ),
-                                  trailing: SegmentedButton<int>(
-                                    showSelectedIcon: false,
-                                    segments: const [
-                                      ButtonSegment(
-                                        value: 0,
-                                        label: Text('隐藏'),
-                                      ),
-                                      ButtonSegment(
-                                        value: 1,
-                                        label: Text('普通地图'),
-                                      ),
-                                      ButtonSegment(
-                                        value: 2,
-                                        label: Text('热力图'),
-                                      ),
-                                    ],
-                                    selected: {_showHistory},
-                                    onSelectionChanged: (newSelection) {
-                                      setModalState(() {
-                                        _showHistory = newSelection.first;
-                                      });
-                                      setState(() {
-                                        _showHistory = newSelection.first;
-                                      });
-                                      setPreference<int>(
-                                          'showHistory', _showHistory);
-                                    },
-                                  ),
-                                ),
-                                SwitchListTile(
-                                  title: const Text('显示路书'),
-                                  value: _showRoute,
-                                  onChanged: (value) {
-                                    setModalState(() {
-                                      _showRoute = value;
-                                    });
-                                    setState(() {
-                                      _showRoute = value;
-                                    });
-                                    setPreference<bool>(
-                                        'showRoute', _showRoute);
-                                  },
-                                ),
-                                ListTile(
-                                  title: const Text('地图模式'),
-                                  subtitle: Text(
-                                    _mapMode == 0
-                                        ? '关闭'
-                                        : _mapMode == 1
-                                            ? '在线地图'
-                                            : '离线地图',
-                                  ),
-                                  trailing: SegmentedButton<int>(
-                                    showSelectedIcon: false,
-                                    segments: const [
-                                      ButtonSegment(
-                                          value: 0, label: Text('关闭')),
-                                      ButtonSegment(
-                                          value: 1, label: Text('在线')),
-                                      ButtonSegment(
-                                          value: 2, label: Text('离线')),
-                                    ],
-                                    selected: {_mapMode},
-                                    onSelectionChanged: (sel) {
-                                      final mode = sel.first;
-                                      setModalState(() {
-                                        _mapMode = mode;
-                                      });
-                                      setState(() {
-                                        _mapMode = mode;
-                                      });
-                                      setPreference<int>('mapMode', _mapMode);
-                                      if (_mapMode == 2 &&
-                                          _selectedMbtiles != null) {
-                                        _loadMbtilesFiles();
-                                      }
-                                    },
-                                  ),
-                                ),
-                                if (_mapMode == 2)
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 16),
-                                    child: DropdownButton<String>(
-                                      isExpanded: true,
-                                      value: _selectedMbtiles,
-                                      hint: const Text('选择离线 MBTiles'),
-                                      items: _mbtilesFiles.map((path) {
-                                        return DropdownMenuItem(
-                                          value: path,
-                                          child: Text(p.basename(path)),
-                                        );
-                                      }).toList(),
-                                      onChanged: (v) {
-                                        setModalState(() {
-                                          _selectedMbtiles = v;
-                                        });
-                                        setState(() {
-                                          _selectedMbtiles = v;
-                                        });
-                                        if (v != null) {
-                                          setPreference<String>(
-                                              'mbtilesFile', v);
-                                          final mbt = MbTiles(
-                                              mbtilesPath: v, gzip: false);
-                                          setState(() {
-                                            _mbtilesProvider = mbt;
-                                          });
-                                        }
-                                      },
-                                    ),
-                                  ),
-                              ],
-                            );
-                          },
-                        );
-                      },
-                    );
+                    showMapLayerControllerPopup(context);
                   },
                 ),
               ],
@@ -717,6 +579,139 @@ class MapPageState extends State<MapPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<dynamic> showMapLayerControllerPopup(BuildContext context) {
+    return showModalBottomSheet(
+      context: context,
+      builder: (_) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  height: 20,
+                ),
+                buildListSubtitle('地图控制'),
+                ListTile(
+                  title: const Text('历史活动'),
+                  subtitle: Text(
+                    _showHistory == 1
+                        ? '普通地图'
+                        : _showHistory == 2
+                            ? '热力图'
+                            : '隐藏',
+                  ),
+                  trailing: SegmentedButton<int>(
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment(
+                        value: 0,
+                        label: Text('隐藏'),
+                      ),
+                      ButtonSegment(
+                        value: 1,
+                        label: Text('普通地图'),
+                      ),
+                      ButtonSegment(
+                        value: 2,
+                        label: Text('热力图'),
+                      ),
+                    ],
+                    selected: {_showHistory},
+                    onSelectionChanged: (newSelection) {
+                      setModalState(() {
+                        _showHistory = newSelection.first;
+                      });
+                      setState(() {
+                        _showHistory = newSelection.first;
+                      });
+                      setPreference<int>('showHistory', _showHistory);
+                    },
+                  ),
+                ),
+                SwitchListTile(
+                  title: const Text('显示路书'),
+                  value: _showRoute,
+                  onChanged: (value) {
+                    setModalState(() {
+                      _showRoute = value;
+                    });
+                    setState(() {
+                      _showRoute = value;
+                    });
+                    setPreference<bool>('showRoute', _showRoute);
+                  },
+                ),
+                ListTile(
+                  title: const Text('地图模式'),
+                  subtitle: Text(
+                    _mapMode == 0
+                        ? '关闭'
+                        : _mapMode == 1
+                            ? '在线地图'
+                            : '离线地图',
+                  ),
+                  trailing: SegmentedButton<int>(
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment(value: 0, label: Text('关闭')),
+                      ButtonSegment(value: 1, label: Text('在线')),
+                      ButtonSegment(value: 2, label: Text('离线')),
+                    ],
+                    selected: {_mapMode},
+                    onSelectionChanged: (sel) {
+                      final mode = sel.first;
+                      setModalState(() {
+                        _mapMode = mode;
+                      });
+                      setState(() {
+                        _mapMode = mode;
+                      });
+                      setPreference<int>('mapMode', _mapMode);
+                      if (_mapMode == 2 && _selectedMbtiles != null) {
+                        _loadMbtilesFiles();
+                      }
+                    },
+                  ),
+                ),
+                if (_mapMode == 2)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      value: _selectedMbtiles,
+                      hint: const Text('选择离线 MBTiles'),
+                      items: _mbtilesFiles.map((path) {
+                        return DropdownMenuItem(
+                          value: path,
+                          child: Text(p.basename(path)),
+                        );
+                      }).toList(),
+                      onChanged: (v) {
+                        setModalState(() {
+                          _selectedMbtiles = v;
+                        });
+                        setState(() {
+                          _selectedMbtiles = v;
+                        });
+                        if (v != null) {
+                          setPreference<String>('mbtilesFile', v);
+                          final mbt = MbTiles(mbtilesPath: v, gzip: false);
+                          setState(() {
+                            _mbtilesProvider = mbt;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
