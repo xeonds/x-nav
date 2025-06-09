@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app/component/data.dart';
+import 'package:app/page/routes.dart';
 import 'package:app/page/tachometer.dart';
 import 'package:app/page/user.dart';
 import 'package:app/utils/mvt_theme.dart';
@@ -336,28 +337,29 @@ class MapPageState extends State<MapPage> {
     final mapTheme = vtr.ThemeReader().read(lightStyle());
 
     return Scaffold(
-      appBar: _isFullScreen
-          ? null
-          : AppBar(
-              title: const Text('地图页面'),
-              actions: [
-                IconButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => TachometerPage(),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.navigation)),
-                IconButton(
-                  icon: const Icon(Icons.layers),
-                  onPressed: () {
-                    showMapLayerControllerPopup(context);
-                  },
-                ),
-              ],
-            ),
+      // appBar:
+      // _isFullScreen
+      //     ? null
+      //     : AppBar(
+      //         title: const Text('地图页面'),
+      //         actions: [
+      //           IconButton(
+      //               onPressed: () {
+      //                 Navigator.of(context).push(
+      //                   MaterialPageRoute(
+      //                     builder: (context) => TachometerPage(),
+      //                   ),
+      //                 );
+      //               },
+      //               icon: const Icon(Icons.navigation)),
+      //           IconButton(
+      //             icon: const Icon(Icons.layers),
+      //             onPressed: () {
+      //               showMapLayerControllerPopup(context);
+      //             },
+      //           ),
+      //         ],
+      //       ),
       body: Stack(
         children: [
           FlutterMap(
@@ -421,50 +423,148 @@ class MapPageState extends State<MapPage> {
               ),
             ],
           ),
-          // 导航提示卡片（含海拔折线图）
+          // 路线卡片
           if (_nextInstruction.isNotEmpty)
             Positioned(
-              top: 16,
               left: 16,
+              bottom: 16,
               right: 16,
-              child: Card(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
-                // color: Colors.white.withOpacity(0.9),
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+              child: SizedBox(
+                height: 72,
+                child: Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
                     children: [
-                      Text(_nextInstruction, style: TextStyle(fontSize: 16)),
-                      if (_showElevationChart && _elevationData.isNotEmpty)
-                        SizedBox(
-                          height: 100,
-                          child: LineChart(
-                            LineChartData(
-                              titlesData: FlTitlesData(
-                                show: false,
+                      // 左侧正方形地图
+                      Container(
+                        width: 72,
+                        height: 72,
+                        clipBehavior: Clip.hardEdge,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: FlutterMap(
+                          options: MapOptions(
+                            initialCenter: initCenter(_navRoute),
+                            initialZoom: initZoom(_navRoute),
+                            // interactiveFlags: InteractiveFlag.none,
+                          ),
+                          children: [
+                            TileLayer(
+                              urlTemplate:
+                                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                              tileProvider: dataLoader.tileProvider,
+                            ),
+                            if (_navRoute.isNotEmpty)
+                              PolylineLayer(
+                                polylines: [
+                                  Polyline(
+                                    points: _navRoute,
+                                    color: Colors.blue,
+                                    strokeWidth: 3,
+                                  ),
+                                ],
                               ),
-                              gridData: FlGridData(show: false),
-                              borderData: FlBorderData(show: false),
-                              lineBarsData: [
-                                LineChartBarData(
-                                  spots: List.generate(
-                                      _distanceData.length,
-                                      (i) => FlSpot(
-                                          _distanceData[i],
-                                          i < _elevationData.length
-                                              ? _elevationData[i]
-                                              : 0)),
-                                  isCurved: true,
-                                  color: Colors.blue,
-                                  barWidth: 2,
-                                  dotData: FlDotData(show: false),
+                            if (_navRoute.isNotEmpty)
+                              MarkerLayer(
+                                markers: [
+                                  Marker(
+                                    point: _navRoute.first,
+                                    child: Icon(Icons.circle,
+                                        color: Colors.green, size: 8),
+                                  ),
+                                  Marker(
+                                    point: _navRoute.last,
+                                    child: Icon(Icons.flag,
+                                        color: Colors.red, size: 10),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // 中间信息
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 距离和坡度
+                            Row(
+                              children: [
+                                Text(
+                                  "长度: ${(_distanceData.isNotEmpty ? _distanceData.last / 1000 : 0).toStringAsFixed(2)} km",
+                                  style: TextStyle(
+                                      color: Colors.green, fontSize: 13),
                                 ),
+                                const SizedBox(width: 8),
+                                if (_elevationData.length > 1 &&
+                                    _distanceData.length > 1)
+                                  Builder(builder: (context) {
+                                    final totalDist = _distanceData.last > 0
+                                        ? _distanceData.last
+                                        : 1;
+                                    final totalElev = _elevationData.last -
+                                        _elevationData.first;
+                                    final slope = (totalElev / totalDist * 100)
+                                        .clamp(-99, 99)
+                                        .toStringAsFixed(1);
+                                    return Text(
+                                      "坡度: $slope%",
+                                      style: TextStyle(
+                                          color: Colors.orange, fontSize: 13),
+                                    );
+                                  }),
                               ],
                             ),
-                          ),
+                            // 海拔曲线
+                            if (_elevationData.length > 1 &&
+                                _distanceData.length > 1)
+                              SizedBox(
+                                height: 18,
+                                child: LineChart(
+                                  LineChartData(
+                                    titlesData: FlTitlesData(show: false),
+                                    gridData: FlGridData(show: false),
+                                    borderData: FlBorderData(show: false),
+                                    lineBarsData: [
+                                      LineChartBarData(
+                                        spots: List.generate(
+                                          _distanceData.length,
+                                          (i) => FlSpot(
+                                              _distanceData[i],
+                                              i < _elevationData.length
+                                                  ? _elevationData[i]
+                                                  : 0),
+                                        ),
+                                        isCurved: true,
+                                        color: Colors.blue,
+                                        barWidth: 2,
+                                        dotData: FlDotData(show: false),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            // 导航提示
+                            Text(
+                              _nextInstruction,
+                              style: TextStyle(fontSize: 13),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
+                      ),
+                      // 右侧导航按钮
+                      IconButton(
+                        icon: Icon(Icons.navigation, color: Colors.blue),
+                        onPressed: null, // 不可点击
+                        tooltip: "导航中",
+                      ),
                     ],
                   ),
                 ),
@@ -540,17 +640,22 @@ class MapPageState extends State<MapPage> {
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (_isRecording)
-            Chip(
-              label: Text('Recording'),
-              avatar: Icon(Icons.fiber_manual_record, color: Colors.red),
-            ),
-          const SizedBox(height: 16),
+          // if (_isRecording)
+          //   Chip(
+          //     label: Text('Recording'),
+          //     avatar: Icon(Icons.fiber_manual_record, color: Colors.red),
+          //   ),
+          FloatingActionButton(
+            onPressed: () {
+              showMapLayerControllerPopup(context);
+            },
+            child: const Icon(Icons.layers),
+          ),
           FloatingActionButton(
             onPressed: _locatePosition,
+            //               showMapLayerControllerPopup(context);
             child: const Icon(Icons.my_location),
           ),
-          const SizedBox(height: 16),
           FloatingActionButton(
             onPressed: () {
               setState(() {
@@ -561,22 +666,36 @@ class MapPageState extends State<MapPage> {
             child:
                 Icon(_isFullScreen ? Icons.fullscreen_exit : Icons.fullscreen),
           ),
-          const SizedBox(height: 16),
           FloatingActionButton(
-            heroTag: 'record',
             onPressed: () {
-              setState(() {
-                _isRecording = !_isRecording;
-                if (_isRecording) {
-                  _recordedPath.clear();
-                  _startRecording();
-                } else {
-                  _stopRecording();
-                }
-              });
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const RouteEditPage(route: 'new_route'),
+                ),
+              );
             },
-            child: Icon(_isRecording ? Icons.stop : Icons.play_arrow),
+            child: const Icon(Icons.create),
           ),
+          // FloatingActionButton(
+          //   heroTag: 'record',
+          //   onPressed: () {
+          //     setState(() {
+          //       _isRecording = !_isRecording;
+          //       if (_isRecording) {
+          //         _recordedPath.clear();
+          //         _startRecording();
+          //       } else {
+          //         _stopRecording();
+          //       }
+          //     });
+          //   },
+          //   child: Icon(_isRecording ? Icons.stop : Icons.play_arrow),
+          // ),
+          AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              child: _nextInstruction.isNotEmpty
+                  ? const SizedBox(height: 76)
+                  : null)
         ],
       ),
     );

@@ -79,3 +79,98 @@ class NavPoint extends StatelessWidget {
     );
   }
 }
+
+class QuickTile extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const QuickTile({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  State<QuickTile> createState() => _QuickTileState();
+}
+
+class _QuickTileState extends State<QuickTile>
+    with SingleTickerProviderStateMixin {
+  bool _pressed = false;
+
+  void _handleTapDown(TapDownDetails details) {
+    setState(() {
+      _pressed = true;
+    });
+  }
+
+  void _handleTapUp(TapUpDetails details) {
+    setState(() {
+      _pressed = false;
+    });
+  }
+
+  void _handleTapCancel() {
+    setState(() {
+      _pressed = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final surfaceColor = Theme.of(context).colorScheme.surface;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: widget.onTap,
+        onTapDown: _handleTapDown,
+        onTapUp: _handleTapUp,
+        onTapCancel: _handleTapCancel,
+        splashFactory: InkRipple.splashFactory,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 1.0, end: _pressed ? 0.96 : 1.0),
+          duration: const Duration(milliseconds: 80),
+          curve: Curves.easeOut,
+          builder: (context, scale, child) {
+            return Transform.scale(
+              scale: scale,
+              child: Container(
+                // 立即变暗，无动画
+                padding:
+                    const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                decoration: BoxDecoration(
+                  color:
+                      _pressed ? surfaceColor.withOpacity(0.75) : surfaceColor,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: child,
+              ),
+            );
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(widget.icon,
+                  size: 32, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(height: 8),
+              Text(
+                widget.label,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

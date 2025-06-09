@@ -1,3 +1,4 @@
+import 'package:app/component/data.dart';
 import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit_parser.dart';
@@ -22,28 +23,6 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final dataLoader = Provider.of<DataLoader>(context, listen: true);
 
-    // if (dataLoader.isLoading) {
-    //   return Center(
-    //     child: Column(
-    //       mainAxisAlignment: MainAxisAlignment.center,
-    //       children: [
-    //         const CircularProgressIndicator(),
-    //         const SizedBox(height: 16),
-    //         Text(dataLoader.progressMessage ?? '数据加载中...'),
-    //       ],
-    //     ),
-    //   );
-    // }
-    // if (!dataLoader.isLoading && !dataLoader.isInitialized) {
-    //   return Center(
-    //     child: Column(
-    //       mainAxisAlignment: MainAxisAlignment.center,
-    //       children: [
-    //         Text(dataLoader.progressMessage ?? '未知错误...'),
-    //       ],
-    //     ),
-    //   );
-    // }
     late final Map<int, BestScore> bestScore;
     if (dataLoader.isInitialized && dataLoader.fitData.isEmpty) {
       return Scaffold(
@@ -108,6 +87,36 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // 快捷磁贴按钮区
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    QuickTile(
+                      icon: Icons.navigation,
+                      label: '快速导航',
+                      onTap: () {
+                        Navigator.of(context).pushNamed('/quick_nav');
+                      },
+                    ),
+                    QuickTile(
+                      icon: Icons.timer,
+                      label: '码表模式',
+                      onTap: () {
+                        Navigator.of(context).pushNamed('/speedometer');
+                      },
+                    ),
+                    QuickTile(
+                      icon: Icons.map,
+                      label: '路书创建',
+                      onTap: () {
+                        Navigator.of(context).pushNamed('/route_creator');
+                      },
+                    ),
+                  ],
+                ),
+              ),
               const Text(
                 '周骑行统计',
                 style: TextStyle(fontSize: 20),
@@ -118,230 +127,9 @@ class _HomePageState extends State<HomePage> {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      ValueListenableBuilder<LineTouchResponse?>(
-                        valueListenable: touchInteraction,
-                        builder: (context, touchInteraction, child) {
-                          if (touchInteraction == null) {
-                            return Column(
-                              children: [
-                                const Text(
-                                  '时间范围: --月--日 - --月--日',
-                                  style: TextStyle(fontSize: 16),
-                                ),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceEvenly,
-                                  children: const [
-                                    Column(
-                                      children: [
-                                        Text('距离',
-                                            style: TextStyle(fontSize: 12)),
-                                        Text('-- km',
-                                            style: TextStyle(fontSize: 16)),
-                                      ],
-                                    ),
-                                    Column(
-                                      children: [
-                                        Text('爬升海拔',
-                                            style: TextStyle(fontSize: 12)),
-                                        Text('-- m',
-                                            style: TextStyle(fontSize: 16)),
-                                      ],
-                                    ),
-                                    Column(
-                                      children: [
-                                        Text('时间',
-                                            style: TextStyle(fontSize: 12)),
-                                        Text('-- h',
-                                            style: TextStyle(fontSize: 16)),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            );
-                          }
-
-                          final spot = touchInteraction.lineBarSpots
-                              ?.firstWhereOrNull((spot) =>
-                                  spot.x ==
-                                  touchInteraction.lineBarSpots![0].x);
-                          if (spot == null) {
-                            return const SizedBox.shrink();
-                          }
-                          final index = spot.x.toInt();
-                          final now = DateTime.now();
-                          final weekStart = now.subtract(Duration(
-                              days: now.weekday - 1 + (11 - index) * 7));
-                          final weekEnd =
-                              weekStart.add(const Duration(days: 6));
-                          final weeklyDistance = rideData.entries
-                              .where((entry) =>
-                                  entry.key.isAfter(weekStart
-                                      .subtract(const Duration(seconds: 1))) &&
-                                  entry.key.isBefore(
-                                      weekEnd.add(const Duration(seconds: 1))))
-                              .fold(
-                                  0.0,
-                                  (sum, entry) =>
-                                      sum + entry.value['total_distance']);
-                          final weeklyElevation = rideData.entries
-                              .where((entry) =>
-                                  entry.key.isAfter(weekStart
-                                      .subtract(const Duration(seconds: 1))) &&
-                                  entry.key.isBefore(
-                                      weekEnd.add(const Duration(seconds: 1))))
-                              .fold(
-                                  0.0,
-                                  (sum, entry) =>
-                                      sum + entry.value['total_ascent']);
-                          final weeklyTime = rideData.entries
-                              .where((entry) =>
-                                  entry.key.isAfter(weekStart
-                                      .subtract(const Duration(seconds: 1))) &&
-                                  entry.key.isBefore(
-                                      weekEnd.add(const Duration(seconds: 1))))
-                              .fold(
-                                  0.0,
-                                  (sum, entry) =>
-                                      sum + entry.value['total_moving_time']);
-                          String parseTime(int seconds) {
-                            final hours = (seconds / 3600).floor();
-                            final minutes = ((seconds % 3600) / 60).floor();
-                            return '${hours.toString().padLeft(2, '0')}h:${minutes.toString().padLeft(2, '0')}m';
-                          }
-
-                          return Column(
-                            children: [
-                              Text(
-                                '时间范围: ${weekStart.month}月${weekStart.day}日 - ${weekEnd.month}月${weekEnd.day}日',
-                                style: const TextStyle(fontSize: 16),
-                              ),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceEvenly,
-                                children: [
-                                  Column(
-                                    children: [
-                                      const Text('距离',
-                                          style: TextStyle(fontSize: 12)),
-                                      Text(
-                                        '${(weeklyDistance / 1000).toStringAsFixed(1)} km',
-                                        style: const TextStyle(fontSize: 16),
-                                      ),
-                                    ],
-                                  ),
-                                  Column(
-                                    children: [
-                                      const Text('爬升海拔',
-                                          style: TextStyle(fontSize: 12)),
-                                      Text(
-                                        '$weeklyElevation m',
-                                        style: const TextStyle(fontSize: 16),
-                                      ),
-                                    ],
-                                  ),
-                                  Column(
-                                    children: [
-                                      const Text('时间',
-                                          style: TextStyle(fontSize: 12)),
-                                      Text(
-                                        parseTime(weeklyTime.toInt()),
-                                        style: const TextStyle(fontSize: 16),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          );
-                        },
-                      ),
+                      weeklySummaryInfo(touchInteraction, rideData),
                       const SizedBox(height: 16),
-                      Expanded(
-                        child: LineChart(
-                          LineChartData(
-                            gridData: const FlGridData(show: false),
-                            lineTouchData: LineTouchData(
-                              touchTooltipData: LineTouchTooltipData(),
-                              handleBuiltInTouches: true,
-                              touchCallback: (FlTouchEvent event,
-                                  LineTouchResponse? touchResponse) {
-                                if (touchResponse?.lineBarSpots == null ||
-                                    touchResponse?.lineBarSpots == []) {
-                                  return;
-                                }
-                                touchInteraction.value = touchResponse;
-                              },
-                            ),
-                            titlesData: FlTitlesData(
-                              leftTitles: AxisTitles(),
-                              rightTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  reservedSize: 60,
-                                  getTitlesWidget: (value, meta) =>
-                                      Text('${value.toInt()} km'),
-                                ),
-                              ),
-                              bottomTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  getTitlesWidget: (value, meta) {
-                                    if (value % 1 != 0) {
-                                      return const SizedBox.shrink();
-                                    }
-                                    final now = DateTime.now();
-                                    final weekStart = now.subtract(Duration(
-                                        days: now.weekday -
-                                            1 +
-                                            (11 - value.toInt()) * 7));
-                                    return Text(
-                                      '${weekStart.month}/${weekStart.day}',
-                                      style: const TextStyle(fontSize: 10),
-                                    );
-                                  },
-                                ),
-                              ),
-                              topTitles: AxisTitles(),
-                            ),
-                            borderData: FlBorderData(show: false),
-                            lineBarsData: [
-                              LineChartBarData(
-                                spots: List.generate(12, (index) {
-                                  final now = DateTime.now();
-                                  final weekStart = now.subtract(Duration(
-                                      days:
-                                          now.weekday - 1 + (11 - index) * 7));
-                                  final weekEnd =
-                                      weekStart.add(const Duration(days: 6));
-                                  final weeklyDistance = rideData.entries
-                                      .where((entry) =>
-                                          entry.key.isAfter(weekStart.subtract(
-                                              const Duration(seconds: 1))) &&
-                                          entry.key.isBefore(weekEnd
-                                              .add(const Duration(seconds: 1))))
-                                      .fold(
-                                          0.0,
-                                          (sum, entry) =>
-                                              sum +
-                                              entry.value['total_distance']);
-                                  return FlSpot(index.toDouble(),
-                                      (weeklyDistance / 1000).toDouble());
-                                }),
-                                isCurved: false,
-                                isStrokeCapRound: false,
-                                color: Colors.deepOrange,
-                                belowBarData: BarAreaData(
-                                  show: true,
-                                  color: Colors.deepOrange
-                                      .withAlpha((0.3 * 255).toInt()),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                      weeklySummaryChart(touchInteraction, rideData),
                     ],
                   ),
                 ),
@@ -352,146 +140,8 @@ class _HomePageState extends State<HomePage> {
                 style: TextStyle(fontSize: 20),
               ),
               // 新增：当月骑行统计卡片，随日历月份同步
-              ValueListenableBuilder<DateTime>(
-                valueListenable: currentMonth,
-                builder: (context, focusedMonth, _) {
-                  // 计算当前日历显示月份的起止
-                  final monthStart =
-                      DateTime(focusedMonth.year, focusedMonth.month, 1);
-                  final monthEnd =
-                      DateTime(focusedMonth.year, focusedMonth.month + 1, 0);
-                  final monthRecords = rideData.entries.where((entry) =>
-                      entry.key.isAfter(
-                          monthStart.subtract(const Duration(seconds: 1))) &&
-                      entry.key
-                          .isBefore(monthEnd.add(const Duration(days: 1))));
-                  final totalDistance = monthRecords.fold<double>(
-                      0.0,
-                      (sum, entry) =>
-                          sum + (entry.value['total_distance'] ?? 0));
-                  final totalAscent = monthRecords.fold<double>(0.0,
-                      (sum, entry) => sum + (entry.value['total_ascent'] ?? 0));
-                  final totalTime = monthRecords.fold<double>(
-                      0.0,
-                      (sum, entry) =>
-                          sum + (entry.value['total_moving_time'] ?? 0));
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: RideSummary(
-                      rideData: {
-                        'totalDistance': totalDistance,
-                        'totalRides': monthRecords.fold<int>(
-                            0,
-                            (sum, entry) =>
-                                (sum + entry.value['count']).toInt()),
-                        'totalTime': totalTime,
-                        'totalAscent': totalAscent,
-                      },
-                    ),
-                  );
-                },
-              ),
-              SizedBox(
-                height: 400,
-                child: rideData.isEmpty
-                    ? const Center(child: Text("data loading"))
-                    : NotificationListener<ScrollNotification>(
-                        onNotification: (notification) => false,
-                        child: TableCalendar(
-                          firstDay: rideData.keys
-                              .reduce((a, b) => a.isBefore(b) ? a : b)
-                              .subtract(const Duration(days: 1)),
-                          lastDay: DateTime.now(),
-                          focusedDay: currentMonth.value,
-                          calendarFormat: CalendarFormat.month,
-                          daysOfWeekVisible: true,
-                          availableGestures: AvailableGestures.none,
-                          headerStyle: const HeaderStyle(
-                            formatButtonVisible: false,
-                            leftChevronVisible: true,
-                            rightChevronVisible: true,
-                            titleTextStyle: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          calendarStyle: const CalendarStyle(
-                            todayDecoration: BoxDecoration(
-                              color: Colors.deepOrange,
-                              shape: BoxShape.circle,
-                            ),
-                            selectedDecoration: BoxDecoration(
-                              color: Colors.deepOrange,
-                              shape: BoxShape.circle,
-                            ),
-                            defaultTextStyle: TextStyle(
-                              fontSize: 16,
-                            ),
-                          ),
-                          weekendDays: const [
-                            DateTime.saturday,
-                            DateTime.sunday
-                          ],
-                          calendarBuilders: CalendarBuilders(
-                            prioritizedBuilder: (context, day, focusedDay) {
-                              final distance = rideData.entries
-                                  .firstWhere(
-                                    (entry) =>
-                                        entry.key.year == day.year &&
-                                        entry.key.month == day.month &&
-                                        entry.key.day == day.day,
-                                    orElse: () => MapEntry(
-                                      DateTime(0),
-                                      {
-                                        'total_distance': 0,
-                                        'total_ascent': 0,
-                                        'total_moving_time': 0,
-                                      },
-                                    ),
-                                  )
-                                  .value['total_distance'];
-                              final size =
-                                  (20.0 + (distance / 5000).clamp(0.0, 30.0))
-                                      .toDouble();
-                              if (distance == 0) {
-                                return Center(
-                                  child: GestureDetector(
-                                    onTap: () =>
-                                        _showDailyRecords(context, day),
-                                    child: Text('${day.day}'),
-                                  ),
-                                );
-                              }
-                              return Center(
-                                child: GestureDetector(
-                                  onTap: () => _showDailyRecords(context, day),
-                                  child: Container(
-                                    width: size,
-                                    height: size,
-                                    decoration: BoxDecoration(
-                                      color: Colors.deepOrange,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        '${day.day}',
-                                        style: const TextStyle(
-                                            color: Colors.white),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                          // 禁用滑动，仅允许按钮切换月份
-                          onPageChanged: (focusedDay) {
-                            currentMonth.value =
-                                DateTime(focusedDay.year, focusedDay.month, 1);
-                          },
-                        ),
-                      ),
-              ),
+              monthlySummaryInfo(currentMonth, rideData),
+              monthlySummaryCalendar(rideData, currentMonth),
               const Text(
                 '最佳成绩',
                 style: TextStyle(fontSize: 20),
@@ -513,13 +163,345 @@ class _HomePageState extends State<HomePage> {
                 Center(
                   child: const Padding(
                     padding: EdgeInsets.all(16),
-                    child: Text('Loading...'),
+                    child: Text('数据加载中'),
                   ),
                 ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  SizedBox monthlySummaryCalendar(Map<DateTime, Map<String, dynamic>> rideData,
+      ValueNotifier<DateTime> currentMonth) {
+    return SizedBox(
+      height: 400,
+      child: rideData.isEmpty
+          ? const Center(child: Text("data loading"))
+          : NotificationListener<ScrollNotification>(
+              onNotification: (notification) => false,
+              child: TableCalendar(
+                firstDay: rideData.keys
+                    .reduce((a, b) => a.isBefore(b) ? a : b)
+                    .subtract(const Duration(days: 1)),
+                lastDay: DateTime.now(),
+                focusedDay: currentMonth.value,
+                calendarFormat: CalendarFormat.month,
+                daysOfWeekVisible: true,
+                availableGestures: AvailableGestures.none,
+                headerStyle: const HeaderStyle(
+                  formatButtonVisible: false,
+                  leftChevronVisible: true,
+                  rightChevronVisible: true,
+                  titleTextStyle: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                calendarStyle: const CalendarStyle(
+                  todayDecoration: BoxDecoration(
+                    color: Colors.deepOrange,
+                    shape: BoxShape.circle,
+                  ),
+                  selectedDecoration: BoxDecoration(
+                    color: Colors.deepOrange,
+                    shape: BoxShape.circle,
+                  ),
+                  defaultTextStyle: TextStyle(
+                    fontSize: 16,
+                  ),
+                ),
+                weekendDays: const [DateTime.saturday, DateTime.sunday],
+                calendarBuilders: CalendarBuilders(
+                  prioritizedBuilder: (context, day, focusedDay) {
+                    final distance = rideData.entries
+                        .firstWhere(
+                          (entry) =>
+                              entry.key.year == day.year &&
+                              entry.key.month == day.month &&
+                              entry.key.day == day.day,
+                          orElse: () => MapEntry(
+                            DateTime(0),
+                            {
+                              'total_distance': 0,
+                              'total_ascent': 0,
+                              'total_moving_time': 0,
+                            },
+                          ),
+                        )
+                        .value['total_distance'];
+                    final size =
+                        (20.0 + (distance / 5000).clamp(0.0, 30.0)).toDouble();
+                    if (distance == 0) {
+                      return Center(
+                        child: GestureDetector(
+                          onTap: () => _showDailyRecords(context, day),
+                          child: Text('${day.day}'),
+                        ),
+                      );
+                    }
+                    return Center(
+                      child: GestureDetector(
+                        onTap: () => _showDailyRecords(context, day),
+                        child: Container(
+                          width: size,
+                          height: size,
+                          decoration: BoxDecoration(
+                            color: Colors.deepOrange,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${day.day}',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                // 禁用滑动，仅允许按钮切换月份
+                onPageChanged: (focusedDay) {
+                  currentMonth.value =
+                      DateTime(focusedDay.year, focusedDay.month, 1);
+                },
+              ),
+            ),
+    );
+  }
+
+  ValueListenableBuilder<DateTime> monthlySummaryInfo(
+      ValueNotifier<DateTime> currentMonth,
+      Map<DateTime, Map<String, dynamic>> rideData) {
+    return ValueListenableBuilder<DateTime>(
+      valueListenable: currentMonth,
+      builder: (context, focusedMonth, _) {
+        // 计算当前日历显示月份的起止
+        final monthStart = DateTime(focusedMonth.year, focusedMonth.month, 1);
+        final monthEnd = DateTime(focusedMonth.year, focusedMonth.month + 1, 0);
+        final monthRecords = rideData.entries.where((entry) =>
+            entry.key
+                .isAfter(monthStart.subtract(const Duration(seconds: 1))) &&
+            entry.key.isBefore(monthEnd.add(const Duration(days: 1))));
+        final totalDistance = monthRecords.fold<double>(
+            0.0, (sum, entry) => sum + (entry.value['total_distance'] ?? 0));
+        final totalAscent = monthRecords.fold<double>(
+            0.0, (sum, entry) => sum + (entry.value['total_ascent'] ?? 0));
+        final totalTime = monthRecords.fold<double>(
+            0.0, (sum, entry) => sum + (entry.value['total_moving_time'] ?? 0));
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          child: RideSummary(
+            rideData: {
+              'totalDistance': totalDistance,
+              'totalRides': monthRecords.fold<int>(
+                  0, (sum, entry) => (sum + entry.value['count']).toInt()),
+              'totalTime': totalTime,
+              'totalAscent': totalAscent,
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Expanded weeklySummaryChart(
+      ValueNotifier<LineTouchResponse?> touchInteraction,
+      Map<DateTime, Map<String, dynamic>> rideData) {
+    return Expanded(
+      child: LineChart(
+        LineChartData(
+          gridData: const FlGridData(show: false),
+          lineTouchData: LineTouchData(
+            touchTooltipData: LineTouchTooltipData(),
+            handleBuiltInTouches: true,
+            touchCallback:
+                (FlTouchEvent event, LineTouchResponse? touchResponse) {
+              if (touchResponse?.lineBarSpots == null ||
+                  touchResponse?.lineBarSpots == []) {
+                return;
+              }
+              touchInteraction.value = touchResponse;
+            },
+          ),
+          titlesData: FlTitlesData(
+            leftTitles: AxisTitles(),
+            rightTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 60,
+                getTitlesWidget: (value, meta) => Text('${value.toInt()} km'),
+              ),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                getTitlesWidget: (value, meta) {
+                  if (value % 1 != 0) {
+                    return const SizedBox.shrink();
+                  }
+                  final now = DateTime.now();
+                  final weekStart = now.subtract(Duration(
+                      days: now.weekday - 1 + (11 - value.toInt()) * 7));
+                  return Text(
+                    '${weekStart.month}/${weekStart.day}',
+                    style: const TextStyle(fontSize: 10),
+                  );
+                },
+              ),
+            ),
+            topTitles: AxisTitles(),
+          ),
+          borderData: FlBorderData(show: false),
+          lineBarsData: [
+            LineChartBarData(
+              spots: List.generate(12, (index) {
+                final now = DateTime.now();
+                final weekStart = now.subtract(
+                    Duration(days: now.weekday - 1 + (11 - index) * 7));
+                final weekEnd = weekStart.add(const Duration(days: 6));
+                final weeklyDistance = rideData.entries
+                    .where((entry) =>
+                        entry.key.isAfter(
+                            weekStart.subtract(const Duration(seconds: 1))) &&
+                        entry.key
+                            .isBefore(weekEnd.add(const Duration(seconds: 1))))
+                    .fold(0.0,
+                        (sum, entry) => sum + entry.value['total_distance']);
+                return FlSpot(
+                    index.toDouble(), (weeklyDistance / 1000).toDouble());
+              }),
+              isCurved: false,
+              isStrokeCapRound: false,
+              color: Colors.deepOrange,
+              belowBarData: BarAreaData(
+                show: true,
+                color: Colors.deepOrange.withAlpha((0.3 * 255).toInt()),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  ValueListenableBuilder<LineTouchResponse?> weeklySummaryInfo(
+      ValueNotifier<LineTouchResponse?> touchInteraction,
+      Map<DateTime, Map<String, dynamic>> rideData) {
+    return ValueListenableBuilder<LineTouchResponse?>(
+      valueListenable: touchInteraction,
+      builder: (context, touchInteraction, child) {
+        if (touchInteraction == null) {
+          return Column(
+            children: [
+              const Text(
+                '时间范围: --月--日 - --月--日',
+                style: TextStyle(fontSize: 16),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: const [
+                  Column(
+                    children: [
+                      Text('距离', style: TextStyle(fontSize: 12)),
+                      Text('-- km', style: TextStyle(fontSize: 16)),
+                    ],
+                  ),
+                  Column(
+                    children: [
+                      Text('爬升海拔', style: TextStyle(fontSize: 12)),
+                      Text('-- m', style: TextStyle(fontSize: 16)),
+                    ],
+                  ),
+                  Column(
+                    children: [
+                      Text('时间', style: TextStyle(fontSize: 12)),
+                      Text('-- h', style: TextStyle(fontSize: 16)),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          );
+        }
+
+        final spot = touchInteraction.lineBarSpots?.firstWhereOrNull(
+            (spot) => spot.x == touchInteraction.lineBarSpots![0].x);
+        if (spot == null) {
+          return const SizedBox.shrink();
+        }
+        final index = spot.x.toInt();
+        final now = DateTime.now();
+        final weekStart =
+            now.subtract(Duration(days: now.weekday - 1 + (11 - index) * 7));
+        final weekEnd = weekStart.add(const Duration(days: 6));
+        final weeklyDistance = rideData.entries
+            .where((entry) =>
+                entry.key
+                    .isAfter(weekStart.subtract(const Duration(seconds: 1))) &&
+                entry.key.isBefore(weekEnd.add(const Duration(seconds: 1))))
+            .fold(0.0, (sum, entry) => sum + entry.value['total_distance']);
+        final weeklyElevation = rideData.entries
+            .where((entry) =>
+                entry.key
+                    .isAfter(weekStart.subtract(const Duration(seconds: 1))) &&
+                entry.key.isBefore(weekEnd.add(const Duration(seconds: 1))))
+            .fold(0.0, (sum, entry) => sum + entry.value['total_ascent']);
+        final weeklyTime = rideData.entries
+            .where((entry) =>
+                entry.key
+                    .isAfter(weekStart.subtract(const Duration(seconds: 1))) &&
+                entry.key.isBefore(weekEnd.add(const Duration(seconds: 1))))
+            .fold(0.0, (sum, entry) => sum + entry.value['total_moving_time']);
+        String parseTime(int seconds) {
+          final hours = (seconds / 3600).floor();
+          final minutes = ((seconds % 3600) / 60).floor();
+          return '${hours.toString().padLeft(2, '0')}h:${minutes.toString().padLeft(2, '0')}m';
+        }
+
+        return Column(
+          children: [
+            Text(
+              '时间范围: ${weekStart.month}月${weekStart.day}日 - ${weekEnd.month}月${weekEnd.day}日',
+              style: const TextStyle(fontSize: 16),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Column(
+                  children: [
+                    const Text('距离', style: TextStyle(fontSize: 12)),
+                    Text(
+                      '${(weeklyDistance / 1000).toStringAsFixed(1)} km',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ],
+                ),
+                Column(
+                  children: [
+                    const Text('爬升海拔', style: TextStyle(fontSize: 12)),
+                    Text(
+                      '$weeklyElevation m',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ],
+                ),
+                Column(
+                  children: [
+                    const Text('时间', style: TextStyle(fontSize: 12)),
+                    Text(
+                      parseTime(weeklyTime.toInt()),
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 
