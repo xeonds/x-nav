@@ -425,6 +425,18 @@ class MapPageState extends State<MapPage> {
               ),
             ],
           ),
+          // 在页面顶部加几个按钮，按照设计应该是路书筛选、点位搜索、路书库；路线记录状态
+          Positioned(
+              left: 16,
+              top: 16,
+              right: 16,
+              child: Column(
+                children: [
+                    Row(children: []),
+                    Row(),
+                ]
+              ),
+            ),
           // 路线卡片
           if (_nextInstruction.isNotEmpty)
             Positioned(
@@ -573,69 +585,72 @@ class MapPageState extends State<MapPage> {
               ),
             ),
           // 录制中指示
+    
+          // 赛段相关部分放到导航/巡航模式/码表页面中
+
           // 赛段匹配卡片
-          if (_segmentMatches.isNotEmpty)
-            Positioned(
-              top: 80,
-              left: 16,
-              right: 16,
-              child: Column(
-                children: _segmentMatches.map((sm) {
-                  return Card(
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                    color: Colors.orange.withOpacity(0.9),
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Text(
-                        '进入赛段 ${sm.segmentIndex + 1}，匹配度 ${(sm.matchPercentage * 100).toStringAsFixed(0)}%',
-                        style: TextStyle(fontSize: 16, color: Colors.white),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          // 实时赛段卡片
-          if (_activeSegmentId != null)
-            Positioned(
-              top: 140,
-              left: 16,
-              right: 16,
-              child: Card(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
-                color: Colors.green.withOpacity(0.9),
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Text(
-                    '赛段${_activeSegmentId! + 1}进行中：${_currentSegmentElapsed}s，' +
-                        '历史最佳${_historicalBestDuration}s，' +
-                        '差${(_currentSegmentElapsed - _historicalBestDuration).abs()}s',
-                    style: TextStyle(fontSize: 16, color: Colors.white),
-                  ),
-                ),
-              ),
-            ),
-          // 赛段完成卡片
-          if (_segmentResultMessage != null)
-            Positioned(
-              top: 200,
-              left: 16,
-              right: 16,
-              child: Card(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
-                color: Colors.blue.withOpacity(0.9),
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Text(
-                    _segmentResultMessage!,
-                    style: TextStyle(fontSize: 16, color: Colors.white),
-                  ),
-                ),
-              ),
-            ),
+          // if (_segmentMatches.isNotEmpty)
+          //   Positioned(
+          //     top: 80,
+          //     left: 16,
+          //     right: 16,
+          //     child: Column(
+          //       children: _segmentMatches.map((sm) {
+          //         return Card(
+          //           shape: RoundedRectangleBorder(
+          //               borderRadius: BorderRadius.circular(8)),
+          //           color: Colors.orange.withOpacity(0.9),
+          //           child: Padding(
+          //             padding: const EdgeInsets.all(8.0),
+          //             child: Text(
+          //               '进入赛段 ${sm.segmentIndex + 1}，匹配度 ${(sm.matchPercentage * 100).toStringAsFixed(0)}%',
+          //               style: TextStyle(fontSize: 16, color: Colors.white),
+          //             ),
+          //           ),
+          //         );
+          //       }).toList(),
+          //     ),
+          //   ),
+          // // 实时赛段卡片
+          // if (_activeSegmentId != null)
+          //   Positioned(
+          //     top: 140,
+          //     left: 16,
+          //     right: 16,
+          //     child: Card(
+          //       shape: RoundedRectangleBorder(
+          //           borderRadius: BorderRadius.circular(8)),
+          //       color: Colors.green.withOpacity(0.9),
+          //       child: Padding(
+          //         padding: const EdgeInsets.all(8.0),
+          //         child: Text(
+          //           '赛段${_activeSegmentId! + 1}进行中：${_currentSegmentElapsed}s，' +
+          //               '历史最佳${_historicalBestDuration}s，' +
+          //               '差${(_currentSegmentElapsed - _historicalBestDuration).abs()}s',
+          //           style: TextStyle(fontSize: 16, color: Colors.white),
+          //         ),
+          //       ),
+          //     ),
+          //   ),
+          // // 赛段完成卡片
+          // if (_segmentResultMessage != null)
+          //   Positioned(
+          //     top: 200,
+          //     left: 16,
+          //     right: 16,
+          //     child: Card(
+          //       shape: RoundedRectangleBorder(
+          //           borderRadius: BorderRadius.circular(8)),
+          //       color: Colors.blue.withOpacity(0.9),
+          //       child: Padding(
+          //         padding: const EdgeInsets.all(8.0),
+          //         child: Text(
+          //           _segmentResultMessage!,
+          //           style: TextStyle(fontSize: 16, color: Colors.white),
+          //         ),
+          //       ),
+          //     ),
+          //   ),
         ],
       ),
       // 三个fab：图层、工具、定位
@@ -655,15 +670,15 @@ class MapPageState extends State<MapPage> {
             child: const Icon(Icons.layers),
           ),
           FloatingActionButton(
-            onPressed: _locatePosition,
-            //               showMapLayerControllerPopup(context);
-            child: const Icon(Icons.my_location),
-          ),
-          FloatingActionButton(
             onPressed: () {
               showToolboxPopup(context);
             },
             child: const Icon(Icons.layers),
+          ),
+          FloatingActionButton(
+            onPressed: _locatePosition,
+            //               showMapLayerControllerPopup(context);
+            child: const Icon(Icons.my_location),
           ),
           FloatingActionButton(
             onPressed: () {
