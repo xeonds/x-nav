@@ -35,37 +35,51 @@ class MapPage extends StatefulWidget {
 }
 
 class MapPageState extends State<MapPage> {
+  // 地图自身状态
   late MapController _controller;
-  int _showHistory = 0;
-  bool _showRoute = false;
-  int _mapMode = 1; // 0: 关闭, 1: 在线, 2: 离线
-  List<String> _mbtilesFiles = [];
-  String? _selectedMbtiles;
+  int _showHistory = 0;  // 地图骑行记录显示模式
+  int _mapMode = 1; // 地图贴片模式: 0: 关闭, 1: 在线, 2: 离线
+  bool _showRoute = false; // 展示路书
   LatLng _currentPosition = LatLng(34.1301578, 108.8277069);
   Marker? _destMarker; // 导航目标标记
-  StreamSubscription<Position>? _locateSub; // 持续定位订阅
   Marker selectedMarker = const Marker(
     point: LatLng(34.1301578, 108.8277069),
     child: NavPoint(color: Colors.blue),
   );
-  bool _isFullScreen = false;
+
+  // 离线地图模块
+  List<String> _mbtilesFiles = [];
+  String? _selectedMbtiles;
   MbTiles? _mbtilesProvider;
+
+  // 导航模块
   bool _isRecording = false; // 路径录制状态
   String _nextInstruction = ''; // 下一步导航提示
   bool _showElevationChart = false; // 是否在导航卡片中显示海拔图
-  List<double> _elevationData = []; // 海拔数据
-  // List<double> _slopeData = []; // 坡度百分比数据
-  List<double> _distanceData = []; // 路径长度数据
   List<LatLng> _recordedPath = []; // 记录中的轨迹
   List<LatLng> _navRoute = [];
-  StreamSubscription<Position>? _positionSub;
+
+  // 实时赛段功能
   List<SegmentMatch> _segmentMatches = [];
   List<int> _matchedSegmentIds = [];
+  int _currentSegmentElapsed = 0; // 实时段内已用秒数
+  String? _segmentResultMessage; // 赛段完成消息
   int _historicalBestDuration = 0; // 官方赛段历史最佳用时（秒）
   int? _activeSegmentId; // 当前正在骑行的赛段索引
   DateTime? _activeEntryTime; // 进入赛段时间
-  int _currentSegmentElapsed = 0; // 实时段内已用秒数
-  String? _segmentResultMessage; // 赛段完成消息
+
+  // 测算功能相关状态
+  bool isMeasureOpen = false;
+  List<LatLng> measurePoints = [];  // 测量的点
+  List<LatLng> measureRoute = [];  // 测量路径
+  List<double> _elevationData = []; // 海拔数据
+  List<double> _slopeData = []; // 坡度百分比数据
+  List<double> _distanceData = []; // 路径长度数据
+
+  // MISC
+  StreamSubscription<Position>? _locateSub; // 持续定位订阅
+  bool _isFullScreen = false;
+  StreamSubscription<Position>? _positionSub;
 
   @override
   void initState() {
@@ -111,56 +125,43 @@ class MapPageState extends State<MapPage> {
     });
   }
 
+  // 地图点击事件
   void _onMapTap(LatLng dest) async {
+    // 点击地图时切换全屏，如果是路线被点击了则显示卡片
+    if (isMeasureOpen) {
+        // 点击地图时，添加点击点到测量的路径数组中
+        // 然后更新状态触发计算就好了
+    } else { }
     setState(() {
-      _showElevationChart = false;
       _destMarker = Marker(point: dest, child: NavPoint(color: Colors.red));
-      _nextInstruction = '计算路径中...';
     });
-    // 获取最新位置信息
-    // final pos = await Geolocator.getCurrentPosition();
+  }
+
+  // 路径规划
+  Future<List<LatLng>> routePlan(LatLng dest) async {
     final coordinates = [_currentPosition, dest]
-        .map((point) => '${point.longitude},${point.latitude}')
-        .join(';');
-    final url =
-        'http://router.project-osrm.org/route/v1/bike/$coordinates?overview=full&geometries=polyline';
+      .map((point) => '${point.longitude},${point.latitude}')
+      .join(';');
+    final url = 'http://router.project-osrm.org/route/v1/bike/$coordinates?overview=full&geometries=polyline';
     final response = await http.get(Uri.parse(url));
     late final List<LatLng> decodedPolyline;
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       final route = data['routes'][0];
       final polyline = route['geometry'];
-      decodedPolyline = PolylinePoints()
-          .decodePolyline(polyline)
-          .map((point) => LatLng(point.latitude, point.longitude))
-          .toList();
+      return PolylinePoints()
+        .decodePolyline(polyline)
+        .map((point) => LatLng(point.latitude, point.longitude))
+        .toList();
     } else {
-      setState(() {
-        _nextInstruction = "路径规划失败";
-      });
-      decodedPolyline = [];
+      return [];
     }
-    setState(() {
-      // _currentPosition = LatLng(pos.latitude, pos.longitude);
-      // _controller.move(_currentPosition, _controller.camera.zoom);
-      // selectedMarker = Marker(point: dest, child: NavPoint(color: Colors.red));
-      _navRoute.clear();
-    });
-    final route = [...decodedPolyline];
-    // 计算距离
-    final distances = [0.0];
-    latlngToDistance(decodedPolyline);
-    for (var i = 0, dist = 0.0; i < decodedPolyline.length - 1; i++) {
-      dist += latlngPointDistance(decodedPolyline[i], decodedPolyline[i + 1]);
-      distances.add(dist);
-    }
-    setState(() {
-      _navRoute = route;
-      _distanceData = distances;
-      _nextInstruction = '剩余 ${(distances.last / 1000).toStringAsFixed(2)} km';
-    });
-    await _fetchElevationData(route);
-    setState(() => _showElevationChart = true);
+  }
+
+  // 计算距离
+  double getMeasureDistance() {
+    final res = latlngToDistance(measureRoute);
+    return res;
   }
 
   // 切换持续定位
@@ -188,7 +189,7 @@ class MapPageState extends State<MapPage> {
     _locateSub = null;
   }
 
-  /// 实时更新导航进度：截取最近点至目标或重算路线
+  // 实时更新导航进度：截取最近点至目标或重算路线
   void _updateNavigationProgress(Position pos) {
     if (_destMarker == null || _navRoute.isEmpty) return;
     final point = LatLng(pos.latitude, pos.longitude);
@@ -217,7 +218,8 @@ class MapPageState extends State<MapPage> {
       });
     }
   }
-
+  
+  // 计算海拔高度 可能得改下算法对于长距离稀疏或者上采样取点不然请求数据量太大api不给数据了
   Future<void> _fetchElevationData(List<LatLng> route) async {
     final locations =
         route.map((p) => '${p.latitude},${p.longitude}').join('|');
@@ -636,6 +638,7 @@ class MapPageState extends State<MapPage> {
             ),
         ],
       ),
+      // 三个fab：图层、工具、定位
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -658,13 +661,9 @@ class MapPageState extends State<MapPage> {
           ),
           FloatingActionButton(
             onPressed: () {
-              setState(() {
-                _isFullScreen = !_isFullScreen;
-                widget.onFullScreenToggle?.call(_isFullScreen);
-              });
+              showToolboxPopup(context);
             },
-            child:
-                Icon(_isFullScreen ? Icons.fullscreen_exit : Icons.fullscreen),
+            child: const Icon(Icons.layers),
           ),
           FloatingActionButton(
             onPressed: () {
@@ -698,6 +697,32 @@ class MapPageState extends State<MapPage> {
                   : null)
         ],
       ),
+    );
+  }
+
+  Future<dynamic> showToolboxPopup(BuildContext context) {
+    return showModalBottomSheet(
+      context: context,
+      builder: (_) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  height: 20,
+                ),
+                buildListSubtitle('工具'),
+                ListTile( title: const Text('地图测算')),
+                ListTile( title: const Text('位置共享')),
+                ListTile( title: const Text('巡航模式')),
+                ListTile( title: const Text('路径记录')),
+                ListTile( title: const Text('秒差距追踪')),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
