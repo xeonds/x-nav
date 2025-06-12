@@ -2,10 +2,13 @@ import 'dart:io';
 import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:share_plus/share_plus.dart';
 
 class Storage {
   static final Storage _instance = Storage._internal();
   static String? appDocPath;
+  static Directory? appDocDir;
 
   factory Storage() {
     return _instance;
@@ -15,8 +18,8 @@ class Storage {
 
   static Future<void> initialize() async {
     if (appDocPath == null) {
-      final dir = await getApplicationDocumentsDirectory();
-      appDocPath = dir.path;
+      appDocDir = await getApplicationDocumentsDirectory();
+      appDocPath = appDocDir!.path;
     }
   }
 
@@ -81,26 +84,32 @@ class Storage {
   }
 
   Future<void> createBackup() async {
-    // create backup for gpx and fit files
-    final gpxFiles = await getGpxFiles();
-    final fitFiles = await getFitFiles();
-    final docDir = await getApplicationDocumentsDirectory();
-    final backupFile = File(path.join(docDir.path, 'backup.zip'));
+    //final archive = Archive();
+    //await _addDirToArchive(archive, appDocDir!, appDocPath!);
+    //final zipData = ZipEncoder.encode(archive)!;
+    final tmpDir = await getTemporaryDirectory();
+    final zipFile = File(path.join(tmpDir.path, "backup_${DateTime.now().millisecondsSinceEpoch}.zip"));
+    //await zipFile.writeAsBytes(zipData);
     final encoder = ZipFileEncoder();
-    encoder.create(backupFile.path);
-    for (final file in fitFiles) {
-      encoder.addFile(
-        file,
-        path.join('history', path.basename(file.path)),
-      );
-    }
-    for (final file in gpxFiles) {
-      encoder.addFile(
-        file,
-        path.join('route', path.basename(file.path)),
-      );
-    }
+    encoder.create(zipFile.path);
+    await encoder.addDirectory(appDocDir!, includeDirName: false);
     encoder.close();
+    try {
+      await Share.shareXFiles(
+          [XFile(zipFile.path, mimeType: 'application/zip')],
+          text: 'Sharing backup file');
+    } catch (e) {
+    }
+  }
+
+  static Future<void> _addDirToArchive(Archive archive, Directory dir, String rootPath) async {
+    await for (final entity in dir.list(recursive: true)) {
+      if (entity is File) {
+        final data = await entity.readAsBytes();
+        final relativePath = path.relative(entity.path, from: rootPath);
+        archive.addFile(ArchiveFile(relativePath, data.length, data));
+      }
+    }
   }
 
   Future<void> restoreBackup(File backupFile) async {
