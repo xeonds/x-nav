@@ -23,7 +23,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE history (
@@ -39,6 +39,22 @@ class DatabaseHelper {
             data BLOB
           )
         ''');
+        await db.execute('''
+          CREATE TABLE cache (
+            key TEXT PRIMARY KEY,
+            value TEXT
+          )
+        ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS cache (
+              key TEXT PRIMARY KEY,
+              value TEXT
+            )
+          ''');
+        }
       },
     );
   }

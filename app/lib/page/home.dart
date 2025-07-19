@@ -1,4 +1,6 @@
 import 'package:app/component/data.dart';
+import 'package:app/page/routes.dart';
+import 'package:app/page/tachometer.dart';
 import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit.dart';
@@ -104,14 +106,19 @@ class _HomePageState extends State<HomePage> {
                       icon: Icons.timer,
                       label: '码表模式',
                       onTap: () {
-                        Navigator.of(context).pushNamed('/speedometer');
+                        Navigator.of(context).push(MaterialPageRoute(
+                            builder: (context) => const TachometerPage()));
                       },
                     ),
                     QuickTile(
                       icon: Icons.map,
                       label: '路书创建',
                       onTap: () {
-                        Navigator.of(context).pushNamed('/route_creator');
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (context) =>
+                                  const RouteEditPage(route: 'new_route')),
+                        );
                       },
                     ),
                   ],

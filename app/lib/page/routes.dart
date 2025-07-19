@@ -345,28 +345,16 @@ class RoutesPageState extends State<RoutesPage> {
             },
             child: const Icon(Icons.file_upload),
           ),
-          // FloatingActionButton(
-          //   onPressed: () async {
-          //     if (_selectedGpxFile != null) {
-          //       final file = _selectedGpxFile!;
-          //       try {
-          //         await Share.shareXFiles(
-          //             [XFile(file.path, mimeType: 'application/gpx+xml')],
-          //             text: 'Sharing GPX file');
-          //       } catch (e) {
-          //         if (kDebugMode) {
-          //           print('Error sharing GPX file: $e');
-          //         }
-          //         ScaffoldMessenger.of(context).showSnackBar(
-          //           SnackBar(
-          //             content: Text('Failed to share GPX file: $e'),
-          //           ),
-          //         );
-          //       }
-          //     }
-          //   },
-          //   child: const Icon(Icons.output),
-          // ),
+          FloatingActionButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const RouteEditPage(route: 'new_route'),
+                ),
+              );
+            },
+            child: const Icon(Icons.create),
+          ),
         ],
       ),
     );

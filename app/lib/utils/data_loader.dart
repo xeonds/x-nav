@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'package:app/database.dart';
 import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/fit.dart';
 import 'package:app/utils/path_utils.dart';
@@ -10,6 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:gpx/gpx.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:sqflite/sqflite.dart';
 
 class _DataLoadRequest {
   final String appDocPath;
@@ -42,6 +45,90 @@ class _DataLoadResult {
 }
 
 class DataLoader extends ChangeNotifier {
+  // 缓存一致性检测：判断底层文件是否发生变化
+  Future<bool> isCacheStale() async {
+    // 获取当前文件列表和修改时间
+    final gpxFiles = Storage().getGpxFilesSync();
+    final fitFiles = Storage().getFitFilesSync();
+    final gpxMeta = gpxFiles
+        .map((f) => {
+              'path': f.path,
+              'mtime': f.lastModifiedSync().millisecondsSinceEpoch
+            })
+        .toList();
+    final fitMeta = fitFiles
+        .map((f) => {
+              'path': f.path,
+              'mtime': f.lastModifiedSync().millisecondsSinceEpoch
+            })
+        .toList();
+    // 从数据库读取上次文件快照
+    final db = await dbHelper.database;
+    final res =
+        await db.query('cache', where: 'key = ?', whereArgs: ['fileMeta']);
+    if (res.isEmpty) return true;
+    try {
+      final lastMeta = jsonDecode(res.first['value'] as String);
+      // 比较快照
+      if (jsonEncode(lastMeta['gpx']) != jsonEncode(gpxMeta) ||
+          jsonEncode(lastMeta['fit']) != jsonEncode(fitMeta)) {
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return true;
+    }
+  }
+
+  // 更新文件快照到数据库
+  Future<void> updateFileMetaCache() async {
+    final gpxFiles = Storage().getGpxFilesSync();
+    final fitFiles = Storage().getFitFilesSync();
+    final gpxMeta = gpxFiles
+        .map((f) => {
+              'path': f.path,
+              'mtime': f.lastModifiedSync().millisecondsSinceEpoch
+            })
+        .toList();
+    final fitMeta = fitFiles
+        .map((f) => {
+              'path': f.path,
+              'mtime': f.lastModifiedSync().millisecondsSinceEpoch
+            })
+        .toList();
+    await saveCache('fileMeta', {'gpx': gpxMeta, 'fit': fitMeta});
+  }
+
+  // 新增：数据库实例
+  final dbHelper = DatabaseHelper();
+
+  // 数据库缓存相关方法
+  Future<Map<String, dynamic>?> getAllCache() async {
+    final db = await dbHelper.database;
+    final res = await db.query('cache');
+    if (res.isEmpty) return null;
+    final Map<String, dynamic> result = {};
+    for (final row in res) {
+      try {
+        result[row['key'] as String] =
+            row['value'] != null ? jsonDecode(row['value'] as String) : null;
+      } catch (e) {
+        result[row['key'] as String] = null;
+      }
+    }
+    return result;
+  }
+
+  Future<void> saveCache(String key, dynamic value) async {
+    final db = await dbHelper.database;
+    final valueStr = jsonEncode(value);
+    await db.insert(
+      'cache',
+      {'key': key, 'value': valueStr},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
   static final DataLoader _instance = DataLoader._internal();
 
   factory DataLoader() => _instance;
@@ -120,10 +207,55 @@ class DataLoader extends ChangeNotifier {
     String currentStep = '初始化';
 
     try {
+      // 检查底层文件是否发生变化
+      final cacheStale = await isCacheStale();
+      final cached = await getAllCache();
+      if (!cacheStale && cached != null && cached.isNotEmpty) {
+        // 直接复用数据库缓存
+        routes
+          ..clear()
+          ..addAll(cached['routes'] ?? []);
+        gpxData
+          ..clear()
+          ..addAll(cached['gpxData'] ?? {});
+        fitData
+          ..clear()
+          ..addAll(cached['fitData'] ?? {});
+        summaryList
+          ..clear()
+          ..addAll(cached['summary'] ?? []);
+        rideData
+          ..clear()
+          ..addAll(cached['rideData'] ?? {});
+        bestScore
+          ..clear()
+          ..addAll(cached['bestScore'] ?? {});
+        bestScoreAt
+          ..clear()
+          ..addAll(cached['bestScoreAt'] ?? {});
+        bestSegment
+          ..clear()
+          ..addAll(cached['bestSegment'] ?? {});
+        subRoutesOfRoutes
+          ..clear()
+          ..addAll(cached['subRoutesOfRoutes'] ?? {});
+        gpxLoaded = true;
+        fitLoaded = true;
+        summaryLoaded = true;
+        rideDataLoaded = true;
+        bestScoreLoaded = true;
+        isInitialized = true;
+        isLoading = false;
+        progressMessage = null;
+        notifyListeners();
+        return;
+      }
+
+      // 文件有变动或无缓存，重新计算并更新数据库快照
       await runInIsolateWithProgress<_DataLoadRequest, _DataLoadResult>(
         entry: _dataLoadIsolateEntryWithProgressPhased,
         parameter: _DataLoadRequest(Storage.appDocPath!),
-        onMessage: (msg) {
+        onMessage: (msg) async {
           if (msg is Map && msg['progress'] != null) {
             progressMessage = msg['progress'];
             currentStep = msg['progress']; // 记录当前进度
@@ -142,6 +274,9 @@ class DataLoader extends ChangeNotifier {
               ..addAll(msg['gpxData']);
             gpxLoaded = true;
             currentStep = '路书加载完成';
+            await saveCache('routes', routes);
+            await saveCache('gpxData', gpxData);
+            await updateFileMetaCache(); // 更新文件快照
             if (onGpxLoaded != null) onGpxLoaded!();
             notifyListeners();
           } else if (msg is Map && msg['phase'] == 'fit') {
@@ -149,9 +284,10 @@ class DataLoader extends ChangeNotifier {
             fitData
               ..clear()
               ..addAll(msg['fitData']);
-            print('fit data loaded');
             fitLoaded = true;
             currentStep = '骑行记录加载完成';
+            await saveCache('fitData', fitData);
+            await updateFileMetaCache(); // 更新文件快照
             if (onFitLoaded != null) onFitLoaded!();
             notifyListeners();
           } else if (msg is Map && msg['phase'] == 'summary') {
@@ -160,6 +296,7 @@ class DataLoader extends ChangeNotifier {
               ..addAll(msg['summary']);
             summaryLoaded = true;
             currentStep = '骑行摘要分析完成';
+            await saveCache('summary', summaryList);
             if (onSummaryLoaded != null) onSummaryLoaded!();
             notifyListeners();
           } else if (msg is Map && msg['phase'] == 'rideData') {
@@ -168,6 +305,7 @@ class DataLoader extends ChangeNotifier {
               ..addAll(msg['rideData']);
             rideDataLoaded = true;
             currentStep = '骑行统计完成';
+            await saveCache('rideData', rideData);
             if (onRideDataLoaded != null) onRideDataLoaded!();
             notifyListeners();
           } else if (msg is Map && msg['phase'] == 'bestScore') {
@@ -185,7 +323,10 @@ class DataLoader extends ChangeNotifier {
               ..addAll(msg['subRoutesOfRoutes']);
             bestScoreLoaded = true;
             currentStep = '最佳成绩分析完成';
-            if (onBestScoreLoaded != null) onBestScoreLoaded!();
+            await saveCache('bestScore', bestScore);
+            await saveCache('bestScoreAt', bestScoreAt);
+            await saveCache('bestSegment', bestSegment);
+            await saveCache('subRoutesOfRoutes', subRoutesOfRoutes);
             isInitialized = true;
             isLoading = false;
             progressMessage = null;
