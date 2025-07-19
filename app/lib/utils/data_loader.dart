@@ -2,36 +2,14 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 import 'package:app/utils/analysis_utils.dart';
-import 'package:app/utils/fit_parser.dart';
-import 'package:app/utils/gpx_parser.dart';
+import 'package:app/utils/fit.dart';
 import 'package:app/utils/path_utils.dart';
 import 'package:app/utils/storage.dart';
+import 'package:fit_tool/fit_tool.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
+import 'package:gpx/gpx.dart';
 import 'package:latlong2/latlong.dart';
-
-Future<R> runInIsolate<P, R>(R Function(P) function, P parameter) async {
-  final receivePort = ReceivePort();
-  await Isolate.spawn<_IsolateMessage<P, R>>(
-    _isolateEntry,
-    _IsolateMessage(function, parameter, receivePort.sendPort),
-  );
-  return await receivePort.first as R;
-}
-
-class _IsolateMessage<P, R> {
-  final R Function(P) function;
-  final P parameter;
-  final SendPort sendPort;
-
-  _IsolateMessage(this.function, this.parameter, this.sendPort);
-}
-
-// Entry point for the spawned isolate
-void _isolateEntry<P, R>(_IsolateMessage<P, R> message) {
-  final result = message.function(message.parameter);
-  message.sendPort.send(result);
-}
 
 class _DataLoadRequest {
   final String appDocPath;
@@ -40,9 +18,9 @@ class _DataLoadRequest {
 
 class _DataLoadResult {
   final List<List<LatLng>> routes;
+  final List<List<LatLng>> histories;
   final List<Map<String, dynamic>> fitData;
   final List<File> gpxFiles;
-  final List<List<LatLng>> histories;
   final Map<String, dynamic> rideData;
   final List<Map<String, dynamic>> summary;
   final Map<int, BestScore> bestScore, bestScoreAt;
@@ -70,16 +48,36 @@ class DataLoader extends ChangeNotifier {
 
   DataLoader._internal();
 
-  final List<List<LatLng>> _routes = [];
-  final List<Map<String, dynamic>> _fitData = [];
-  final List<File> _gpxFile = [];
-  final List<List<LatLng>> _histories = []; // 历史路径
-  final Map<String, dynamic> _rideData = {}; // 骑行历史统计信息
-  final List<Map<String, dynamic>> _summary = []; // 每个骑行记录对应的摘要
-  final Map<int, BestScore> _bestScore = {}, _bestScoreAt = {};
-  final Map<int, SortManager<SegmentScore, int>> _bestSegment =
+  final List<List<LatLng>> routes = [];
+  final Map<String, String> gpxData = {};
+  final List<List<Message>> histories = []; // 历史路径
+  final Map<String, List<Message>> fitData = {};
+  final Map<String, dynamic> rideData = {}; // 骑行历史统计信息
+  final List<Map<String, dynamic>> summaryList = []; // 每个骑行记录对应的摘要
+  final Map<int, BestScore> bestScore = {}, bestScoreAt = {};
+  final Map<int, SortManager<SegmentScore, int>> bestSegment =
       {}; // 任意赛段，截至任意时间戳的最佳记录
-  final Map<int, List<SegmentScore>> _subRoutesOfRoutes = {};
+  final Map<int, List<SegmentScore>> subRoutesOfRoutes = {};
+
+  // 获取 MBTiles 文件列表
+  static Future<List<String>> listMbtilesFiles() async {
+    // 默认存储在 appDocPath/mbtiles 目录下
+    if (Storage.appDocPath == null) {
+      await Storage.initialize();
+    }
+    final dir = Directory('${Storage.appDocPath}/mbtiles');
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    final files = dir
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.mbtiles'))
+        .map((f) => f.path)
+        .toList();
+    return files;
+  }
+
   final FMTCTileProvider tileProvider = FMTCTileProvider(
     stores: const {'mapStore': BrowseStoreStrategy.readUpdateCreate},
   );
@@ -101,18 +99,13 @@ class DataLoader extends ChangeNotifier {
   VoidCallback? onRideDataLoaded;
   VoidCallback? onBestScoreLoaded;
 
-  List<List<LatLng>> get routes => _routes;
-  List<List<LatLng>> get histories => _histories;
-  Map<String, dynamic> get rideData => _rideData;
-  List<Map<String, dynamic>> get summaryList => _summary;
-  List<Map<String, dynamic>> get fitData => _fitData;
-  List<File> get gpxData => _gpxFile;
-  Map<int, BestScore> get bestScore => _bestScore;
-  Map<int, BestScore> get bestScoreAt => _bestScoreAt;
-  Map<int, SortManager<SegmentScore, int>> get bestSegment => _bestSegment;
-  Map<int, List<SegmentScore>> get subRoutesOfRoutes => _subRoutesOfRoutes;
-
   Future<void> initialize() async {
+    await Future.wait([
+      FMTCObjectBoxBackend().initialise(),
+      Storage.initialize(),
+    ]);
+    await FMTCStore('mapStore').manage.create();
+
     if (isLoading) return;
     isLoading = true;
     isInitialized = false;
@@ -124,6 +117,8 @@ class DataLoader extends ChangeNotifier {
     bestScoreLoaded = false;
     notifyListeners();
 
+    String currentStep = '初始化';
+
     try {
       await runInIsolateWithProgress<_DataLoadRequest, _DataLoadResult>(
         entry: _dataLoadIsolateEntryWithProgressPhased,
@@ -131,60 +126,65 @@ class DataLoader extends ChangeNotifier {
         onMessage: (msg) {
           if (msg is Map && msg['progress'] != null) {
             progressMessage = msg['progress'];
+            currentStep = msg['progress']; // 记录当前进度
             notifyListeners();
           } else if (msg is Map && msg['error'] != null) {
-            progressMessage = '加载失败: ${msg['error']}';
+            progressMessage = '加载失败: ${msg['error']}（步骤：$currentStep）';
             isLoading = false;
             isInitialized = false;
             notifyListeners();
           } else if (msg is Map && msg['phase'] == 'gpx') {
-            _routes
+            routes
               ..clear()
               ..addAll(msg['routes']);
-            _gpxFile
+            gpxData
               ..clear()
-              ..addAll(msg['gpxFiles']);
+              ..addAll(msg['gpxData']);
             gpxLoaded = true;
+            currentStep = '路书加载完成';
             if (onGpxLoaded != null) onGpxLoaded!();
             notifyListeners();
           } else if (msg is Map && msg['phase'] == 'fit') {
-            _fitData
+            print('adding id');
+            fitData
               ..clear()
               ..addAll(msg['fitData']);
-            _histories
-              ..clear()
-              ..addAll(msg['histories']);
+            print('fit data loaded');
             fitLoaded = true;
+            currentStep = '骑行记录加载完成';
             if (onFitLoaded != null) onFitLoaded!();
             notifyListeners();
           } else if (msg is Map && msg['phase'] == 'summary') {
-            _summary
+            summaryList
               ..clear()
               ..addAll(msg['summary']);
             summaryLoaded = true;
+            currentStep = '骑行摘要分析完成';
             if (onSummaryLoaded != null) onSummaryLoaded!();
             notifyListeners();
           } else if (msg is Map && msg['phase'] == 'rideData') {
-            _rideData
+            rideData
               ..clear()
               ..addAll(msg['rideData']);
             rideDataLoaded = true;
+            currentStep = '骑行统计完成';
             if (onRideDataLoaded != null) onRideDataLoaded!();
             notifyListeners();
           } else if (msg is Map && msg['phase'] == 'bestScore') {
-            _bestScore
+            bestScore
               ..clear()
               ..addAll(msg['bestScore']);
-            _bestScoreAt
+            bestScoreAt
               ..clear()
               ..addAll(msg['bestScoreAt']);
-            _bestSegment
+            bestSegment
               ..clear()
               ..addAll(msg['bestSegment']);
-            _subRoutesOfRoutes
+            subRoutesOfRoutes
               ..clear()
               ..addAll(msg['subRoutesOfRoutes']);
             bestScoreLoaded = true;
+            currentStep = '最佳成绩分析完成';
             if (onBestScoreLoaded != null) onBestScoreLoaded!();
             isInitialized = true;
             isLoading = false;
@@ -194,7 +194,8 @@ class DataLoader extends ChangeNotifier {
         },
       );
     } catch (e) {
-      progressMessage = '加载失败: ${e.toString()}';
+      progressMessage = '加载失败: ${e.toString()}（步骤：$currentStep）';
+      print('err in catch, step: $currentStep');
       isLoading = false;
       isInitialized = false;
       notifyListeners();
@@ -208,34 +209,33 @@ class DataLoader extends ChangeNotifier {
   Future<void> loadBestScore() async {}
 }
 
-Map<String, dynamic> _parseGpxFiles(List<File> files) {
-  final gpxFiles = <File>[];
-  final routes = <List<LatLng>>[];
+Map<String, String> _parseGpxFiles(List<File> files, {SendPort? sendPort}) {
+  final gpxFiles = <String, String>{};
+  int count = 0;
 
   for (var file in files) {
     try {
       final gpxData = file.readAsStringSync();
-      gpxFiles.add(file);
-      routes.add(parseGpxToPath(gpxData));
+      gpxFiles[file.path] = gpxData;
+      sendPort?.send({'progress': '路书解析中： ${count++}/${files.length}'});
     } catch (e) {
       debugPrint('Error reading GPX file: $e');
     }
   }
 
-  return {'files': gpxFiles, 'routes': routes};
+  return gpxFiles;
 }
 
-Map<String, dynamic> _parseFitFiles(List<File> files) {
-  final fitDataList = <Map<String, dynamic>>[];
-  final histories = <List<LatLng>>[];
+Map<String, List<Message>> _parseFitFiles(List<File> files,
+    {SendPort? sendPort}) {
+  final fitDataList = <String, List<Message>>{};
+  int count = 0;
 
   for (var file in files) {
-    final fitData = parseFitFile(file.readAsBytesSync());
-    fitDataList.add({...fitData, 'path': file.path});
-    histories.add(parseFitDataToRoute(fitData));
+    fitDataList[file.path] = parseFitFile(file);
+    sendPort?.send({'progress': '骑行记录解析中： ${count++}/${files.length}'});
   }
-
-  return {'fitData': fitDataList, 'histories': histories};
+  return fitDataList;
 }
 
 Map<String, dynamic> _analyzeRideData(List<Map<String, dynamic>> summaries) {
@@ -250,14 +250,26 @@ Map<String, dynamic> _analyzeRideData(List<Map<String, dynamic>> summaries) {
   );
 }
 
-List<Map<String, dynamic>> _analyzeSummaryData(
-    List<Map<String, dynamic>> fitData) {
-  return fitData.map(parseFitDataToSummary).toList();
+List<Map<String, dynamic>> _analyzeSummaryData(List<List<Message>> fitData) {
+  return fitData
+      .map<SessionMessage>(parseFitDataToSummary)
+      .map<Map<String, dynamic>>((session) {
+    return {
+      "timestamp": session.timestamp,
+      "start_time": session.startTime,
+      "sport": session.sport,
+      "max_temperature": session.maxTemperature,
+      "avg_temperature": session.avgTemperature,
+      "total_ascent": session.totalAscent,
+      "total_descent": session.totalDescent,
+      "total_distance": session.totalDistance,
+      "total_elapsed_time": session.totalElapsedTime,
+    };
+  }).toList();
 }
 
-Map<String, dynamic> _analyzeBestScore(Map<String, dynamic> input) {
-  final fitData = input['fitData'] as List<Map<String, dynamic>>;
-  final routes = input['routes'] as List<List<LatLng>>;
+Map<String, dynamic> _analyzeBestScore(List<List<Message>> data) {
+  final routes = data.map((record) => parseFitDataToRoute(record)).toList();
 
   final bestScoreTillNow = <int, BestScore>{};
   final bestScoreAtTimestamp = <int, BestScore>{};
@@ -265,14 +277,16 @@ Map<String, dynamic> _analyzeBestScore(Map<String, dynamic> input) {
   final currBestScore = BestScore();
   final subRoutesOfRoutes = <int, List<SegmentScore>>{};
 
-  final orderedFitData = List<Map<String, dynamic>>.from(fitData)
-    ..sort((a, b) => (getTimestampFromDataMessage(a['sessions'][0]) -
-            getTimestampFromDataMessage(b['sessions'][0]))
+  final orderedFitData = data
+    ..sort((a, b) => (timestampWithOffset(
+                a.whereType<SessionMessage>().first.startTime!) -
+            timestampWithOffset(b.whereType<SessionMessage>().first.startTime!))
         .toInt());
 
   for (var fitData in orderedFitData) {
-    final timestamp = getTimestampFromDataMessage(fitData['sessions'][0]);
-    final bestScoreForTimestamp = BestScore().update(fitData['records']);
+    final timestamp = timestampWithOffset(
+        fitData.whereType<SessionMessage>().first.startTime!);
+    final bestScoreForTimestamp = BestScore().update(fitData);
     // modified, because merge current bestscore don't mix new best's judgement
     currBestScore.merge(bestScoreForTimestamp);
     bestScoreTillNow[timestamp] = BestScore()..merge(currBestScore); // copy
@@ -340,38 +354,46 @@ void _dataLoadIsolateEntryWithProgressPhased(
     sendPort.send({'progress': '正在初始化存储...'});
     Storage.appDocPath = request.appDocPath;
 
-    // 并行读取GPX和FIT文件
-    final gpxFuture = Future(() {
+    // GPX
+    sendPort.send({'progress': '正在读取路书...'});
+    final parsedRoutes = await Future(() {
       final gpxFiles = Storage().getGpxFilesSync();
-      final parsedRoutes = _parseGpxFiles(gpxFiles);
+      final parsedRoutes = _parseGpxFiles(gpxFiles, sendPort: sendPort);
+      print('all gpx parsed');
       return parsedRoutes;
     });
-    final fitFuture = Future(() {
-      final fitFiles = Storage().getFitFilesSync();
-      final parsedHistories = _parseFitFiles(fitFiles);
-      return parsedHistories;
-    });
-
-    // GPX
-    final parsedRoutes = await gpxFuture;
     sendPort.send({
       'phase': 'gpx',
-      'routes': parsedRoutes['routes'],
-      'gpxFiles': parsedRoutes['files'],
+      'routes': parsedRoutes.values.map((e) => GpxReader()
+          .fromString(e)
+          .trks
+          .first
+          .trksegs
+          .first
+          .trkpts
+          .map((p) => LatLng(p.lat!, p.lon!))
+          .toList()),
+      'gpxData': parsedRoutes,
     });
 
     // FIT
-    final parsedHistories = await fitFuture;
+    sendPort.send({'progress': '正在读取骑行记录...'});
+    final parsedHistories = await Future(() {
+      final fitFiles = Storage().getFitFilesSync();
+      final parsedHistories = _parseFitFiles(fitFiles, sendPort: sendPort);
+      print('all fit parsed');
+      return parsedHistories;
+    });
     sendPort.send({
       'phase': 'fit',
-      'fitData': parsedHistories['fitData'],
-      'histories': parsedHistories['histories'],
+      'fitData': parsedHistories,
     });
 
     // 摘要
     sendPort.send({'progress': '正在分析骑行摘要...'});
-    final summary =
-        await Future(() => _analyzeSummaryData(parsedHistories['fitData']));
+    print('start analyzing summary');
+    final summary = await Future(
+        () => _analyzeSummaryData(parsedHistories.values.toList()));
     sendPort.send({
       'phase': 'summary',
       'summary': summary,
@@ -387,10 +409,8 @@ void _dataLoadIsolateEntryWithProgressPhased(
 
     // 最佳成绩
     sendPort.send({'progress': '正在分析最佳成绩...'});
-    final bestScoreData = await Future(() => _analyzeBestScore({
-          'fitData': parsedHistories['fitData'],
-          'routes': parsedRoutes['routes'],
-        }));
+    final bestScoreData =
+        await Future(() => _analyzeBestScore(parsedHistories.values.toList()));
     sendPort.send({
       'phase': 'bestScore',
       'bestScore': bestScoreData['bestScore'],

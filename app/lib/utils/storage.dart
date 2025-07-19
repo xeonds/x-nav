@@ -51,8 +51,13 @@ class Storage {
       throw Exception("Storage未初始化，请先 await Storage.initialize()");
     }
     final historyDir = Directory('$appDocPath/history');
+    // extension filter for .fit files
     return historyDir.existsSync()
-        ? historyDir.listSync().whereType<File>().toList()
+        ? historyDir
+            .listSync()
+            .whereType<File>()
+            .where((file) => file.path.endsWith('.fit'))
+            .toList()
         : [];
   }
 
@@ -61,8 +66,13 @@ class Storage {
       throw Exception("Storage未初始化，请先 await Storage.initialize()");
     }
     final routeDir = Directory('$appDocPath/route');
+    // extension filter for .gpx files
     return routeDir.existsSync()
-        ? routeDir.listSync().whereType<File>().toList()
+        ? routeDir
+            .listSync()
+            .whereType<File>()
+            .where((file) => file.path.endsWith('.gpx'))
+            .toList()
         : [];
   }
 
@@ -88,7 +98,8 @@ class Storage {
     //await _addDirToArchive(archive, appDocDir!, appDocPath!);
     //final zipData = ZipEncoder.encode(archive)!;
     final tmpDir = await getTemporaryDirectory();
-    final zipFile = File(path.join(tmpDir.path, "backup_${DateTime.now().millisecondsSinceEpoch}.zip"));
+    final zipFile = File(path.join(
+        tmpDir.path, "backup_${DateTime.now().millisecondsSinceEpoch}.zip"));
     //await zipFile.writeAsBytes(zipData);
     final encoder = ZipFileEncoder();
     encoder.create(zipFile.path);
@@ -98,11 +109,11 @@ class Storage {
       await Share.shareXFiles(
           [XFile(zipFile.path, mimeType: 'application/zip')],
           text: 'Sharing backup file');
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
-  static Future<void> _addDirToArchive(Archive archive, Directory dir, String rootPath) async {
+  static Future<void> _addDirToArchive(
+      Archive archive, Directory dir, String rootPath) async {
     await for (final entity in dir.list(recursive: true)) {
       if (entity is File) {
         final data = await entity.readAsBytes();

@@ -1,7 +1,8 @@
 import 'dart:math';
 
-import 'package:app/utils/fit_parser.dart'
-    show parseFitDataToMetric, parseFitDataToRoute, parseFitDataToSummary;
+import 'package:app/utils/fit.dart';
+import 'package:fit_tool/fit_tool.dart'
+    show Message, RecordMessage, SessionMessage;
 import 'package:latlong2/latlong.dart';
 
 // 获取一个路径的几何中心
@@ -169,80 +170,80 @@ class SegmentMatcher {
     return bestMatch;
   }
 
-  /// 使用改进的路径匹配算法（基于动态规划思想）
-  SegmentMatch? matchSegmentImproved(
-      List<LatLng> ridePoints, List<LatLng> segmentPoints, int segId) {
-    if (ridePoints.isEmpty || segmentPoints.isEmpty) return null;
+  // /// 使用改进的路径匹配算法（基于动态规划思想）
+  // SegmentMatch? matchSegmentImproved(
+  //     List<LatLng> ridePoints, List<LatLng> segmentPoints, int segId) {
+  //   if (ridePoints.isEmpty || segmentPoints.isEmpty) return null;
 
-    // 使用动态规划的方法查找最佳匹配路径
-    int m = ridePoints.length;
-    int n = segmentPoints.length;
+  //   // 使用动态规划的方法查找最佳匹配路径
+  //   int m = ridePoints.length;
+  //   int n = segmentPoints.length;
 
-    // 创建一个矩阵来记录每个骑行点与赛段点的距离
-    List<List<double>> distanceMatrix =
-        List.generate(m, (_) => List.filled(n, double.infinity));
+  //   // 创建一个矩阵来记录每个骑行点与赛段点的距离
+  //   List<List<double>> distanceMatrix =
+  //       List.generate(m, (_) => List.filled(n, double.infinity));
 
-    // 填充距离矩阵
-    for (int i = 0; i < m; i++) {
-      for (int j = 0; j < n; j++) {
-        distanceMatrix[i][j] =
-            distance.as(LengthUnit.Meter, ridePoints[i], segmentPoints[j]);
-      }
-    }
+  //   // 填充距离矩阵
+  //   for (int i = 0; i < m; i++) {
+  //     for (int j = 0; j < n; j++) {
+  //       distanceMatrix[i][j] =
+  //           distance.as(LengthUnit.Meter, ridePoints[i], segmentPoints[j]);
+  //     }
+  //   }
 
-    // 用于回溯的最佳匹配路径
-    List<List<int>> bestPath = List.generate(m, (_) => List.filled(n, -1));
+  //   // 用于回溯的最佳匹配路径
+  //   List<List<int>> bestPath = List.generate(m, (_) => List.filled(n, -1));
 
-    // 动态规划求解
-    int startIdx = -1;
-    int endIdx = -1;
-    double bestScore = double.negativeInfinity;
+  //   // 动态规划求解
+  //   int startIdx = -1;
+  //   int endIdx = -1;
+  //   double bestScore = double.negativeInfinity;
 
-    for (int i = 0; i < m; i++) {
-      if (distanceMatrix[i][0] <= distanceThreshold) {
-        // 可能的起点
-        int currentRideIdx = i;
-        int currentSegmentIdx = 0;
-        int matchedPoints = 1;
+  //   for (int i = 0; i < m; i++) {
+  //     if (distanceMatrix[i][0] <= distanceThreshold) {
+  //       // 可能的起点
+  //       int currentRideIdx = i;
+  //       int currentSegmentIdx = 0;
+  //       int matchedPoints = 1;
 
-        while (currentRideIdx < m - 1 && currentSegmentIdx < n - 1) {
-          currentRideIdx++;
-          // 寻找下一个最佳匹配点
-          double minDist = double.infinity;
-          int bestNextSegmentIdx = -1;
+  //       while (currentRideIdx < m - 1 && currentSegmentIdx < n - 1) {
+  //         currentRideIdx++;
+  //         // 寻找下一个最佳匹配点
+  //         double minDist = double.infinity;
+  //         int bestNextSegmentIdx = -1;
 
-          for (int j = currentSegmentIdx;
-              j < min(currentSegmentIdx + 5, n);
-              j++) {
-            if (distanceMatrix[currentRideIdx][j] < minDist &&
-                distanceMatrix[currentRideIdx][j] <= distanceThreshold) {
-              minDist = distanceMatrix[currentRideIdx][j];
-              bestNextSegmentIdx = j;
-            }
-          }
+  //         for (int j = currentSegmentIdx;
+  //             j < min(currentSegmentIdx + 5, n);
+  //             j++) {
+  //           if (distanceMatrix[currentRideIdx][j] < minDist &&
+  //               distanceMatrix[currentRideIdx][j] <= distanceThreshold) {
+  //             minDist = distanceMatrix[currentRideIdx][j];
+  //             bestNextSegmentIdx = j;
+  //           }
+  //         }
 
-          if (bestNextSegmentIdx != -1) {
-            currentSegmentIdx = bestNextSegmentIdx;
-            matchedPoints++;
-          }
-        }
+  //         if (bestNextSegmentIdx != -1) {
+  //           currentSegmentIdx = bestNextSegmentIdx;
+  //           matchedPoints++;
+  //         }
+  //       }
 
-        double matchPercentage = matchedPoints / n;
-        if (matchPercentage > bestScore &&
-            matchPercentage >= minMatchPercentage) {
-          bestScore = matchPercentage;
-          startIdx = i;
-          endIdx = currentRideIdx;
-        }
-      }
-    }
+  //       double matchPercentage = matchedPoints / n;
+  //       if (matchPercentage > bestScore &&
+  //           matchPercentage >= minMatchPercentage) {
+  //         bestScore = matchPercentage;
+  //         startIdx = i;
+  //         endIdx = currentRideIdx;
+  //       }
+  //     }
+  //   }
 
-    if (startIdx != -1 && endIdx != -1) {
-      return SegmentMatch(segmentPoints, startIdx, endIdx, bestScore, segId);
-    }
+  //   if (startIdx != -1 && endIdx != -1) {
+  //     return SegmentMatch(segmentPoints, startIdx, endIdx, bestScore, segId);
+  //   }
 
-    return null;
-  }
+  //   return null;
+  // }
 
   /// 判断两个点是否匹配（在阈值距离内）
   bool isPointMatch(LatLng point1, LatLng point2) {
@@ -256,16 +257,18 @@ class SegmentMatcher {
 
 SegmentScore parseSegmentToScore(
   SegmentMatch segment,
-  Map<String, dynamic> rideData,
+  List<Message> rideData,
   List<LatLng> routePoints,
 ) {
+  final sessionMsg = rideData.whereType<SessionMessage>().first;
+
   final startIndex = segment.startIndex;
   final endIndex = segment.endIndex;
-  final startTime = rideData['records'][startIndex].get('timestamp');
-  final endTime = rideData['records'][endIndex].get('timestamp');
+  final startTime = sessionMsg.startTime!;
+  final endTime = sessionMsg.totalMovingTime! + startTime;
   return SegmentScore(
       segment: segment,
-      startTime: startTime,
+      startTime: startTime.toDouble(),
       endTime: endTime,
       duration: endTime - startTime, // 秒
       avgSpeed: ((latlngToDistance(routePoints.sublist(startIndex, endIndex)) /
@@ -301,37 +304,30 @@ class SegmentScore {
 }
 
 class RideScore {
-  final Map<String, dynamic> rideData; // fitData原始数据
+  final List<Message> rideData; // fitData原始数据
   late final List<LatLng> routePoints; // 骑行记录的路径点
-  late final Map<String, dynamic> summary; // 骑行记录的统计数据
+  late final SessionMessage summary; // 骑行记录的统计数据
 
-  late final List<double> speed; // 速度数据
-  late final List<double> distance; // 距离数据
-  late final List<double> altitude; // 海拔数据
+  List<double> speed = []; // 速度数据
+  List<double> distance = []; // 距离数据
+  List<double> altitude = []; // 海拔数据
+  List<num> power = []; // 功率数据
+  List<num> heartRate = []; // 心率数据
 
+  // fix: initialize list
   RideScore({
     required this.rideData,
     required routes,
   }) {
     routePoints = parseFitDataToRoute(rideData);
     summary = parseFitDataToSummary(rideData);
-    final preSpeed = parseFitDataToMetric<double>(rideData, "speed")
-        .map((e) => e * 3.6)
-        .toList(); // km/h
-    final preDistance = parseFitDataToMetric<double>(
-      rideData,
-      "distance",
-    ).map((e) => e / 1000.0).toList(); // km
-    final preAltitude = parseFitDataToMetric<double>(rideData, "altitude"); // m
-    // TODO: 处理数据长度不一致的问题
-    final minLength = [
-      preSpeed.length,
-      preDistance.length,
-      preAltitude.length,
-    ].reduce((a, b) => a < b ? a : b);
-    speed = preSpeed.sublist(0, minLength);
-    distance = preDistance.sublist(0, minLength);
-    altitude = preAltitude.sublist(0, minLength);
+    rideData.whereType<RecordMessage>().toList().forEach((e) {
+      speed.add(e.speed ?? 0.0 * 3.6); // km/h
+      distance.add(e.distance ?? 0.0 / 1000.0); // km
+      altitude.add(e.altitude ?? 0.0); // m
+      power.add(e.power ?? 0.0); // W
+      heartRate.add(e.heartRate ?? 0.0); // bpm
+    });
   }
 }
 

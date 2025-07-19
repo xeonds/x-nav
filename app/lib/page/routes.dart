@@ -1,5 +1,4 @@
 import 'package:app/component/data.dart';
-import 'package:app/utils/path_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -13,7 +12,6 @@ import 'package:app/utils/data_loader.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:provider/provider.dart';
 
 class RoutesPage extends StatefulWidget {
@@ -25,16 +23,70 @@ class RoutesPage extends StatefulWidget {
 }
 
 class RoutesPageState extends State<RoutesPage> {
-  bool _isFullScreen = false;
-  String? _selectedGpxData;
-  File? _selectedGpxFile = null;
-  List<LatLng> _previewPath = [];
+  File? _selectedGpxFile;
   Gpx? _previewGpx;
-  final MapController _mapController = MapController();
+  RangeValues? _routeLengthFilter;
+  RangeValues? _distanceToStartFilter;
+  RangeValues? _avgSlopeFilter;
 
   @override
   void initState() {
     super.initState();
+  }
+
+  Widget _FilterTag({
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Chip(
+        label: Text(label),
+        avatar: Icon(icon),
+        backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+      ),
+    );
+  }
+
+  Widget _RangeSliderSheet({
+    required String title,
+    required double min,
+    required double max,
+    required RangeValues initial,
+  }) {
+    RangeValues _currentValues = initial;
+
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.headlineSmall),
+          RangeSlider(
+            values: _currentValues,
+            min: min,
+            max: max,
+            divisions: (max - min).toInt(),
+            labels: RangeLabels(
+              _currentValues.start.toStringAsFixed(1),
+              _currentValues.end.toStringAsFixed(1),
+            ),
+            onChanged: (values) {
+              setState(() {
+                _currentValues = values;
+              });
+            },
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop(_currentValues);
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -42,308 +94,349 @@ class RoutesPageState extends State<RoutesPage> {
     final dataLoader = context.watch<DataLoader>(); // 监听 DataLoader 的状态
 
     return Scaffold(
-      appBar: _isFullScreen ? null : AppBar(title: const Text('Routes')),
-      body: Stack(
+      appBar: AppBar(title: const Text('Routes')),
+      body: Column(
         children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: const MapOptions(
-              initialCenter: LatLng(34.1301578, 108.8277069),
-              initialZoom: 5,
+          // Filter tags row
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Wrap(
+              spacing: 8,
+              children: [
+                _FilterTag(
+                  label: _routeLengthFilter != null
+                      ? '长度: ${_routeLengthFilter!.start.toStringAsFixed(1)}-${_routeLengthFilter!.end.toStringAsFixed(1)} km'
+                      : '长度',
+                  icon: Icons.timeline,
+                  onTap: () async {
+                    final result = await showModalBottomSheet<RangeValues>(
+                      context: context,
+                      builder: (context) => _RangeSliderSheet(
+                        title: '选择路线长度 (km)',
+                        min: 0,
+                        max: 100,
+                        initial:
+                            _routeLengthFilter ?? const RangeValues(0, 100),
+                      ),
+                    );
+                    if (result != null) {
+                      setState(() {
+                        _routeLengthFilter = result;
+                      });
+                    }
+                  },
+                ),
+                _FilterTag(
+                  label: _distanceToStartFilter != null
+                      ? '起点距离: ${_distanceToStartFilter!.start.toStringAsFixed(1)}-${_distanceToStartFilter!.end.toStringAsFixed(1)} km'
+                      : '起点距离',
+                  icon: Icons.place,
+                  onTap: () async {
+                    final result = await showModalBottomSheet<RangeValues>(
+                      context: context,
+                      builder: (context) => _RangeSliderSheet(
+                        title: '选择起点距离 (km)',
+                        min: 0,
+                        max: 50,
+                        initial:
+                            _distanceToStartFilter ?? const RangeValues(0, 50),
+                      ),
+                    );
+                    if (result != null) {
+                      setState(() {
+                        _distanceToStartFilter = result;
+                      });
+                    }
+                  },
+                ),
+                _FilterTag(
+                  label: _avgSlopeFilter != null
+                      ? '平均坡度: ${_avgSlopeFilter!.start.toStringAsFixed(1)}%-${_avgSlopeFilter!.end.toStringAsFixed(1)}%'
+                      : '平均坡度',
+                  icon: Icons.terrain,
+                  onTap: () async {
+                    final result = await showModalBottomSheet<RangeValues>(
+                      context: context,
+                      builder: (context) => _RangeSliderSheet(
+                        title: '选择平均坡度 (%)',
+                        min: 0,
+                        max: 30,
+                        initial: _avgSlopeFilter ?? const RangeValues(0, 30),
+                      ),
+                    );
+                    if (result != null) {
+                      setState(() {
+                        _avgSlopeFilter = result;
+                      });
+                    }
+                  },
+                ),
+              ],
             ),
-            children: [
-              TileLayer(
-                urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                tileProvider: dataLoader.tileProvider,
-              ),
-              PolylineLayer(
-                polylines: [
-                  ...dataLoader.routes.map((points) => Polyline(
-                        points: points,
-                        color: Colors.deepOrange,
-                        strokeWidth: 5,
-                      )),
-                  if (_previewPath.isNotEmpty)
-                    Polyline(
-                      points: _previewPath,
-                      color: Colors.blue,
-                      strokeWidth: 5,
-                    ),
-                ],
-              ),
-            ],
           ),
-          if (!_isFullScreen)
-            DraggableScrollableSheet(
-              initialChildSize: 0.2,
-              minChildSize: 0.2,
-              maxChildSize: 1.0,
-              shouldCloseOnMinExtent: true,
-              snap: true,
-              snapSizes: const [0.2, 0.5, 1.0],
-              builder:
-                  (BuildContext context, ScrollController scrollController) {
-                final isDarkMode = MediaQuery.of(context).platformBrightness ==
-                    Brightness.dark;
-                return Container(
-                  decoration: BoxDecoration(
-                    color: isDarkMode ? Colors.grey[900] : Colors.white,
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(16)),
-                  ),
-                  child: _selectedGpxData == null
-                      ? CustomScrollView(
-                          controller: scrollController,
-                          slivers: [
-                            SliverToBoxAdapter(
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    'Routes List',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: isDarkMode
-                                          ? Colors.white
-                                          : Colors.black,
-                                    ),
-                                  ),
-                                ),
-                              ),
+          // Title
+          // Padding(
+          //   padding: const EdgeInsets.all(16.0),
+          //   child: Align(
+          //     alignment: Alignment.centerLeft,
+          //     child: Text(
+          //       'Routes List',
+          //       style: TextStyle(
+          //         fontSize: 18,
+          //         fontWeight: FontWeight.bold,
+          //         color: Theme.of(context).brightness == Brightness.dark
+          //             ? Colors.white
+          //             : Colors.black,
+          //       ),
+          //     ),
+          //   ),
+          // ),
+          Expanded(
+            child: dataLoader.gpxData.isEmpty
+                ? Center(
+                    child: Text(
+                      '无路书',
+                      style: TextStyle(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white
+                            : Colors.black,
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: dataLoader.gpxData.length,
+                    itemBuilder: (context, index) {
+                      final file = dataLoader.gpxData.entries.toList()[index];
+                      return Card(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.grey[800]
+                            : Colors.white,
+                        child: ListTile(
+                          title: Text(
+                            file.key.split('/').last,
+                            style: TextStyle(
+                              color: Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? Colors.white
+                                  : Colors.black,
                             ),
-                            dataLoader.gpxData.isEmpty
-                                ? SliverFillRemaining(
-                                    child: Center(
-                                      child: Text(
-                                        '无路书',
-                                        style: TextStyle(
-                                          color: isDarkMode
-                                              ? Colors.white
-                                              : Colors.black,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                : SliverList(
-                                    delegate: SliverChildBuilderDelegate(
-                                      (context, index) {
-                                        final file = dataLoader.gpxData[index];
-                                        return Card(
-                                          color: isDarkMode
-                                              ? Colors.grey[800]
-                                              : Colors.white,
-                                          child: ListTile(
-                                            title: Text(
-                                              file.path.split('/').last,
-                                              style: TextStyle(
-                                                color: isDarkMode
-                                                    ? Colors.white
-                                                    : Colors.black,
+                          ),
+                          onTap: () async {
+                            try {
+                              final gpxData = file.value;
+                              final gpx = GpxReader().fromString(gpxData);
+                              final points = gpx.trks
+                                  .expand((trk) => trk.trksegs)
+                                  .expand((trkseg) => trkseg.trkpts)
+                                  .map(
+                                      (trkpt) => LatLng(trkpt.lat!, trkpt.lon!))
+                                  .toList();
+                              setState(() {
+                                _selectedGpxFile = File(file.key);
+                                _previewGpx = gpx;
+                              });
+                              // Show as bottom sheet first
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor:
+                                    Theme.of(context).scaffoldBackgroundColor,
+                                shape: const RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(16)),
+                                ),
+                                builder: (context) {
+                                  return DraggableScrollableSheet(
+                                    initialChildSize: 0.5,
+                                    minChildSize: 0.3,
+                                    maxChildSize: 1.0,
+                                    expand: false,
+                                    builder: (context, scrollController) {
+                                      return NotificationListener<
+                                          DraggableScrollableNotification>(
+                                        onNotification: (notification) {
+                                          // If dragged to full screen, push to full page
+                                          if (notification.extent >= 0.99) {
+                                            Navigator.of(context).pop();
+                                            Navigator.of(context).push(
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    RoutePreviewPage(
+                                                  gpx: _previewGpx,
+                                                  file: _selectedGpxFile,
+                                                  onDelete: () {
+                                                    setState(() {
+                                                      _selectedGpxFile = null;
+                                                      _previewGpx = null;
+                                                    });
+                                                  },
+                                                ),
                                               ),
-                                            ),
-                                            onTap: () async {
-                                              try {
-                                                final gpxData =
-                                                    file.readAsStringSync();
-                                                final gpx = GpxReader()
-                                                    .fromString(gpxData);
-                                                final points = gpx.trks
-                                                    .expand(
-                                                        (trk) => trk.trksegs)
-                                                    .expand((trkseg) =>
-                                                        trkseg.trkpts)
-                                                    .map((trkpt) => LatLng(
-                                                        trkpt.lat!, trkpt.lon!))
-                                                    .toList();
-                                                _mapController.move(
-                                                  initCenter(points),
-                                                  initZoom(points),
-                                                );
-                                                setState(() {
-                                                  _selectedGpxData = gpxData;
-                                                  _selectedGpxFile = file;
-                                                  _previewGpx = gpx;
-                                                  _previewPath = points;
-                                                });
-                                              } catch (e) {
-                                                if (kDebugMode) {
-                                                  print(
-                                                      'Error loading GPX file: $e');
-                                                }
-                                                ScaffoldMessenger.of(context)
-                                                    .showSnackBar(
-                                                  SnackBar(
-                                                    content: Text(
-                                                        'Failed to load GPX file: $e'),
-                                                  ),
-                                                );
-                                                setState(() {
-                                                  _selectedGpxData = "";
-                                                  _selectedGpxFile = file;
-                                                  _previewPath = [];
-                                                  _previewGpx = null;
-                                                });
-                                              }
-                                            },
-                                          ),
-                                        );
-                                      },
-                                      childCount: dataLoader.gpxData.length,
-                                    ),
-                                  ),
-                          ],
-                        )
-                      : Column(
-                          children: [
-                            ListTile(
-                              leading: IconButton(
-                                icon: const Icon(Icons.arrow_back),
-                                onPressed: () {
-                                  setState(() {
-                                    _selectedGpxData = null;
-                                    _selectedGpxFile = null;
-                                    _previewPath = [];
-                                    _previewGpx = null;
-                                  });
+                                            );
+                                          }
+                                          return false;
+                                        },
+                                        child: RoutePreviewContent(
+                                          gpx: _previewGpx!,
+                                          file: _selectedGpxFile!,
+                                          // onDelete: () {
+                                          //   setState(() {
+                                          //     _selectedGpxData =
+                                          //         null;
+                                          //     _selectedGpxFile =
+                                          //         null;
+                                          //     _previewPath = [];
+                                          //     _previewGpx = null;
+                                          //   });
+                                          //   Navigator.of(context)
+                                          //       .pop();
+                                          // },
+                                          // scrollController:
+                                          //     scrollController,
+                                        ),
+                                      );
+                                    },
+                                  );
                                 },
-                              ),
-                              title: Text(
-                                'Preview Route',
-                                style: TextStyle(
-                                  color:
-                                      isDarkMode ? Colors.white : Colors.black,
+                              );
+                            } catch (e) {
+                              if (kDebugMode) {
+                                print('Error loading GPX file: $e');
+                              }
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Failed to load GPX file: $e'),
                                 ),
-                              ),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete),
-                                onPressed: () async {
-                                  if (_selectedGpxFile != null) {
-                                    if (_selectedGpxFile!.existsSync()) {
-                                      await _selectedGpxFile!.delete();
-                                      setState(() {
-                                        _selectedGpxData = null;
-                                        _selectedGpxFile = null;
-                                        _previewPath = [];
-                                        _previewGpx = null;
-                                      });
-                                    }
-                                  }
-                                },
-                              ),
-                            ),
-                            Expanded(
-                              child: ListView(
-                                controller: scrollController,
-                                children: [
-                                  if (_previewGpx != null)
-                                    ListTile(
-                                      title: Text(
-                                        'Length: ${_previewGpx!.trks.first.trksegs.first.trkpts.length} points',
-                                        style: TextStyle(
-                                          color: isDarkMode
-                                              ? Colors.white
-                                              : Colors.black,
-                                        ),
-                                      ),
-                                    ),
-                                  if (_previewGpx?.metadata?.time != null)
-                                    ListTile(
-                                      title: Text(
-                                        'Time: ${_previewGpx!.metadata!.time}',
-                                        style: TextStyle(
-                                          color: isDarkMode
-                                              ? Colors.white
-                                              : Colors.black,
-                                        ),
-                                      ),
-                                    ),
-                                  // 添加更多路书信息
-                                ],
-                              ),
-                            ),
-                          ],
+                              );
+                              setState(() {
+                                _selectedGpxFile = File(file.key);
+                                _previewGpx = null;
+                              });
+                            }
+                          },
                         ),
-                );
-              },
-            ),
+                      );
+                    },
+                  ),
+          ),
         ],
       ),
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (_selectedGpxFile == null)
-            FloatingActionButton(
-              onPressed: () async {
-                final result = await FilePicker.platform.pickFiles(
-                  type: FileType.any,
-                  allowMultiple: true,
-                );
-                if (result != null) {
-                  for (final file in result.files) {
-                    final path = file.path!;
-                    final gpxFile = File(path);
-                    await Storage().saveGpxFile(
-                      path.split('/').last,
-                      await gpxFile.readAsBytes(),
-                    );
-                  }
-                }
-              },
-              child: const Icon(Icons.file_upload),
-            ),
-          if (_selectedGpxFile == null) const SizedBox(height: 16),
-          if (_selectedGpxFile == null)
-            FloatingActionButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        const RouteEditPage(route: 'new_route'),
-                  ),
-                );
-              },
-              child: const Icon(Icons.create),
-            ),
-          if (_selectedGpxFile != null)
-            // export gpx file
-            FloatingActionButton(
-              onPressed: () async {
-                if (_selectedGpxFile != null) {
-                  final file = _selectedGpxFile!;
-                  try {
-                    await Share.shareXFiles(
-                        [XFile(file.path, mimeType: 'application/gpx+xml')],
-                        text: 'Sharing GPX file');
-                  } catch (e) {
-                    if (kDebugMode) {
-                      print('Error sharing GPX file: $e');
-                    }
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Failed to share GPX file: $e'),
-                      ),
-                    );
-                  }
-                }
-              },
-              child: const Icon(Icons.output),
-            ),
-          const SizedBox(height: 16),
           FloatingActionButton(
-            onPressed: () {
-              setState(() {
-                _isFullScreen = !_isFullScreen;
-                widget.onFullScreenToggle?.call(_isFullScreen);
-              });
+            onPressed: () async {
+              final result = await FilePicker.platform.pickFiles(
+                type: FileType.any,
+                allowMultiple: true,
+              );
+              if (result != null) {
+                for (final file in result.files) {
+                  final path = file.path!;
+                  final gpxFile = File(path);
+                  await Storage().saveGpxFile(
+                    path.split('/').last,
+                    await gpxFile.readAsBytes(),
+                  );
+                }
+              }
             },
-            child:
-                Icon(_isFullScreen ? Icons.fullscreen_exit : Icons.fullscreen),
+            child: const Icon(Icons.file_upload),
+          ),
+          // FloatingActionButton(
+          //   onPressed: () async {
+          //     if (_selectedGpxFile != null) {
+          //       final file = _selectedGpxFile!;
+          //       try {
+          //         await Share.shareXFiles(
+          //             [XFile(file.path, mimeType: 'application/gpx+xml')],
+          //             text: 'Sharing GPX file');
+          //       } catch (e) {
+          //         if (kDebugMode) {
+          //           print('Error sharing GPX file: $e');
+          //         }
+          //         ScaffoldMessenger.of(context).showSnackBar(
+          //           SnackBar(
+          //             content: Text('Failed to share GPX file: $e'),
+          //           ),
+          //         );
+          //       }
+          //     }
+          //   },
+          //   child: const Icon(Icons.output),
+          // ),
+        ],
+      ),
+    );
+  }
+}
+
+class RoutePreviewPage extends StatelessWidget {
+  final Gpx? gpx;
+  final File? file;
+  final VoidCallback onDelete;
+
+  const RoutePreviewPage({
+    super.key,
+    required this.gpx,
+    required this.file,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (gpx == null || file == null) {
+      return const Center(child: Text('No route selected'));
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(file!.path.split('/').last),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete),
+            onPressed: () {
+              onDelete();
+            },
           ),
         ],
       ),
+      body: RoutePreviewContent(gpx: gpx!, file: file!),
+    );
+  }
+}
+
+class RoutePreviewContent extends StatelessWidget {
+  final Gpx gpx;
+  final File file;
+
+  const RoutePreviewContent({
+    super.key,
+    required this.gpx,
+    required this.file,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text('GPX File: ${file.path.split('/').last}'),
+        const SizedBox(height: 16),
+        Expanded(
+          child: ListView.builder(
+            itemCount: gpx.wpts.length,
+            itemBuilder: (context, index) {
+              final waypoint = gpx.wpts[index];
+              return ListTile(
+                title: Text('Waypoint ${index + 1}'),
+                subtitle: Text('Lat: ${waypoint.lat}, Lng: ${waypoint.lon}'),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

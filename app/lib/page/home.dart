@@ -1,7 +1,7 @@
 import 'package:app/component/data.dart';
 import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/data_loader.dart';
-import 'package:app/utils/fit_parser.dart';
+import 'package:app/utils/fit.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -30,7 +30,7 @@ class _HomePageState extends State<HomePage> {
             title: const Text('X-Nav'),
           ),
           body: const Center(
-            child: Text('没有骑行记录，请先导入qaq'),
+            child: Text('没有骑行记录，请先导入'),
           ));
     }
     if (dataLoader.bestScore.isNotEmpty) {
@@ -46,7 +46,7 @@ class _HomePageState extends State<HomePage> {
       rideData = dataLoader.summaryList
           .map((e) => {
                 'timestamp': DateTime.fromMillisecondsSinceEpoch(
-                        timestampFromFitTimestamp(e['start_time'].toInt()))
+                        timestampWithOffset(e['start_time'].toInt()))
                     .toLocal(),
                 'total_distance': e['total_distance'],
                 'total_ascent': e['total_ascent'],
@@ -508,11 +508,10 @@ class _HomePageState extends State<HomePage> {
   void _showDailyRecords(BuildContext context, DateTime day) {
     // 筛选出当天的骑行记录
     final dailyRecords = DataLoader()
-        .fitData
+        .histories
         .where((record) {
           final recordDate = DateTime.fromMillisecondsSinceEpoch(
-              (parseFitDataToSummary(record)['start_time'] * 1000 +
-                      631065600000)
+              (parseFitDataToSummary(record).startTime! * 1000 + 631065600000)
                   .toInt());
           return recordDate.year == day.year &&
               recordDate.month == day.month &&
@@ -520,7 +519,7 @@ class _HomePageState extends State<HomePage> {
         })
         .map((record) => MapEntry(
               DateTime.fromMillisecondsSinceEpoch(
-                  (parseFitDataToSummary(record)['start_time'] * 1000 +
+                  (parseFitDataToSummary(record).startTime! * 1000 +
                           631065600000)
                       .toInt()),
               record,
@@ -548,15 +547,15 @@ class _HomePageState extends State<HomePage> {
                               0.0,
                               (a, b) =>
                                   a +
-                                  parseFitDataToSummary(
-                                      b.value)['total_distance']),
+                                  parseFitDataToSummary(b.value)
+                                      .totalDistance!),
                           'totalRides': dailyRecords.length,
                           'totalTime': dailyRecords.fold(
                               0.0,
                               (a, b) =>
                                   a +
-                                  parseFitDataToSummary(
-                                      b.value)['total_elapsed_time'])
+                                  parseFitDataToSummary(b.value)
+                                      .totalElapsedTime!)
                         }),
                       ),
                     ),
@@ -569,8 +568,8 @@ class _HomePageState extends State<HomePage> {
                           onTap: () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (context) =>
-                                    RideDetailPage(rideData: record.value),
+                                builder: (context) => RideDetailPage(
+                                    rideData: MapEntry('path', record.value)),
                               ),
                             );
                           },

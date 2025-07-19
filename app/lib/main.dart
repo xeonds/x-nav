@@ -1,26 +1,25 @@
 import 'package:app/page/history.dart';
 import 'package:app/page/home.dart';
 import 'package:app/page/map.dart';
-import 'package:app/page/routes.dart';
 import 'package:app/page/user.dart';
+import 'package:app/utils/location_provier.dart';
 import 'package:app/utils/prefs.dart';
-import 'package:app/utils/storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'dart:async';
 import 'package:app/utils/data_loader.dart';
-import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:provider/provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await FMTCObjectBoxBackend().initialise();
-  await FMTCStore('mapStore').manage.create();
-  await Storage.initialize(); // 必须先初始化不然加载数据的isolate会出错
   await Prefs.initialize();
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => DataLoader()..initialize(), // 初始化 DataLoader
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+            create: (_) => DataLoader()..initialize()), // 初始化 DataLoader
+        ChangeNotifierProvider(create: (_) => LocationProvider()),
+      ],
       child: const AppMain(),
     ),
   );
@@ -66,8 +65,6 @@ class AppMainPages extends StatefulWidget {
 
 class _AppMainPagesState extends State<AppMainPages> {
   int _selectedIndex = 0;
-  bool _isFullScreen = false;
-  final List<int> _supportFullScreenPages = <int>[1, 2];
   late List<Widget> _widgetOptions;
 
   @override
@@ -75,12 +72,7 @@ class _AppMainPagesState extends State<AppMainPages> {
     super.initState();
     _widgetOptions = <Widget>[
       HomePage(),
-      MapPage(
-        onFullScreenToggle: _toggleFullScreen,
-      ),
-      RoutesPage(
-        onFullScreenToggle: _toggleFullScreen,
-      ),
+      MapPage(),
       RideHistory(),
       UserPage(),
     ];
@@ -89,15 +81,6 @@ class _AppMainPagesState extends State<AppMainPages> {
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
-      _isFullScreen = false;
-    });
-  }
-
-  void _toggleFullScreen(bool isFullScreen) {
-    setState(() {
-      if (_supportFullScreenPages.contains(_selectedIndex)) {
-        _isFullScreen = isFullScreen;
-      }
     });
   }
 
@@ -107,35 +90,29 @@ class _AppMainPagesState extends State<AppMainPages> {
       body: Center(
         child: _widgetOptions.elementAt(_selectedIndex),
       ),
-      bottomNavigationBar: _isFullScreen
-          ? null
-          : NavigationBar(
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: _onItemTapped,
-              backgroundColor: Theme.of(context).colorScheme.surfaceBright,
-              destinations: const <NavigationDestination>[
-                NavigationDestination(
-                  icon: Icon(Icons.home),
-                  label: 'Home',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.map),
-                  label: 'Map',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.directions),
-                  label: 'Routes',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.history),
-                  label: 'History',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.person),
-                  label: 'Me',
-                ),
-              ],
-            ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: _onItemTapped,
+        backgroundColor: Theme.of(context).colorScheme.surfaceBright,
+        destinations: const <NavigationDestination>[
+          NavigationDestination(
+            icon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.map),
+            label: 'Map',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.history),
+            label: 'History',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person),
+            label: 'Me',
+          ),
+        ],
+      ),
     );
   }
 }

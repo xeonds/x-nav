@@ -1,6 +1,6 @@
-import 'package:app/utils/fit_parser.dart';
-import 'package:app/utils/fit_parser/fit_parser.dart';
-import 'package:app/utils/path_utils.dart';
+import 'package:app/utils/fit.dart';
+import 'package:fit_tool/fit_tool.dart';
+import 'dart:math';
 
 // 最佳成绩统计类
 // 有两种使用方法，一是计算本次运动最佳数据
@@ -14,51 +14,29 @@ class BestScore {
   int maxTime = 0; // 最大时间
   Map<int, double> bestSpeedByDistance = {}; // 里程（米）对应的最佳速度
   Map<int, double> bestPowerByTime = {}; // 时间段（秒）对应的最大功率
+  Map<int, double> bestHRByTime = {}; // 时间段（秒）对应的最大功率
 
-  void updateRecord(DataMessage record) {
-    final speed = record.get('speed') ?? 0.0;
-    final altitude = record.get('altitude') ?? 0.0;
-    final power = record.get('power') ?? 0.0;
-
-    maxSpeed = speed > maxSpeed ? speed : maxSpeed;
-    maxAltitude = altitude > maxAltitude ? altitude : maxAltitude;
-    maxPower = power > maxPower ? power : maxPower;
+  void updateRecord(SessionMessage record) {
+    maxSpeed = max(record.maxSpeed!, maxSpeed);
+    maxAltitude = max(record.maxAltitude!, maxAltitude);
+    maxPower = max(record.maxPower!.toDouble(), maxPower);
+    maxTime = max(record.totalMovingTime!.toInt(), maxTime);
+    maxClimb = max(record.totalAscent!.toDouble(), maxClimb);
   }
 
-  BestScore update(List<DataMessage> records) {
-    for (var record in records) {
-      updateRecord(record);
-    }
-    final time = getTimestampFromDataMessage(records.last) -
-        getTimestampFromDataMessage(records.first);
-    final distance = records.last.get('distance') ?? 0.0;
-    var ascent = 0.0;
-    final altitudes = records
-        .map((e) => e.get('altitude') ?? double.negativeInfinity)
-        .where((e) => e != double.negativeInfinity);
-    altitudes.fold(altitudes.first, (a, b) {
-      ascent += (a < b ? b - a : 0.0);
-      return b;
-    });
+  BestScore update(List<Message> records) {
+    final sessionMsg = records.whereType<SessionMessage>().first;
+    final recordMsg = records.whereType<RecordMessage>().toList();
+    List<int> alignedPoints = []; // 以1000m为间隔的点列表
 
-    maxTime = maxTime > time ? maxTime : time;
-    maxDistance = maxDistance > distance ? maxDistance : distance;
-    maxClimb = ascent > maxClimb ? ascent : maxClimb;
+    updateRecord(sessionMsg);
 
-    List<dynamic> alignedPoints = []; // 以1000m为间隔的点列表
-    double accu = 0.0;
-
-    for (int i = 1; i < records.length; i++) {
-      accu += latlngToDistance([
-        getLatlngFromDataMessage(records[i - 1]),
-        getLatlngFromDataMessage(records[i]),
-      ]);
-      if (accu >= 1000) {
-        alignedPoints.add({
-          'timestamp': getTimestampFromDataMessage(records[i]),
-          'pos': getLatlngFromDataMessage(records[i]),
-        });
-        accu -= 1000; // 重置为0同时保留多余的部分，保证值都在整数位置上
+    for (int dist = 0, i = 0;
+        dist.toDouble() < sessionMsg.totalDistance! && i < recordMsg.length;
+        i++) {
+      if (dist.toDouble() < recordMsg[i].distance!) {
+        alignedPoints.add(timestampWithOffset(recordMsg[i].timestamp!));
+        dist += 1000;
       }
     }
 
@@ -67,25 +45,26 @@ class BestScore {
         [1, 5, 10, 20, 30, 50, 80, 100, 150, 160, 180, 200, 250, 300, 400, 500],
         alignedPoints, (key, range) {
       final accumulate = key * 1000; // in this case is range's length
-      final timeSpent = range.last['timestamp'] - range.first['timestamp'];
+      final timeSpent = range.last - range.first;
       return timeSpent > 0 ? accumulate / timeSpent : 0.0; // in case of div 0
     });
 
     // ensure points are aligned to seconds
     // here for performance reason assume points are aligned as seconds
-    final alignedPower = records
-        .map((e) => {
-              'power': e.get('power') ?? 0,
-              'timestamp': e.get('timestamp'),
-            })
-        .toList();
+    final alignedPower = recordMsg.map((e) => e.power!).toList();
     bestPowerByTime = calculateMaxRangeAvgs(
         [5, 10, 30, 60, 300, 480, 1200, 1800, 3600], alignedPower,
         (key, range) {
-      final accumulate = range.fold(0, (a, b) => a + b['power']);
+      final accumulate = range.fold(0, (a, b) => a + b);
       return accumulate / key;
     });
 
+    final alignedHR = recordMsg.map((e) => e.heartRate ?? 0).toList();
+    bestHRByTime = calculateMaxRangeAvgs(
+        [5, 10, 30, 60, 300, 480, 1200, 1800, 3600], alignedHR, (key, range) {
+      final accumulate = range.fold(0, (a, b) => a + b);
+      return accumulate / key;
+    });
     return this;
   }
 

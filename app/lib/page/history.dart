@@ -3,11 +3,13 @@ import 'dart:io';
 import 'package:app/component/data.dart';
 import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/data_loader.dart';
-import 'package:app/utils/fit_parser.dart';
+import 'package:app/utils/fit.dart';
 import 'package:app/utils/path_utils.dart'
     show RideScore, SegmentScore, initCenter, initZoom;
 import 'package:app/utils/storage.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:fit_tool/fit_tool.dart'
+    show Message, RecordMessage, SessionMessage;
 import 'package:fl_chart/fl_chart.dart'; // 用于图表
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart'; // 用于地图
@@ -167,7 +169,7 @@ class RidePathPainter extends CustomPainter {
 }
 
 class RideHistoryList extends StatefulWidget {
-  final List<dynamic> history;
+  final Map<String, List<Message>> history;
   const RideHistoryList({super.key, required this.history});
 
   @override
@@ -182,11 +184,11 @@ class RideHistoryListState extends State<RideHistoryList> {
 
   @override
   Widget build(BuildContext context) {
-    final sortedHistory = List.from(widget.history)
+    // 将 Map<String, List<Message>> 转为 List<MapEntry<String, List<Message>>> 并按 startTime 降序排序
+    final sortedHistory = widget.history.entries.toList()
       ..sort(
-        (a, b) => (parseFitDataToSummary(b)['start_time'] ?? 0).compareTo(
-          parseFitDataToSummary(a)['start_time'] ?? 0,
-        ),
+        (a, b) => (parseFitDataToSummary(b.value).startTime!)
+            .compareTo(parseFitDataToSummary(a.value).startTime!),
       );
 
     bool isMultiSelectMode = false;
@@ -232,8 +234,7 @@ class RideHistoryListState extends State<RideHistoryList> {
                               );
                               if (confirm == true) {
                                 for (var index in selectedIndices) {
-                                  final rideData = sortedHistory[index];
-                                  await File(rideData['path']).delete();
+                                  await File(sortedHistory[index].key).delete();
                                 }
                                 await DataLoader().loadHistoryData();
                                 setState(() {
@@ -273,10 +274,8 @@ class RideHistoryListState extends State<RideHistoryList> {
                             } else {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (context) => RideDetailPage(
-                                    rideData: sortedHistory[index],
-                                  ),
-                                ),
+                                    builder: (context) => RideDetailPage(
+                                        rideData: sortedHistory[index])),
                               );
                             }
                           },
@@ -285,14 +284,13 @@ class RideHistoryListState extends State<RideHistoryList> {
                                 ? Colors.grey.withOpacity(0.3)
                                 : Colors.transparent,
                             child: RideHistoryCard(
-                              rideData: sortedHistory[index],
+                              rideData: sortedHistory[index].value,
                               onTap: () {
                                 if (!isMultiSelectMode) {
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
                                       builder: (context) => RideDetailPage(
-                                        rideData: sortedHistory[index],
-                                      ),
+                                          rideData: sortedHistory[index]),
                                     ),
                                   );
                                 }
@@ -311,7 +309,7 @@ class RideHistoryListState extends State<RideHistoryList> {
 }
 
 class RideHistoryCard extends StatelessWidget {
-  final Map<String, dynamic> rideData;
+  final List<Message> rideData;
   final VoidCallback onTap;
 
   const RideHistoryCard({
@@ -333,15 +331,13 @@ class RideHistoryCard extends StatelessWidget {
             painter: RidePathPainter(parseFitDataToRoute(rideData)),
           ),
         ),
-        title: Text('骑行标题: ${summary['title']}'),
+        title: Text(
+            '${DateTime.fromMillisecondsSinceEpoch((summary.startTime! * 1000 + 631065600000).toInt()).toLocal().toString().replaceFirst('T', ' ')} 的骑行'),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '日期时间: ${DateTime.fromMillisecondsSinceEpoch((summary['start_time'] * 1000 + 631065600000).toInt()).toLocal().toString().replaceFirst('T', ' ')}',
-            ),
-            Text(
-              '里程: ${(summary['total_distance'] / 1000.0).toStringAsFixed(2)} km 耗时: ${(summary['total_elapsed_time'] / 60).toStringAsFixed(2)} 分钟 均速: ${(summary['avg_speed'] * 3.6).toStringAsFixed(2)} km/h',
+              '里程: ${(summary.totalDistance! / 1000.0).toStringAsFixed(2)} km 耗时: ${(summary.totalElapsedTime! / 60).toStringAsFixed(2)} 分钟 均速: ${(summary.avgSpeed! * 3.6).toStringAsFixed(2)} km/h',
             ),
           ],
         ),
@@ -352,7 +348,7 @@ class RideHistoryCard extends StatelessWidget {
 }
 
 class RideDetailPage extends StatefulWidget {
-  final Map<String, dynamic> rideData;
+  final MapEntry<String, List<Message>> rideData;
   const RideDetailPage({super.key, required this.rideData});
 
   @override
@@ -360,7 +356,7 @@ class RideDetailPage extends StatefulWidget {
 }
 
 class _RideDetailPageState extends State<RideDetailPage> {
-  late final Map<String, dynamic> rideData;
+  late final MapEntry<String, List<Message>> rideData;
   late final RideScore rideScore;
   late final DataLoader dataLoader;
   late int highlightRouteIndex;
@@ -372,7 +368,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
     dataLoader = DataLoader(); // 监听 DataLoader 的状态
     rideData = widget.rideData;
     highlightRouteIndex = -1;
-    rideScore = RideScore(rideData: rideData, routes: dataLoader.routes);
+    rideScore = RideScore(rideData: rideData.value, routes: dataLoader.routes);
     chartMaxX = rideScore.distance.isNotEmpty ? rideScore.distance.last : 0;
     chartRange = RangeValues(
       rideScore.distance.isNotEmpty ? rideScore.distance.first : 0,
@@ -382,7 +378,8 @@ class _RideDetailPageState extends State<RideDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final timestamp = getTimestampFromDataMessage(rideData['sessions'][0]);
+    final sessionMsg = rideData.value.whereType<SessionMessage>().first;
+    final timestamp = timestampWithOffset(sessionMsg.timestamp!);
     late final BestScore bestScore, bestScoreTillNow;
     late final List<SegmentScore> analysisOfSubRoutes;
     if (!dataLoader.bestScoreLoaded) {
@@ -434,7 +431,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
         actions: [
           IconButton(
               onPressed: () async {
-                final file = File(rideData['path']);
+                final file = File(widget.rideData.key);
                 try {
                   await Share.shareXFiles(
                       [XFile(file.path, mimeType: 'application/fit')],
@@ -469,7 +466,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
                 ),
               );
               if (confirm == true) {
-                await File(rideData['path']).delete();
+                await File(widget.rideData.key).delete();
                 await DataLoader().loadHistoryData();
                 await Future.wait([
                   DataLoader().loadRideData(),
@@ -598,20 +595,21 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      '骑行标题: ${rideScore.summary['title'] ?? '未知'}',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: isDarkMode
-                                            ? Colors.white
-                                            : Colors.black,
-                                      ),
-                                    ),
+                                    // Text(
+                                    //   '骑行标题: ${rideScore.summary['title'] ?? '未知'}',
+                                    //   style: TextStyle(
+                                    //     fontSize: 18,
+                                    //     fontWeight: FontWeight.bold,
+                                    //     color: isDarkMode
+                                    //         ? Colors.white
+                                    //         : Colors.black,
+                                    //   ),
+                                    // ),
                                     const SizedBox(height: 10),
                                     Text(
                                       parseFitTimestampToDateTimeString(
-                                          rideScore.summary['start_time']),
+                                          DateTime(
+                                              rideScore.summary.startTime!)),
                                       style: TextStyle(
                                         color: isDarkMode
                                             ? Colors.white70
@@ -628,67 +626,67 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                       children: [
                                         Statistic(
                                           data:
-                                              '${(rideScore.summary['total_distance'] / 1000.0).toStringAsFixed(2)}',
+                                              '${(rideScore.summary.totalDistance! / 1000.0).toStringAsFixed(2)}',
                                           label: 'km',
                                           subtitle: '总里程',
                                         ),
                                         Statistic(
                                           data:
-                                              '${(rideScore.summary['total_elapsed_time'] / 60).toStringAsFixed(2)}',
+                                              '${(rideScore.summary.totalElapsedTime! / 60).toStringAsFixed(2)}',
                                           label: '分钟',
                                           subtitle: '总耗时',
                                         ),
                                         Statistic(
                                           data:
-                                              '${(rideScore.summary['avg_speed'] * 3.6).toStringAsFixed(2)}',
+                                              '${(rideScore.summary.avgSpeed! * 3.6).toStringAsFixed(2)}',
                                           label: 'km/h',
                                           subtitle: '均速',
                                         ),
                                         Statistic(
                                           data:
-                                              '${(rideScore.summary['max_speed'] * 3.6).toStringAsFixed(2)}',
+                                              '${(rideScore.summary.maxSpeed! * 3.6).toStringAsFixed(2)}',
                                           label: 'km/h',
                                           subtitle: '最大速度',
                                         ),
                                         Statistic(
                                           data:
-                                              '${rideScore.summary['total_ascent']}',
+                                              '${rideScore.summary.totalAscent}',
                                           label: 'm',
                                           subtitle: '总爬升',
                                         ),
                                         Statistic(
                                           data:
-                                              '${rideScore.summary['total_descent']}',
+                                              '${rideScore.summary.totalDescent}',
                                           label: 'm',
                                           subtitle: '总下降',
                                         ),
                                         Statistic(
                                           data:
-                                              '${rideScore.summary['avg_heart_rate'] ?? '未知'}',
+                                              '${rideScore.summary.avgHeartRate ?? '未知'}',
                                           label: 'bpm',
                                           subtitle: '平均心率',
                                         ),
                                         Statistic(
                                           data:
-                                              '${rideScore.summary['max_heart_rate'] ?? '未知'}',
+                                              '${rideScore.summary.maxHeartRate ?? '未知'}',
                                           label: 'bpm',
                                           subtitle: '最大心率',
                                         ),
                                         Statistic(
                                           data:
-                                              '${rideScore.summary['avg_power'] ?? '未知'}',
+                                              '${rideScore.summary.avgPower ?? '未知'}',
                                           label: 'W',
                                           subtitle: '平均功率',
                                         ),
                                         Statistic(
                                           data:
-                                              '${rideScore.summary['max_power'] ?? '未知'}',
+                                              '${rideScore.summary.maxPower ?? '未知'}',
                                           label: 'W',
                                           subtitle: '最大功率',
                                         ),
                                         Statistic(
                                           data:
-                                              '${rideScore.summary['total_calories'] ?? '未知'}',
+                                              '${rideScore.summary.totalCalories ?? '未知'}',
                                           label: 'kcal',
                                           subtitle: '总卡路里',
                                         ),
@@ -893,8 +891,8 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                               sideTitles: SideTitles(
                                                 showTitles: true,
                                                 reservedSize: 20,
-                                                interval: rideScore.summary[
-                                                        'total_distance'] /
+                                                interval: rideScore.summary
+                                                        .totalDistance! /
                                                     5 /
                                                     1000,
                                                 getTitlesWidget:
@@ -982,8 +980,8 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                               sideTitles: SideTitles(
                                                 showTitles: true,
                                                 reservedSize: 20,
-                                                interval: rideScore.summary[
-                                                        'total_distance'] /
+                                                interval: rideScore.summary
+                                                        .totalDistance! /
                                                     5 /
                                                     1000,
                                                 getTitlesWidget:
@@ -1057,25 +1055,20 @@ class _RideDetailPageState extends State<RideDetailPage> {
                                               .abs();
 
                                           // 区间平均心率和功率
-                                          final records = rideData['records'];
-                                          final startTime = records[startIdx]
-                                              .get('timestamp');
+                                          final records = rideData.value
+                                              .whereType<RecordMessage>()
+                                              .toList();
+                                          final startTime =
+                                              records[startIdx].timestamp!;
                                           final endTime =
-                                              records[endIdx].get('timestamp');
+                                              records[endIdx].timestamp!;
+                                          final rangeMsg = records.where((e) =>
+                                              e.timestamp! > startTime &&
+                                              e.timestamp! > endTime);
                                           final heartRateList =
-                                              parseFitDataToMetric<double>(
-                                            rideData,
-                                            'heart_rate',
-                                            startTime: startTime,
-                                            endTime: endTime,
-                                          );
+                                              rangeMsg.map((e) => e.heartRate!);
                                           final powerList =
-                                              parseFitDataToMetric<double>(
-                                            rideData,
-                                            'power',
-                                            startTime: startTime,
-                                            endTime: endTime,
-                                          );
+                                              rangeMsg.map((e) => e.power!);
                                           final avgHeartRate = heartRateList
                                                   .isNotEmpty
                                               ? heartRateList
@@ -1454,7 +1447,7 @@ class SegmentDetailPage extends StatelessWidget {
                       ),
                       Statistic(
                         data: parseFitTimestampToDateTimeString(
-                            segment.startTime),
+                            DateTime(timestampWithOffset(segment.startTime))),
                         subtitle: '开始时间',
                       ),
                       Statistic(
@@ -1571,7 +1564,8 @@ class SegmentDetailPage extends StatelessWidget {
                     ),
                   ),
                   title: Text(
-                    parseFitTimestampToDateTimeString(record.item.startTime),
+                    parseFitTimestampToDateTimeString(
+                        DateTime(timestampWithOffset(record.item.startTime))),
                     style: TextStyle(
                       color: isUser ? Colors.orange : null,
                     ),
