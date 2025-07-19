@@ -599,7 +599,7 @@ class MapPageState extends State<MapPage> {
             child: FlutterMap(
               options: MapOptions(
                 initialCenter: const LatLng(34.1301578, 108.8277069),
-                initialZoom: 10,
+                initialZoom: 12,
                 minZoom: 0,
                 onTap: isDrawingRoute
                     ? (tapPos, point) {

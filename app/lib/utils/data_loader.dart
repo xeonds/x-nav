@@ -186,12 +186,18 @@ class DataLoader extends ChangeNotifier {
   VoidCallback? onRideDataLoaded;
   VoidCallback? onBestScoreLoaded;
 
+  // one-time task flag
+  bool oneTimeTaskFlag = false;
+
   Future<void> initialize() async {
-    await Future.wait([
-      FMTCObjectBoxBackend().initialise(),
-      Storage.initialize(),
-    ]);
-    await FMTCStore('mapStore').manage.create();
+    if (!oneTimeTaskFlag) {
+      await Future.wait([
+        FMTCObjectBoxBackend().initialise(),
+        Storage.initialize(),
+      ]);
+      await FMTCStore('mapStore').manage.create();
+      oneTimeTaskFlag = true;
+    }
 
     if (isLoading) return;
     isLoading = true;
@@ -208,48 +214,57 @@ class DataLoader extends ChangeNotifier {
 
     try {
       // 检查底层文件是否发生变化
-      final cacheStale = await isCacheStale();
-      final cached = await getAllCache();
-      if (!cacheStale && cached != null && cached.isNotEmpty) {
-        // 直接复用数据库缓存
-        routes
-          ..clear()
-          ..addAll(cached['routes'] ?? []);
-        gpxData
-          ..clear()
-          ..addAll(cached['gpxData'] ?? {});
-        fitData
-          ..clear()
-          ..addAll(cached['fitData'] ?? {});
-        summaryList
-          ..clear()
-          ..addAll(cached['summary'] ?? []);
-        rideData
-          ..clear()
-          ..addAll(cached['rideData'] ?? {});
-        bestScore
-          ..clear()
-          ..addAll(cached['bestScore'] ?? {});
-        bestScoreAt
-          ..clear()
-          ..addAll(cached['bestScoreAt'] ?? {});
-        bestSegment
-          ..clear()
-          ..addAll(cached['bestSegment'] ?? {});
-        subRoutesOfRoutes
-          ..clear()
-          ..addAll(cached['subRoutesOfRoutes'] ?? {});
-        gpxLoaded = true;
-        fitLoaded = true;
-        summaryLoaded = true;
-        rideDataLoaded = true;
-        bestScoreLoaded = true;
-        isInitialized = true;
-        isLoading = false;
-        progressMessage = null;
-        notifyListeners();
-        return;
-      }
+      // final cacheStale = await isCacheStale();
+      // final cached = await getAllCache();
+      // if (!cacheStale && cached != null && cached.isNotEmpty) {
+      //   // 直接复用数据库缓存
+      //   routes
+      //     ..clear()
+      //     ..addAll(
+      //         (cached['routes'] as List<dynamic>? ?? []).cast<List<LatLng>>());
+      //   gpxData
+      //     ..clear()
+      //     ..addAll((cached['gpxData'] as Map<String, dynamic>? ?? {})
+      //         .map((k, v) => MapEntry(k, v as String)));
+      //   fitData
+      //     ..clear()
+      //     ..addAll((cached['fitData'] as Map<String, dynamic>? ?? {}).map(
+      //         (k, v) => MapEntry(k, (v as List<dynamic>).cast<Message>())));
+      //   summaryList
+      //     ..clear()
+      //     ..addAll((cached['summary'] as List<dynamic>? ?? [])
+      //         .cast<Map<String, dynamic>>());
+      //   rideData
+      //     ..clear()
+      //     ..addAll((cached['rideData'] as Map<String, dynamic>? ?? {}));
+      //   bestScore
+      //     ..clear()
+      //     ..addAll((cached['bestScore'] as Map<int, dynamic>? ?? {})
+      //         .map((k, v) => MapEntry(k, v as BestScore)));
+      //   bestScoreAt
+      //     ..clear()
+      //     ..addAll((cached['bestScoreAt'] as Map<int, dynamic>? ?? {})
+      //         .map((k, v) => MapEntry(k, v as BestScore)));
+      //   bestSegment
+      //     ..clear()
+      //     ..addAll((cached['bestSegment'] as Map<int, dynamic>? ?? {})
+      //         .map((k, v) => MapEntry(k, v as SortManager<SegmentScore, int>)));
+      //   subRoutesOfRoutes
+      //     ..clear()
+      //     ..addAll((cached['subRoutesOfRoutes'] as Map<int, dynamic>? ?? {})
+      //         .map((k, v) =>
+      //             MapEntry(k, (v as List<dynamic>).cast<SegmentScore>())));
+      //   gpxLoaded = true;
+      //   fitLoaded = true;
+      //   summaryLoaded = true;
+      //   rideDataLoaded = true;
+      //   bestScoreLoaded = true;
+      //   isInitialized = true;
+      //   isLoading = false;
+      //   progressMessage = null;
+      //   notifyListeners();
+      //   return;
+      // }
 
       // 文件有变动或无缓存，重新计算并更新数据库快照
       await runInIsolateWithProgress<_DataLoadRequest, _DataLoadResult>(
@@ -274,9 +289,9 @@ class DataLoader extends ChangeNotifier {
               ..addAll(msg['gpxData']);
             gpxLoaded = true;
             currentStep = '路书加载完成';
-            await saveCache('routes', routes);
-            await saveCache('gpxData', gpxData);
-            await updateFileMetaCache(); // 更新文件快照
+            // await saveCache('routes', routes);
+            // await saveCache('gpxData', gpxData);
+            // await updateFileMetaCache(); // 更新文件快照
             if (onGpxLoaded != null) onGpxLoaded!();
             notifyListeners();
           } else if (msg is Map && msg['phase'] == 'fit') {
@@ -286,8 +301,8 @@ class DataLoader extends ChangeNotifier {
               ..addAll(msg['fitData']);
             fitLoaded = true;
             currentStep = '骑行记录加载完成';
-            await saveCache('fitData', fitData);
-            await updateFileMetaCache(); // 更新文件快照
+            // await saveCache('fitData', fitData);
+            // await updateFileMetaCache(); // 更新文件快照
             if (onFitLoaded != null) onFitLoaded!();
             notifyListeners();
           } else if (msg is Map && msg['phase'] == 'summary') {
@@ -296,7 +311,7 @@ class DataLoader extends ChangeNotifier {
               ..addAll(msg['summary']);
             summaryLoaded = true;
             currentStep = '骑行摘要分析完成';
-            await saveCache('summary', summaryList);
+            // await saveCache('summary', summaryList);
             if (onSummaryLoaded != null) onSummaryLoaded!();
             notifyListeners();
           } else if (msg is Map && msg['phase'] == 'rideData') {
@@ -305,7 +320,7 @@ class DataLoader extends ChangeNotifier {
               ..addAll(msg['rideData']);
             rideDataLoaded = true;
             currentStep = '骑行统计完成';
-            await saveCache('rideData', rideData);
+            // await saveCache('rideData', rideData);
             if (onRideDataLoaded != null) onRideDataLoaded!();
             notifyListeners();
           } else if (msg is Map && msg['phase'] == 'bestScore') {
@@ -323,10 +338,10 @@ class DataLoader extends ChangeNotifier {
               ..addAll(msg['subRoutesOfRoutes']);
             bestScoreLoaded = true;
             currentStep = '最佳成绩分析完成';
-            await saveCache('bestScore', bestScore);
-            await saveCache('bestScoreAt', bestScoreAt);
-            await saveCache('bestSegment', bestSegment);
-            await saveCache('subRoutesOfRoutes', subRoutesOfRoutes);
+            // await saveCache('bestScore', bestScore);
+            // await saveCache('bestScoreAt', bestScoreAt);
+            // await saveCache('bestSegment', bestSegment);
+            // await saveCache('subRoutesOfRoutes', subRoutesOfRoutes);
             isInitialized = true;
             isLoading = false;
             progressMessage = null;
