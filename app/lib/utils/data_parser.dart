@@ -1,40 +1,15 @@
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/fit.dart';
 import 'package:app/utils/model.dart';
 import 'package:app/utils/path_utils.dart';
 import 'package:fit_tool/fit_tool.dart';
-import 'package:flutter/material.dart';
 
-Map<String, String> parseGpxFiles(List<File> files, {SendPort? sendPort}) {
-  final gpxFiles = <String, String>{};
-  int count = 0;
+String parseGpxFile(File file) {
+  final gpxData = file.readAsStringSync();
 
-  for (var file in files) {
-    try {
-      final gpxData = file.readAsStringSync();
-      gpxFiles[file.path] = gpxData;
-      sendPort?.send({'progress': '路书解析中： ${count++}/${files.length}'});
-    } catch (e) {
-      debugPrint('Error reading GPX file: $e');
-    }
-  }
-
-  return gpxFiles;
-}
-
-Map<String, List<Message>> parseFitFiles(List<File> files,
-    {SendPort? sendPort}) {
-  final fitDataList = <String, List<Message>>{};
-  int count = 0;
-
-  for (var file in files) {
-    fitDataList[file.path] = parseFitFile(file);
-    sendPort?.send({'progress': '骑行记录解析中： ${count++}/${files.length}'});
-  }
-  return fitDataList;
+  return gpxData;
 }
 
 Map<String, dynamic> analyzeRideData(List<Map<String, dynamic>> summaries) {

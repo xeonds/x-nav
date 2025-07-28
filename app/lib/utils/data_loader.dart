@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
+import 'package:app/database.dart';
 import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/data_parser.dart';
+import 'package:app/utils/fit.dart';
 import 'package:app/utils/model.dart';
 import 'package:app/utils/path_utils.dart';
 import 'package:app/utils/storage.dart';
@@ -11,6 +13,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:gpx/gpx.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:sqflite/sqflite.dart';
 
 class _DataLoadRequest {
   final String appDocPath;
@@ -114,61 +117,65 @@ class DataLoader extends ChangeNotifier {
             isLoading = false;
             isInitialized = false;
             notifyListeners();
-          } else if (msg is Map && msg['phase'] == 'gpx') {
-            routes
-              ..clear()
-              ..addAll(msg['routes']);
-            gpxData
-              ..clear()
-              ..addAll(msg['gpxData']);
-            gpxLoaded = true;
-            currentStep = '路书加载完成';
-            if (onGpxLoaded != null) onGpxLoaded!();
-            notifyListeners();
-          } else if (msg is Map && msg['phase'] == 'fit') {
-            print('adding id');
-            fitData
-              ..clear()
-              ..addAll(msg['fitData']);
-            fitLoaded = true;
-            currentStep = '骑行记录加载完成';
-            if (onFitLoaded != null) onFitLoaded!();
-            notifyListeners();
-          } else if (msg is Map && msg['phase'] == 'summary') {
-            summaryList
-              ..clear()
-              ..addAll(msg['summary']);
-            summaryLoaded = true;
-            currentStep = '骑行摘要分析完成';
-            if (onSummaryLoaded != null) onSummaryLoaded!();
-            notifyListeners();
-          } else if (msg is Map && msg['phase'] == 'rideData') {
-            rideData
-              ..clear()
-              ..addAll(msg['rideData']);
-            rideDataLoaded = true;
-            currentStep = '骑行统计完成';
-            if (onRideDataLoaded != null) onRideDataLoaded!();
-            notifyListeners();
-          } else if (msg is Map && msg['phase'] == 'bestScore') {
-            bestScore
-              ..clear()
-              ..addAll(msg['bestScore']);
-            bestScoreAt
-              ..clear()
-              ..addAll(msg['bestScoreAt']);
-            bestSegment
-              ..clear()
-              ..addAll(msg['bestSegment']);
-            subRoutesOfRoutes
-              ..clear()
-              ..addAll(msg['subRoutesOfRoutes']);
-            bestScoreLoaded = true;
-            currentStep = '最佳成绩分析完成';
+          } else if (msg is Map && msg['phase'] == 'finish') {
+            currentStep = '分析完成';
+            // TODO: 加载数据到对象中/对象暴露getter提供即时数据拉取检索
             isInitialized = true;
             isLoading = false;
             progressMessage = null;
             notifyListeners();
+            // else if (msg is Map && msg['phase'] == 'gpx') {
+            //   routes
+            //     ..clear()
+            //     ..addAll(msg['routes']);
+            //   gpxData
+            //     ..clear()
+            //     ..addAll(msg['gpxData']);
+            //   gpxLoaded = true;
+            //   currentStep = '路书加载完成';
+            //   if (onGpxLoaded != null) onGpxLoaded!();
+            //   notifyListeners();
+            // } else if (msg is Map && msg['phase'] == 'fit') {
+            //   print('adding id');
+            //   fitData
+            //     ..clear()
+            //     ..addAll(msg['fitData']);
+            //   fitLoaded = true;
+            //   currentStep = '骑行记录加载完成';
+            //   if (onFitLoaded != null) onFitLoaded!();
+            //   notifyListeners();
+            // } else if (msg is Map && msg['phase'] == 'summary') {
+            //   summaryList
+            //     ..clear()
+            //     ..addAll(msg['summary']);
+            //   summaryLoaded = true;
+            //   currentStep = '骑行摘要分析完成';
+            //   if (onSummaryLoaded != null) onSummaryLoaded!();
+            //   notifyListeners();
+            // } else if (msg is Map && msg['phase'] == 'rideData') {
+            //   rideData
+            //     ..clear()
+            //     ..addAll(msg['rideData']);
+            //   rideDataLoaded = true;
+            //   currentStep = '骑行统计完成';
+            //   if (onRideDataLoaded != null) onRideDataLoaded!();
+            //   notifyListeners();
+            // } else if (msg is Map && msg['phase'] == 'bestScore') {
+            //   bestScore
+            //     ..clear()
+            //     ..addAll(msg['bestScore']);
+            //   bestScoreAt
+            //     ..clear()
+            //     ..addAll(msg['bestScoreAt']);
+            //   bestSegment
+            //     ..clear()
+            //     ..addAll(msg['bestSegment']);
+            //   subRoutesOfRoutes
+            //     ..clear()
+            //     ..addAll(msg['subRoutesOfRoutes']);
+            //   bestScoreLoaded = true;
+            //   currentStep = '最佳成绩分析完成';
+            // }
           }
         },
       );
@@ -212,71 +219,144 @@ void _dataLoadIsolateEntryWithProgressPhased(
   try {
     sendPort.send({'progress': '正在初始化存储...'});
     Storage.appDocPath = request.appDocPath;
+    sendPort.send({'progress': '正在初始化数据库...'});
+    final db = await DB.initDatabase();
 
     // GPX
     sendPort.send({'progress': '正在读取路书...'});
-    final parsedRoutes = await Future(() {
+    // final parsedRoutes =
+    await Future(() {
       final gpxFiles = Storage().getGpxFilesSync();
-      final parsedRoutes = parseGpxFiles(gpxFiles, sendPort: sendPort);
+      // final parsedGpx = <String, String>{};
+      int gpxParseCount = 0;
+
+      for (var file in gpxFiles) {
+        try {
+          final str = parseGpxFile(file);
+          db.insert(
+              'gpx',
+              {
+                'filePath': file.path,
+                'gpx': GpxReader().fromString(str).toJson(),
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace);
+          sendPort.send(
+              {'progress': '路书解析中： ${gpxParseCount++}/${gpxFiles.length}'});
+        } catch (e) {
+          debugPrint('Error reading GPX file: $e');
+        }
+      }
       print('all gpx parsed');
-      return parsedRoutes;
+      // return parsedGpx;
     });
-    sendPort.send({
-      'phase': 'gpx',
-      'routes': parsedRoutes.values.map((e) => GpxReader()
-          .fromString(e)
-          .trks
-          .first
-          .trksegs
-          .first
-          .trkpts
-          .map((p) => LatLng(p.lat!, p.lon!))
-          .toList()),
-      'gpxData': parsedRoutes,
-    });
+    // sendPort.send({
+    //   'phase': 'gpx',
+    //   'routes': parsedRoutes.values.map((e) => GpxReader()
+    //       .fromString(e)
+    //       .trks
+    //       .first
+    //       .trksegs
+    //       .first
+    //       .trkpts
+    //       .map((p) => LatLng(p.lat!, p.lon!))
+    //       .toList()),
+    //   'gpxData': parsedRoutes,
+    // });
 
     // FIT
     sendPort.send({'progress': '正在读取骑行记录...'});
-    final parsedHistories = await Future(() {
+    await Future(() {
       final fitFiles = Storage().getFitFilesSync();
-      final parsedHistories = parseFitFiles(fitFiles, sendPort: sendPort);
+      // final fitDataList = <String, List<Message>>{};
+      int count = 0;
+
+      for (var file in fitFiles) {
+        try {
+          final fitMsgs = parseFitFile(file);
+          // fitDataList[file.path] =
+          db.insert(
+              'history',
+              {
+                'filePath': file.path,
+                ...fitMsgs.toJson(),
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace);
+          sendPort.send({'progress': '骑行记录解析中： ${count++}/${fitFiles.length}'});
+        } catch (e) {
+          debugPrint('Error reading fit file: $e');
+        }
+      }
       print('all fit parsed');
-      return parsedHistories;
+      // return fitDataList;
     });
-    sendPort.send({
-      'phase': 'fit',
-      'fitData': parsedHistories,
-    });
+    // sendPort.send({
+    //   'phase': 'fit',
+    //   'fitData': parsedHistories,
+    // });
 
     // 摘要
     sendPort.send({'progress': '正在分析骑行摘要...'});
     print('start analyzing summary');
-    final summary =
-        await Future(() => analyzeSummaryData(parsedHistories.values.toList()));
-    sendPort.send({
-      'phase': 'summary',
-      'summary': summary,
+    await Future(() async {
+      final sessionMsgs =
+          (await db.query('history', columns: ['session_message']))
+              .map((e) => e['session_message'] as Message)
+              .toList();
+      final data = parseFitDataToSummary(sessionMsgs);
+      db.insert('summary', {
+        "timestamp": data.timestamp,
+        "start_time": data.startTime,
+        "sport": data.sport,
+        "max_temperature": data.maxTemperature,
+        "avg_temperature": data.avgTemperature,
+        "total_ascent": data.totalAscent,
+        "total_descent": data.totalDescent,
+        "total_distance": data.totalDistance,
+        "total_elapsed_time": data.totalElapsedTime,
+      });
     });
+    // sendPort.send({
+    //   'phase': 'summary',
+    //   'summary': summary,
+    // });
 
     // 统计
     sendPort.send({'progress': '正在统计骑行数据...'});
-    final rideData = await Future(() => analyzeRideData(summary));
-    sendPort.send({
-      'phase': 'rideData',
-      'rideData': rideData,
+    await Future(() async {
+      final summary = await db.query('summary');
+      final data = analyzeRideData(summary);
+      for (var item in data.entries) {
+        db.insert('ride_data', {'key': item.key, 'value': item.value});
+      }
     });
+    // sendPort.send({
+    //   'phase': 'rideData',
+    //   'rideData': rideData,
+    // });
 
     // 最佳成绩
     sendPort.send({'progress': '正在分析最佳成绩...'});
-    final bestScoreData =
-        await Future(() => analyzeBestScore(parsedHistories.values.toList()));
-    sendPort.send({
-      'phase': 'bestScore',
-      'bestScore': bestScoreData['bestScore'],
-      'bestScoreAt': bestScoreData['bestScoreAt'],
-      'bestSegment': bestScoreData['bestSegment'],
-      'subRoutesOfRoutes': bestScoreData['subRoutesOfRoutes'],
+    await Future(() async {
+      final sessionMsgs = (await db
+              .query('history', columns: ['record_message', 'session_message']))
+          .map((e) => [
+                e['session_message'] as Message,
+                e['record_message'] as Message,
+              ])
+          .toList();
+      final data = analyzeBestScore(sessionMsgs);
+      for (var item in data.entries) {
+        db.insert('best_score', {'key': item.key, 'value': item.value});
+      }
     });
+    sendPort.send({'phase': 'finish'});
+    // sendPort.send({
+    //   'phase': 'bestScore',
+    //   'bestScore': bestScoreData['bestScore'],
+    //   'bestScoreAt': bestScoreData['bestScoreAt'],
+    //   'bestSegment': bestScoreData['bestSegment'],
+    //   'subRoutesOfRoutes': bestScoreData['subRoutesOfRoutes'],
+    // });
   } catch (e, st) {
     sendPort.send({'error': e.toString(), 'stack': st.toString()});
   }

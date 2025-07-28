@@ -1,11 +1,14 @@
 // 最佳成绩统计类
 // 有两种使用方法，一是计算本次运动最佳数据
 // 二是用作数据类，用于存储最佳数据和进行同类之间的diff比较
+import 'dart:convert';
+import 'dart:js_interop';
 import 'dart:math';
 
 import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/fit.dart';
 import 'package:fit_tool/fit_tool.dart';
+import 'package:gpx/gpx.dart';
 
 class BestScore {
   double maxSpeed = 0.0;
@@ -176,5 +179,28 @@ class BestScore {
         bestSpeedByDistance[distance] = otherSpeed;
       }
     });
+  }
+}
+
+extension Route on Gpx {
+  Map<String, dynamic> toJson() {
+    return {
+      'version': version,
+      'creator': creator,
+      'metadata': metadata,
+      'wpts': wpts,
+      'rtes': rtes,
+      'trks': trks,
+      'extensions': extensions
+    };
+  }
+}
+
+extension History on List<Message> {
+  Map<String, dynamic> toJson() {
+    return {
+      'record_message': whereType<RecordMessage>().toList(),
+      'session_message': whereType<SessionMessage>().toList(),
+    };
   }
 }
