@@ -90,7 +90,8 @@ class _ReusableMapState extends State<ReusableMap> {
           children: [
             if (_mapMode == 1)
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate:
+                    'https://map.iris.al/styles/basic-preview/512/{z}/{x}/{y}.png',
                 tileProvider: Provider.of<DataLoader>(context).tileProvider,
               ),
             if (_mapMode == 2 && _mbtilesProvider != null)

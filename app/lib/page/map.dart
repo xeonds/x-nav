@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:app/component/data.dart';
 import 'package:app/page/routes.dart';
@@ -614,7 +613,8 @@ class MapPageState extends State<MapPage> {
                 if (_mapMode == 1)
                   TileLayer(
                     urlTemplate:
-                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        // 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        'https://map.iris.al/styles/basic-preview/512/{z}/{x}/{y}.png',
                     tileProvider: dataLoader.tileProvider,
                   ),
                 if (_mapMode == 2 && _mbtilesProvider != null)

@@ -4,6 +4,7 @@ import 'package:app/page/tachometer.dart';
 import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit.dart';
+import 'package:app/utils/model.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';

@@ -641,7 +641,8 @@ class RouteEditPageState extends State<RouteEditPage> {
             ),
             children: [
               TileLayer(
-                urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                urlTemplate:
+                    'https://map.iris.al/styles/basic-preview/512/{z}/{x}/{y}.png',
                 tileProvider: dataLoader.tileProvider,
               ),
               if (routePath.isNotEmpty)

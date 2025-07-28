@@ -4,6 +4,7 @@ import 'package:app/component/data.dart';
 import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit.dart';
+import 'package:app/utils/model.dart';
 import 'package:app/utils/path_utils.dart'
     show RideScore, SegmentScore, initCenter, initZoom;
 import 'package:app/utils/storage.dart';
@@ -64,7 +65,7 @@ class RideHistoryState extends State<RideHistory> {
               final fitFile = await path.readAsBytes();
               await Storage().saveFitFile(path.path.split('/').last, fitFile);
             }
-            await DataLoader().loadHistoryData();
+            // await DataLoader().loadHistoryData();
           }
         },
         child: const Icon(Icons.file_upload),
@@ -236,7 +237,7 @@ class RideHistoryListState extends State<RideHistoryList> {
                                 for (var index in selectedIndices) {
                                   await File(sortedHistory[index].key).delete();
                                 }
-                                await DataLoader().loadHistoryData();
+                                // await DataLoader().loadHistoryData();
                                 setState(() {
                                   selectedIndices.clear();
                                   isMultiSelectMode = false;
@@ -467,11 +468,11 @@ class _RideDetailPageState extends State<RideDetailPage> {
               );
               if (confirm == true) {
                 await File(widget.rideData.key).delete();
-                await DataLoader().loadHistoryData();
-                await Future.wait([
-                  DataLoader().loadRideData(),
-                  DataLoader().loadSummaryData(),
-                ]);
+                // await DataLoader().loadHistoryData();
+                // await Future.wait([
+                //   DataLoader().loadRideData(),
+                //   DataLoader().loadSummaryData(),
+                // ]);
                 Navigator.of(context).pop(); // 返回上一页
               }
             },
@@ -497,7 +498,8 @@ class _RideDetailPageState extends State<RideDetailPage> {
                 //   child:
                 // ),
                 TileLayer(
-                  urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                  urlTemplate:
+                      'https://map.iris.al/styles/basic-preview/512/{z}/{x}/{y}.png',
                   tileProvider: dataLoader.tileProvider,
                 ),
                 PolylineLayer(
@@ -1384,7 +1386,8 @@ class SegmentDetailPage extends StatelessWidget {
               ),
               children: [
                 TileLayer(
-                  urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                  urlTemplate:
+                      'https://map.iris.al/styles/basic-preview/512/{z}/{x}/{y}.png',
                   tileProvider: dataLoader.tileProvider,
                 ),
                 PolylineLayer(
