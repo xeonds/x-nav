@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:app/database.dart';
 import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/fit.dart';
 import 'package:app/utils/model.dart';
@@ -12,14 +13,13 @@ String parseGpxFile(File file) {
   return gpxData;
 }
 
-Map<String, dynamic> analyzeRideData(List<Map<String, dynamic>> summaries) {
+Map<String, dynamic> analyzeRideData(List<SummaryData> summaries) {
   return summaries.fold<Map<String, dynamic>>(
     {'totalDistance': 0.0, 'totalRides': 0, 'totalTime': 0},
     (value, element) => {
-      'totalDistance':
-          value['totalDistance'] + (element['total_distance'] ?? 0.0),
+      'totalDistance': value['totalDistance'] + element.totalDistance,
       'totalRides': value['totalRides'] + 1,
-      'totalTime': value['totalTime'] + (element['total_elapsed_time'] ?? 0),
+      'totalTime': value['totalTime'] + element.totalElapsedTime,
     },
   );
 }
@@ -42,20 +42,17 @@ List<Map<String, dynamic>> analyzeSummaryData(List<List<Message>> fitData) {
   }).toList();
 }
 
-Map<String, dynamic> analyzeBestScore(List<List<Message>> data) {
-  final routes = data.map((record) => parseFitDataToRoute(record)).toList();
+List<MapEntry<int, BestScore>> analyzeBestScore(List<SummaryData> data) {
+  final res = {};
+  final dataByTimeAsc = data
+    ..sort((a, b) => (a.startTime!.isAfter(b.startTime!) ? 1 : -1));
 
-  final bestScoreTillNow = <int, BestScore>{};
-  final bestScoreAtTimestamp = <int, BestScore>{};
-  final bestSegment = <int, SortManager<SegmentScore, int>>{};
-  final currBestScore = BestScore();
-  final subRoutesOfRoutes = <int, List<SegmentScore>>{};
+  
+}
 
-  final orderedFitData = data
-    ..sort((a, b) => (timestampWithOffset(
-                a.whereType<SessionMessage>().first.startTime!) -
-            timestampWithOffset(b.whereType<SessionMessage>().first.startTime!))
-        .toInt());
+void analyzeSegment() {
+  final subRoutesOfRoutes = <int, List<Segment>>{};
+  final bestSegment = <int, SortManager<Segment, int>>{};
 
   for (var fitData in orderedFitData) {
     final timestamp = timestampWithOffset(
@@ -77,16 +74,9 @@ Map<String, dynamic> analyzeBestScore(List<List<Message>> data) {
             .append(item, item.startTime.toInt());
       } else {
         bestSegment[item.segment.segmentIndex] =
-            SortManager<SegmentScore, int>((a, b) => a.avgSpeed < b.avgSpeed)
+            SortManager<Segment, int>((a, b) => a.avgSpeed < b.avgSpeed)
               ..append(item, item.startTime.toInt());
       }
     }
   }
-
-  return {
-    'bestScore': bestScoreTillNow,
-    'bestScoreAt': bestScoreAtTimestamp,
-    'bestSegment': bestSegment,
-    'subRoutesOfRoutes': subRoutesOfRoutes,
-  };
 }

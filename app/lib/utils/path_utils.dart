@@ -44,16 +44,6 @@ double initZoom(List<LatLng> routePoints) {
   return ((lngZoom < latZoom ? lngZoom : latZoom) + 0.5);
 }
 
-class SegmentMatch {
-  final List<LatLng> segmentPoints;
-  final int startIndex; // 骑行记录中匹配到赛段的起始点索引
-  final int endIndex; // 骑行记录中匹配到赛段的结束点索引
-  final double matchPercentage; // 匹配度百分比
-  final int segmentIndex; // 赛段在所有赛段中的索引
-
-  SegmentMatch(this.segmentPoints, this.startIndex, this.endIndex,
-      this.matchPercentage, this.segmentIndex);
-}
 
 class SegmentMatcher {
   /// 用于确定两个坐标点是否匹配的距离阈值（单位：米）
@@ -282,26 +272,6 @@ SegmentScore parseSegmentToScore(
       route: routePoints.sublist(startIndex, endIndex));
 }
 
-// 赛段成绩类
-class SegmentScore {
-  final SegmentMatch segment;
-  final double startTime;
-  final double endTime;
-  final double duration;
-  final double avgSpeed;
-  final double distance;
-  final List<LatLng> route;
-
-  SegmentScore({
-    required this.segment,
-    required this.startTime,
-    required this.endTime,
-    required this.duration,
-    required this.avgSpeed,
-    required this.distance,
-    required this.route,
-  });
-}
 
 class RideScore {
   final List<Message> rideData; // fitData原始数据

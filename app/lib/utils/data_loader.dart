@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'package:app/database.dart';
@@ -8,12 +9,13 @@ import 'package:app/utils/fit.dart';
 import 'package:app/utils/model.dart';
 import 'package:app/utils/path_utils.dart';
 import 'package:app/utils/storage.dart';
+import 'package:drift/drift.dart';
 import 'package:fit_tool/fit_tool.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:gpx/gpx.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:sqflite/sqflite.dart' hide Database;
 
 class _DataLoadRequest {
   final String appDocPath;
@@ -27,16 +29,16 @@ class DataLoader extends ChangeNotifier {
 
   DataLoader._internal();
 
-  final List<List<LatLng>> routes = [];
-  final Map<String, String> gpxData = {};
-  final List<List<Message>> histories = []; // 历史路径
-  final Map<String, List<Message>> fitData = {};
-  final Map<String, dynamic> rideData = {}; // 骑行历史统计信息
-  final List<Map<String, dynamic>> summaryList = []; // 每个骑行记录对应的摘要
-  final Map<int, BestScore> bestScore = {}, bestScoreAt = {};
-  final Map<int, SortManager<SegmentScore, int>> bestSegment =
-      {}; // 任意赛段，截至任意时间戳的最佳记录
-  final Map<int, List<SegmentScore>> subRoutesOfRoutes = {};
+  // final List<List<LatLng>> routes = [];
+  // final Map<String, String> gpxData = {};
+  // final List<List<Message>> histories = []; // 历史路径
+  // final Map<String, List<Message>> fitData = {};
+  // final Map<String, dynamic> rideData = {}; // 骑行历史统计信息
+  // final List<Map<String, dynamic>> summaryList = []; // 每个骑行记录对应的摘要
+  // final Map<int, BestScore> bestScore = {}, bestScoreAt = {};
+  // final Map<int, SortManager<Segment, int>> bestSegment =
+  //     {}; // 任意赛段，截至任意时间戳的最佳记录
+  // final Map<int, List<Segment>> subRoutesOfRoutes = {};
 
   // 获取 MBTiles 文件列表
   static Future<List<String>> listMbtilesFiles() async {
@@ -61,6 +63,8 @@ class DataLoader extends ChangeNotifier {
     stores: const {'mapStore': BrowseStoreStrategy.readUpdateCreate},
   );
   bool isInitialized = false;
+  // 数据库连接
+  final Database database = Database();
 
   // 新增：阶段性加载状态
   bool isLoading = false;
@@ -220,130 +224,88 @@ void _dataLoadIsolateEntryWithProgressPhased(
     sendPort.send({'progress': '正在初始化存储...'});
     Storage.appDocPath = request.appDocPath;
     sendPort.send({'progress': '正在初始化数据库...'});
-    final db = await DB.initDatabase();
+    final db = Database();
 
     // GPX
     sendPort.send({'progress': '正在读取路书...'});
-    // final parsedRoutes =
     await Future(() {
       final gpxFiles = Storage().getGpxFilesSync();
-      // final parsedGpx = <String, String>{};
-      int gpxParseCount = 0;
-
-      for (var file in gpxFiles) {
+      for (var i = 0; i < gpxFiles.length; i++) {
         try {
+          final file = gpxFiles[i];
           final str = parseGpxFile(file);
-          db.insert(
-              'gpx',
-              {
-                'filePath': file.path,
-                'gpx': GpxReader().fromString(str).toJson(),
-              },
-              conflictAlgorithm: ConflictAlgorithm.replace);
-          sendPort.send(
-              {'progress': '路书解析中： ${gpxParseCount++}/${gpxFiles.length}'});
+          final parsed = GpxReader().fromString(str);
+          final path = parsed.trks.first.trksegs.first.trkpts
+              .map((e) => LatLng(e.lat!, e.lon!))
+              .toList();
+          final distance = latlngToDistance(path);
+          db.into(db.route).insertOnConflictUpdate(RouteCompanion.insert(
+              filePath: file.path,
+              distance: distance,
+              routeJson: jsonEncode(path)));
+          sendPort.send({'progress': '路书解析中： ${i + 1}/${gpxFiles.length}'});
         } catch (e) {
           debugPrint('Error reading GPX file: $e');
         }
       }
-      print('all gpx parsed');
-      // return parsedGpx;
     });
-    // sendPort.send({
-    //   'phase': 'gpx',
-    //   'routes': parsedRoutes.values.map((e) => GpxReader()
-    //       .fromString(e)
-    //       .trks
-    //       .first
-    //       .trksegs
-    //       .first
-    //       .trkpts
-    //       .map((p) => LatLng(p.lat!, p.lon!))
-    //       .toList()),
-    //   'gpxData': parsedRoutes,
-    // });
 
     // FIT
-    sendPort.send({'progress': '正在读取骑行记录...'});
-    await Future(() {
+    sendPort.send({'progress': '正在分析骑行记录...'});
+    await Future(() async {
       final fitFiles = Storage().getFitFilesSync();
-      // final fitDataList = <String, List<Message>>{};
-      int count = 0;
-
-      for (var file in fitFiles) {
+      for (var i = 0; i < fitFiles.length; i++) {
         try {
+          final file = fitFiles[i];
           final fitMsgs = parseFitFile(file);
-          // fitDataList[file.path] =
-          db.insert(
-              'history',
-              {
-                'filePath': file.path,
-                ...fitMsgs.toJson(),
-              },
-              conflictAlgorithm: ConflictAlgorithm.replace);
-          sendPort.send({'progress': '骑行记录解析中： ${count++}/${fitFiles.length}'});
+          final session = fitMsgs.whereType<SessionMessage>().toList().first;
+          final records = fitMsgs.whereType<RecordMessage>().toList();
+          final path = records
+              .map((r) => LatLng(r.positionLat ?? 0, r.positionLong ?? 0));
+          final historyId = await db.into(db.history).insert(
+              HistoryCompanion.insert(
+                  filePath: file.path,
+                  createdAt: Value(DateTime(session.startTime ?? 0)),
+                  routeJson: Value(jsonEncode(path))));
+          db.into(db.record).insert(
+              RecordCompanion.insert(
+                historyId: historyId,
+                json: jsonEncode(fitMsgs),
+              ),
+              mode: InsertMode.insertOrReplace);
+          db.into(db.summary).insert(SummaryCompanion.insert(
+              timestamp: Value(session.timestamp),
+              startTime: Value(DateTime(session.startTime!)),
+              sport: Value(session.sport?.name),
+              maxTemperature: Value(session.maxTemperature?.toDouble()),
+              avgTemperature: Value(session.avgTemperature?.toDouble()),
+              totalAscent: Value(session.totalAscent?.toDouble()),
+              totalDescent: Value(session.totalDescent?.toDouble()),
+              totalDistance: Value(session.totalDistance),
+              totalElapsedTime: Value(session.totalElapsedTime)));
+          sendPort.send({'progress': '骑行记录解析中： ${i + 1}/${fitFiles.length}'});
         } catch (e) {
           debugPrint('Error reading fit file: $e');
         }
       }
-      print('all fit parsed');
-      // return fitDataList;
     });
-    // sendPort.send({
-    //   'phase': 'fit',
-    //   'fitData': parsedHistories,
-    // });
-
-    // 摘要
-    sendPort.send({'progress': '正在分析骑行摘要...'});
-    print('start analyzing summary');
-    await Future(() async {
-      final sessionMsgs =
-          (await db.query('history', columns: ['session_message']))
-              .map((e) => e['session_message'] as Message)
-              .toList();
-      final data = parseFitDataToSummary(sessionMsgs);
-      db.insert('summary', {
-        "timestamp": data.timestamp,
-        "start_time": data.startTime,
-        "sport": data.sport,
-        "max_temperature": data.maxTemperature,
-        "avg_temperature": data.avgTemperature,
-        "total_ascent": data.totalAscent,
-        "total_descent": data.totalDescent,
-        "total_distance": data.totalDistance,
-        "total_elapsed_time": data.totalElapsedTime,
-      });
-    });
-    // sendPort.send({
-    //   'phase': 'summary',
-    //   'summary': summary,
-    // });
 
     // 统计
-    sendPort.send({'progress': '正在统计骑行数据...'});
+    sendPort.send({'progress': '正在统计数据...'});
     await Future(() async {
-      final summary = await db.query('summary');
+      final summary = await db.select(db.summary).get();
       final data = analyzeRideData(summary);
       for (var item in data.entries) {
-        db.insert('ride_data', {'key': item.key, 'value': item.value});
+        db.into(db.kv).insert(
+            mode: InsertMode.replace,
+            KVCompanion.insert(key: item.key, value: item.value.toString()));
       }
     });
-    // sendPort.send({
-    //   'phase': 'rideData',
-    //   'rideData': rideData,
-    // });
 
     // 最佳成绩
     sendPort.send({'progress': '正在分析最佳成绩...'});
     await Future(() async {
-      final sessionMsgs = (await db
-              .query('history', columns: ['record_message', 'session_message']))
-          .map((e) => [
-                e['session_message'] as Message,
-                e['record_message'] as Message,
-              ])
-          .toList();
+      final summary = await db.select(db.summary).get();
       final data = analyzeBestScore(sessionMsgs);
       for (var item in data.entries) {
         db.insert('best_score', {'key': item.key, 'value': item.value});

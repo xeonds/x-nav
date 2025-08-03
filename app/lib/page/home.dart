@@ -46,32 +46,7 @@ class _HomePageState extends State<HomePage> {
     late final Map<DateTime, Map<String, dynamic>> rideData;
     // 骑行数据按日分组
     if (dataLoader.summaryLoaded) {
-      rideData = dataLoader.summaryList
-          .map((e) => {
-                'timestamp': DateTime.fromMillisecondsSinceEpoch(
-                        timestampWithOffset(e['start_time'].toInt()))
-                    .toLocal(),
-                'total_distance': e['total_distance'],
-                'total_ascent': e['total_ascent'],
-                'total_moving_time': e['total_moving_time'],
-              })
-          .groupFoldBy<DateTime, Map<String, dynamic>>(
-              (element) => DateTime(
-                  element['timestamp'].year,
-                  element['timestamp'].month,
-                  element['timestamp'].day), (previousValue, element) {
-        previousValue ??= {
-          'total_distance': 0,
-          'total_ascent': 0,
-          'total_moving_time': 0,
-          'count': 0,
-        };
-        previousValue['total_distance'] += element['total_distance'];
-        previousValue['total_ascent'] += element['total_ascent'];
-        previousValue['total_moving_time'] += element['total_moving_time'];
-        previousValue['count'] += 1;
-        return previousValue;
-      });
+      rideData = groupSummariesByDay(rideData, dataLoader);
     } else {
       rideData = {};
     }
@@ -181,6 +156,36 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Map<DateTime, Map<String, dynamic>> groupSummariesByDay(Map<DateTime, Map<String, dynamic>> rideData, List<Summary> summaries) {
+    rideData = summaries
+        .map((e) => {
+              'timestamp': DateTime.fromMillisecondsSinceEpoch(
+                      timestampWithOffset(e['start_time'].toInt()))
+                  .toLocal(),
+              'total_distance': e['total_distance'],
+              'total_ascent': e['total_ascent'],
+              'total_moving_time': e['total_moving_time'],
+            })
+        .groupFoldBy<DateTime, Map<String, dynamic>>(
+            (element) => DateTime(
+                element['timestamp'].year,
+                element['timestamp'].month,
+                element['timestamp'].day), (previousValue, element) {
+      previousValue ??= {
+        'total_distance': 0,
+        'total_ascent': 0,
+        'total_moving_time': 0,
+        'count': 0,
+      };
+      previousValue['total_distance'] += element['total_distance'];
+      previousValue['total_ascent'] += element['total_ascent'];
+      previousValue['total_moving_time'] += element['total_moving_time'];
+      previousValue['count'] += 1;
+      return previousValue;
+    });
+    return rideData;
+  }
+
   SizedBox monthlySummaryCalendar(Map<DateTime, Map<String, dynamic>> rideData,
       ValueNotifier<DateTime> currentMonth) {
     return SizedBox(
@@ -244,14 +249,14 @@ class _HomePageState extends State<HomePage> {
                     if (distance == 0) {
                       return Center(
                         child: GestureDetector(
-                          onTap: () => _showDailyRecords(context, day),
+                          onTap: () => showDailyRecords(context, day),
                           child: Text('${day.day}'),
                         ),
                       );
                     }
                     return Center(
                       child: GestureDetector(
-                        onTap: () => _showDailyRecords(context, day),
+                        onTap: () => showDailyRecords(context, day),
                         child: Container(
                           width: size,
                           height: size,
@@ -513,10 +518,9 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _showDailyRecords(BuildContext context, DateTime day) {
+  void showDailyRecords(BuildContext context, DateTime day, List<History> histories) {
     // 筛选出当天的骑行记录
-    final dailyRecords = DataLoader()
-        .histories
+    final dailyRecords = histories
         .where((record) {
           final recordDate = DateTime.fromMillisecondsSinceEpoch(
               (parseFitDataToSummary(record).startTime! * 1000 + 631065600000)

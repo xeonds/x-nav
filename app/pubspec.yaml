@@ -47,6 +47,8 @@ dependencies:
   flutter_map_location_marker: any
   flutter_joystick: ^0.2.2
   fit_tool: ^0.9.7
+  drift: ^2.28.0
+  drift_flutter: ^0.2.5
 
 dev_dependencies:
   flutter_test:
@@ -54,6 +56,7 @@ dev_dependencies:
 
   flutter_lints: ^5.0.0
   mockito: ^5.4.5
+  drift_dev: ^2.28.1-dev.0
 
 flutter:
   uses-material-design: true

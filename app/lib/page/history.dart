@@ -382,7 +382,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
     final sessionMsg = rideData.value.whereType<SessionMessage>().first;
     final timestamp = timestampWithOffset(sessionMsg.timestamp!);
     late final BestScore bestScore, bestScoreTillNow;
-    late final List<SegmentScore> analysisOfSubRoutes;
+    late final List<Segment> analysisOfSubRoutes;
     if (!dataLoader.bestScoreLoaded) {
       bestScore = BestScore();
       bestScoreTillNow = BestScore();
@@ -1349,7 +1349,7 @@ class _RideDetailPageState extends State<RideDetailPage> {
 }
 
 class SegmentDetailPage extends StatelessWidget {
-  final SegmentScore segment;
+  final Segment segment;
   final RideScore rideScore;
   final DataLoader dataLoader;
 
