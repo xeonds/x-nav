@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:app/utils/fit.dart';
+import 'package:app/utils/model.dart';
 import 'package:fit_tool/fit_tool.dart'
     show Message, RecordMessage, SessionMessage;
 import 'package:latlong2/latlong.dart';

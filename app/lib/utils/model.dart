@@ -1,4 +1,9 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:app/database.dart';
 import 'package:drift/drift.dart';
+import 'package:fit_tool/fit_tool.dart';
 import 'package:latlong2/latlong.dart';
 
 // 赛段在路径中的匹配信息
@@ -7,50 +12,45 @@ class SegmentMatch {
   final int startIndex; // 骑行记录中匹配到赛段的起始点索引
   final int endIndex; // 骑行记录中匹配到赛段的结束点索引
   final double matchPercentage; // 匹配度百分比
-  final int segmentIndex; // 赛段在所有赛段中的索引
+  final int segmentId; // 赛段在所有赛段中的索引
 
   SegmentMatch(this.segmentPoints, this.startIndex, this.endIndex,
-      this.matchPercentage, this.segmentIndex);
+      this.matchPercentage, this.segmentId);
 }
 
 // data class for segment records
 // Drift table for segment records
-class Segment extends Table {
+class Segments extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get segmentIndex => integer()(); // 赛段在所有赛段中的索引
+  IntColumn get routeId => integer()(); // 关联Routes的id
+  IntColumn get historyId => integer()(); // 关联History的id
+  IntColumn get bestScoreId => integer()();
   IntColumn get startIndex => integer()(); // 骑行记录中匹配到赛段的起始点索引
   IntColumn get endIndex => integer()(); // 骑行记录中匹配到赛段的结束点索引
   RealColumn get matchPercentage => real()(); // 匹配度百分比
-  RealColumn get startTime => real()(); // 赛段开始时间
-  RealColumn get endTime => real()(); // 赛段结束时间
-  RealColumn get duration => real()(); // 赛段持续时间
-  RealColumn get avgSpeed => real()(); // 平均速度
-  RealColumn get distance => real()(); // 赛段距离
-  TextColumn get routeJson => text()(); // 赛段路线点序列化为json字符串
-  TextColumn get segmentPointsJson => text()(); // 赛段匹配点序列化为json字符串
 }
 
 // data class for routes
 // Drift table for routes
-class Route extends Table {
+class Routes extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get filePath => text()(); // 路径文件
   RealColumn get distance => real()(); // 路线距离
-  TextColumn get routeJson => text()(); // 路线点序列化为json字符串
+  TextColumn get route => text().map(LatlngListConverter())(); // 路线点序列化为json字符串
 }
 
 // data class for ride histories
 // Drift table for ride histories
-class History extends Table {
+class Historys extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get filePath => text()(); // 路径文件
   DateTimeColumn get createdAt => dateTime().nullable()(); // 创建时间
-  TextColumn get routeJson => text().nullable()(); // 路线点序列化为json字符串
+  TextColumn get route => text().map(LatlngListConverter())(); // 路线点序列化为json字符串
   IntColumn get summaryId => integer().nullable()(); // 关联Summary的id
 }
 
 // data class for each ride's analysis
-class Summary extends Table {
+class Summarys extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get timestamp => integer().nullable()();
   DateTimeColumn get startTime => dateTime().nullable()();
@@ -84,7 +84,7 @@ class Summary extends Table {
 }
 
 // data class for each data entry's best score, like speed, ride distance
-class BestScore extends Table {
+class BestScores extends Table {
   IntColumn get id => integer().autoIncrement()();
   RealColumn get maxSpeed => real().withDefault(const Constant(0.0))();
   RealColumn get maxAltitude => real().withDefault(const Constant(0.0))();
@@ -98,58 +98,6 @@ class BestScore extends Table {
       text().withDefault(const Constant('{}'))();
   TextColumn get bestHRByTimeJson => text().withDefault(const Constant('{}'))();
   IntColumn get historyId => integer().nullable()(); // 可选：关联历史记录
-
-  // void updateRecord(SessionMessage record) {
-  //   maxSpeed = max(record.maxSpeed!, maxSpeed);
-  //   maxAltitude = max(record.maxAltitude!, maxAltitude);
-  //   maxPower = max(record.maxPower!.toDouble(), maxPower);
-  //   maxTime = max(record.totalMovingTime!.toInt(), maxTime);
-  //   maxClimb = max(record.totalAscent!.toDouble(), maxClimb);
-  // }
-
-  // BestScore update(List<Message> records) {
-  //   final sessionMsg = records.whereType<SessionMessage>().first;
-  //   final recordMsg = records.whereType<RecordMessage>().toList();
-  //   List<int> alignedPoints = []; // 以1000m为间隔的点列表
-
-  //   updateRecord(sessionMsg);
-
-  //   for (int dist = 0, i = 0;
-  //       dist.toDouble() < sessionMsg.totalDistance! && i < recordMsg.length;
-  //       i++) {
-  //     if (dist.toDouble() < recordMsg[i].distance!) {
-  //       alignedPoints.add(timestampWithOffset(recordMsg[i].timestamp!));
-  //       dist += 1000;
-  //     }
-  //   }
-
-  //   // /*
-  //   bestSpeedByDistance = calculateMaxRangeAvgs(
-  //       [1, 5, 10, 20, 30, 50, 80, 100, 150, 160, 180, 200, 250, 300, 400, 500],
-  //       alignedPoints, (key, range) {
-  //     final accumulate = key * 1000; // in this case is range's length
-  //     final timeSpent = range.last - range.first;
-  //     return timeSpent > 0 ? accumulate / timeSpent : 0.0; // in case of div 0
-  //   });
-
-  //   // ensure points are aligned to seconds
-  //   // here for performance reason assume points are aligned as seconds
-  //   final alignedPower = recordMsg.map((e) => e.power!).toList();
-  //   bestPowerByTime = calculateMaxRangeAvgs(
-  //       [5, 10, 30, 60, 300, 480, 1200, 1800, 3600], alignedPower,
-  //       (key, range) {
-  //     final accumulate = range.fold(0, (a, b) => a + b);
-  //     return accumulate / key;
-  //   });
-
-  //   final alignedHR = recordMsg.map((e) => e.heartRate ?? 0).toList();
-  //   bestHRByTime = calculateMaxRangeAvgs(
-  //       [5, 10, 30, 60, 300, 480, 1200, 1800, 3600], alignedHR, (key, range) {
-  //     final accumulate = range.fold(0, (a, b) => a + b);
-  //     return accumulate / key;
-  //   });
-  //   return this;
-  // }
 
   // Map<String, String> getBestData() {
   //   return {
@@ -261,14 +209,73 @@ class BestScore extends Table {
 }
 
 // data class for each item in fit
-class Record extends Table {
+class Records extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get historyId => integer()(); // 关联History的id
-  TextColumn get json => text()(); // 存储RecordMessage序列化后的json字符串
+  BlobColumn get messages => blob().map(RecordMessageListBinaryConverter())();
 }
 
-class KV extends Table {
+class KVs extends Table {
   IntColumn get id => integer().autoIncrement()();
-  TextColumn get key => text().unique()(); // 存储RecordMessage序列化后的json字符串
-  TextColumn get value => text()(); // 存储RecordMessage序列化后的json字符串
+  TextColumn get key => text().unique()();
+  TextColumn get value => text()();
+}
+
+class RecordMessageListBinaryConverter
+    extends TypeConverter<List<RecordMessage>, Uint8List> {
+  @override
+  List<RecordMessage> fromSql(Uint8List fromDb) {
+    final data = ByteData.view(fromDb.buffer);
+    int offset = 0;
+    final defLength = data.getUint32(offset, Endian.little);
+    offset += 4;
+    final count = data.getUint32(offset, Endian.little);
+    offset += 4;
+    final defBytes = fromDb.sublist(offset, offset + defLength);
+    offset += defLength;
+    final definition = DefinitionMessage.fromBytes(defBytes);
+    final messages = <RecordMessage>[];
+    for (int i = 0; i < count; i++) {
+      final msgLength = data.getUint32(offset, Endian.little);
+      offset += 4;
+      final msgBytes = fromDb.sublist(offset, offset + msgLength);
+      offset += msgLength;
+      messages.add(RecordMessage.fromBytes(definition, msgBytes));
+    }
+    return messages;
+  }
+
+  @override
+  Uint8List toSql(List<RecordMessage> value) {
+    final builder = BytesBuilder();
+    final defBytes = DefinitionMessage.fromDataMessage(value.first).toBytes();
+    final header = Uint8List(8);
+    final headerData = ByteData.view(header.buffer);
+    headerData.setUint32(0, defBytes.length, Endian.little);
+    headerData.setUint32(4, value.length, Endian.little);
+    builder.add(header);
+    builder.add(defBytes);
+    for (int i = 0; i < value.length; i++) {
+      final msgBytes = value[i].toBytes();
+      final lengthHeader = Uint8List(4);
+      final lengthData = ByteData.view(lengthHeader.buffer);
+      lengthData.setUint32(0, msgBytes.length, Endian.little);
+      builder.add(lengthHeader);
+      builder.add(msgBytes);
+    }
+    return builder.toBytes();
+  }
+}
+
+class LatlngListConverter extends TypeConverter<List<LatLng>, String> {
+  @override
+  List<LatLng> fromSql(String data) {
+    final arr = jsonDecode(data) as List;
+    return arr.map((e) => LatLng(e[0], e[1])).toList();
+  }
+
+  @override
+  String toSql(List<LatLng> pts) {
+    return jsonEncode(pts.map((p) => [p.latitude, p.longitude]).toList());
+  }
 }

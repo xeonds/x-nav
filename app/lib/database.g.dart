@@ -3,11 +3,11 @@
 part of 'database.dart';
 
 // ignore_for_file: type=lint
-class $HistoryTable extends History with TableInfo<$HistoryTable, HistoryData> {
+class $HistorysTable extends Historys with TableInfo<$HistorysTable, History> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $HistoryTable(this.attachedDatabase, [this._alias]);
+  $HistorysTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
@@ -29,12 +29,11 @@ class $HistoryTable extends History with TableInfo<$HistoryTable, HistoryData> {
   late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
       'created_at', aliasedName, true,
       type: DriftSqlType.dateTime, requiredDuringInsert: false);
-  static const VerificationMeta _routeJsonMeta =
-      const VerificationMeta('routeJson');
   @override
-  late final GeneratedColumn<String> routeJson = GeneratedColumn<String>(
-      'route_json', aliasedName, true,
-      type: DriftSqlType.string, requiredDuringInsert: false);
+  late final GeneratedColumnWithTypeConverter<List<LatLng>, String> route =
+      GeneratedColumn<String>('route', aliasedName, false,
+              type: DriftSqlType.string, requiredDuringInsert: true)
+          .withConverter<List<LatLng>>($HistorysTable.$converterroute);
   static const VerificationMeta _summaryIdMeta =
       const VerificationMeta('summaryId');
   @override
@@ -43,14 +42,14 @@ class $HistoryTable extends History with TableInfo<$HistoryTable, HistoryData> {
       type: DriftSqlType.int, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns =>
-      [id, filePath, createdAt, routeJson, summaryId];
+      [id, filePath, createdAt, route, summaryId];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'history';
+  static const String $name = 'historys';
   @override
-  VerificationContext validateIntegrity(Insertable<HistoryData> instance,
+  VerificationContext validateIntegrity(Insertable<History> instance,
       {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
@@ -67,10 +66,6 @@ class $HistoryTable extends History with TableInfo<$HistoryTable, HistoryData> {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
     }
-    if (data.containsKey('route_json')) {
-      context.handle(_routeJsonMeta,
-          routeJson.isAcceptableOrUnknown(data['route_json']!, _routeJsonMeta));
-    }
     if (data.containsKey('summary_id')) {
       context.handle(_summaryIdMeta,
           summaryId.isAcceptableOrUnknown(data['summary_id']!, _summaryIdMeta));
@@ -81,39 +76,42 @@ class $HistoryTable extends History with TableInfo<$HistoryTable, HistoryData> {
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  HistoryData map(Map<String, dynamic> data, {String? tablePrefix}) {
+  History map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return HistoryData(
+    return History(
       id: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
       filePath: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}file_path'])!,
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at']),
-      routeJson: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}route_json']),
+      route: $HistorysTable.$converterroute.fromSql(attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}route'])!),
       summaryId: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}summary_id']),
     );
   }
 
   @override
-  $HistoryTable createAlias(String alias) {
-    return $HistoryTable(attachedDatabase, alias);
+  $HistorysTable createAlias(String alias) {
+    return $HistorysTable(attachedDatabase, alias);
   }
+
+  static TypeConverter<List<LatLng>, String> $converterroute =
+      LatlngListConverter();
 }
 
-class HistoryData extends DataClass implements Insertable<HistoryData> {
+class History extends DataClass implements Insertable<History> {
   final int id;
   final String filePath;
   final DateTime? createdAt;
-  final String? routeJson;
+  final List<LatLng> route;
   final int? summaryId;
-  const HistoryData(
+  const History(
       {required this.id,
       required this.filePath,
       this.createdAt,
-      this.routeJson,
+      required this.route,
       this.summaryId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -123,8 +121,9 @@ class HistoryData extends DataClass implements Insertable<HistoryData> {
     if (!nullToAbsent || createdAt != null) {
       map['created_at'] = Variable<DateTime>(createdAt);
     }
-    if (!nullToAbsent || routeJson != null) {
-      map['route_json'] = Variable<String>(routeJson);
+    {
+      map['route'] =
+          Variable<String>($HistorysTable.$converterroute.toSql(route));
     }
     if (!nullToAbsent || summaryId != null) {
       map['summary_id'] = Variable<int>(summaryId);
@@ -132,30 +131,28 @@ class HistoryData extends DataClass implements Insertable<HistoryData> {
     return map;
   }
 
-  HistoryCompanion toCompanion(bool nullToAbsent) {
-    return HistoryCompanion(
+  HistorysCompanion toCompanion(bool nullToAbsent) {
+    return HistorysCompanion(
       id: Value(id),
       filePath: Value(filePath),
       createdAt: createdAt == null && nullToAbsent
           ? const Value.absent()
           : Value(createdAt),
-      routeJson: routeJson == null && nullToAbsent
-          ? const Value.absent()
-          : Value(routeJson),
+      route: Value(route),
       summaryId: summaryId == null && nullToAbsent
           ? const Value.absent()
           : Value(summaryId),
     );
   }
 
-  factory HistoryData.fromJson(Map<String, dynamic> json,
+  factory History.fromJson(Map<String, dynamic> json,
       {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return HistoryData(
+    return History(
       id: serializer.fromJson<int>(json['id']),
       filePath: serializer.fromJson<String>(json['filePath']),
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
-      routeJson: serializer.fromJson<String?>(json['routeJson']),
+      route: serializer.fromJson<List<LatLng>>(json['route']),
       summaryId: serializer.fromJson<int?>(json['summaryId']),
     );
   }
@@ -166,107 +163,107 @@ class HistoryData extends DataClass implements Insertable<HistoryData> {
       'id': serializer.toJson<int>(id),
       'filePath': serializer.toJson<String>(filePath),
       'createdAt': serializer.toJson<DateTime?>(createdAt),
-      'routeJson': serializer.toJson<String?>(routeJson),
+      'route': serializer.toJson<List<LatLng>>(route),
       'summaryId': serializer.toJson<int?>(summaryId),
     };
   }
 
-  HistoryData copyWith(
+  History copyWith(
           {int? id,
           String? filePath,
           Value<DateTime?> createdAt = const Value.absent(),
-          Value<String?> routeJson = const Value.absent(),
+          List<LatLng>? route,
           Value<int?> summaryId = const Value.absent()}) =>
-      HistoryData(
+      History(
         id: id ?? this.id,
         filePath: filePath ?? this.filePath,
         createdAt: createdAt.present ? createdAt.value : this.createdAt,
-        routeJson: routeJson.present ? routeJson.value : this.routeJson,
+        route: route ?? this.route,
         summaryId: summaryId.present ? summaryId.value : this.summaryId,
       );
-  HistoryData copyWithCompanion(HistoryCompanion data) {
-    return HistoryData(
+  History copyWithCompanion(HistorysCompanion data) {
+    return History(
       id: data.id.present ? data.id.value : this.id,
       filePath: data.filePath.present ? data.filePath.value : this.filePath,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
-      routeJson: data.routeJson.present ? data.routeJson.value : this.routeJson,
+      route: data.route.present ? data.route.value : this.route,
       summaryId: data.summaryId.present ? data.summaryId.value : this.summaryId,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('HistoryData(')
+    return (StringBuffer('History(')
           ..write('id: $id, ')
           ..write('filePath: $filePath, ')
           ..write('createdAt: $createdAt, ')
-          ..write('routeJson: $routeJson, ')
+          ..write('route: $route, ')
           ..write('summaryId: $summaryId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, filePath, createdAt, routeJson, summaryId);
+  int get hashCode => Object.hash(id, filePath, createdAt, route, summaryId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is HistoryData &&
+      (other is History &&
           other.id == this.id &&
           other.filePath == this.filePath &&
           other.createdAt == this.createdAt &&
-          other.routeJson == this.routeJson &&
+          other.route == this.route &&
           other.summaryId == this.summaryId);
 }
 
-class HistoryCompanion extends UpdateCompanion<HistoryData> {
+class HistorysCompanion extends UpdateCompanion<History> {
   final Value<int> id;
   final Value<String> filePath;
   final Value<DateTime?> createdAt;
-  final Value<String?> routeJson;
+  final Value<List<LatLng>> route;
   final Value<int?> summaryId;
-  const HistoryCompanion({
+  const HistorysCompanion({
     this.id = const Value.absent(),
     this.filePath = const Value.absent(),
     this.createdAt = const Value.absent(),
-    this.routeJson = const Value.absent(),
+    this.route = const Value.absent(),
     this.summaryId = const Value.absent(),
   });
-  HistoryCompanion.insert({
+  HistorysCompanion.insert({
     this.id = const Value.absent(),
     required String filePath,
     this.createdAt = const Value.absent(),
-    this.routeJson = const Value.absent(),
+    required List<LatLng> route,
     this.summaryId = const Value.absent(),
-  }) : filePath = Value(filePath);
-  static Insertable<HistoryData> custom({
+  })  : filePath = Value(filePath),
+        route = Value(route);
+  static Insertable<History> custom({
     Expression<int>? id,
     Expression<String>? filePath,
     Expression<DateTime>? createdAt,
-    Expression<String>? routeJson,
+    Expression<String>? route,
     Expression<int>? summaryId,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (filePath != null) 'file_path': filePath,
       if (createdAt != null) 'created_at': createdAt,
-      if (routeJson != null) 'route_json': routeJson,
+      if (route != null) 'route': route,
       if (summaryId != null) 'summary_id': summaryId,
     });
   }
 
-  HistoryCompanion copyWith(
+  HistorysCompanion copyWith(
       {Value<int>? id,
       Value<String>? filePath,
       Value<DateTime?>? createdAt,
-      Value<String?>? routeJson,
+      Value<List<LatLng>>? route,
       Value<int?>? summaryId}) {
-    return HistoryCompanion(
+    return HistorysCompanion(
       id: id ?? this.id,
       filePath: filePath ?? this.filePath,
       createdAt: createdAt ?? this.createdAt,
-      routeJson: routeJson ?? this.routeJson,
+      route: route ?? this.route,
       summaryId: summaryId ?? this.summaryId,
     );
   }
@@ -283,8 +280,9 @@ class HistoryCompanion extends UpdateCompanion<HistoryData> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
-    if (routeJson.present) {
-      map['route_json'] = Variable<String>(routeJson.value);
+    if (route.present) {
+      map['route'] =
+          Variable<String>($HistorysTable.$converterroute.toSql(route.value));
     }
     if (summaryId.present) {
       map['summary_id'] = Variable<int>(summaryId.value);
@@ -294,22 +292,22 @@ class HistoryCompanion extends UpdateCompanion<HistoryData> {
 
   @override
   String toString() {
-    return (StringBuffer('HistoryCompanion(')
+    return (StringBuffer('HistorysCompanion(')
           ..write('id: $id, ')
           ..write('filePath: $filePath, ')
           ..write('createdAt: $createdAt, ')
-          ..write('routeJson: $routeJson, ')
+          ..write('route: $route, ')
           ..write('summaryId: $summaryId')
           ..write(')'))
         .toString();
   }
 }
 
-class $RouteTable extends Route with TableInfo<$RouteTable, RouteData> {
+class $RoutesTable extends Routes with TableInfo<$RoutesTable, Route> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $RouteTable(this.attachedDatabase, [this._alias]);
+  $RoutesTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
@@ -331,21 +329,20 @@ class $RouteTable extends Route with TableInfo<$RouteTable, RouteData> {
   late final GeneratedColumn<double> distance = GeneratedColumn<double>(
       'distance', aliasedName, false,
       type: DriftSqlType.double, requiredDuringInsert: true);
-  static const VerificationMeta _routeJsonMeta =
-      const VerificationMeta('routeJson');
   @override
-  late final GeneratedColumn<String> routeJson = GeneratedColumn<String>(
-      'route_json', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
+  late final GeneratedColumnWithTypeConverter<List<LatLng>, String> route =
+      GeneratedColumn<String>('route', aliasedName, false,
+              type: DriftSqlType.string, requiredDuringInsert: true)
+          .withConverter<List<LatLng>>($RoutesTable.$converterroute);
   @override
-  List<GeneratedColumn> get $columns => [id, filePath, distance, routeJson];
+  List<GeneratedColumn> get $columns => [id, filePath, distance, route];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'route';
+  static const String $name = 'routes';
   @override
-  VerificationContext validateIntegrity(Insertable<RouteData> instance,
+  VerificationContext validateIntegrity(Insertable<Route> instance,
       {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
@@ -364,75 +361,75 @@ class $RouteTable extends Route with TableInfo<$RouteTable, RouteData> {
     } else if (isInserting) {
       context.missing(_distanceMeta);
     }
-    if (data.containsKey('route_json')) {
-      context.handle(_routeJsonMeta,
-          routeJson.isAcceptableOrUnknown(data['route_json']!, _routeJsonMeta));
-    } else if (isInserting) {
-      context.missing(_routeJsonMeta);
-    }
     return context;
   }
 
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  RouteData map(Map<String, dynamic> data, {String? tablePrefix}) {
+  Route map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return RouteData(
+    return Route(
       id: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
       filePath: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}file_path'])!,
       distance: attachedDatabase.typeMapping
           .read(DriftSqlType.double, data['${effectivePrefix}distance'])!,
-      routeJson: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}route_json'])!,
+      route: $RoutesTable.$converterroute.fromSql(attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}route'])!),
     );
   }
 
   @override
-  $RouteTable createAlias(String alias) {
-    return $RouteTable(attachedDatabase, alias);
+  $RoutesTable createAlias(String alias) {
+    return $RoutesTable(attachedDatabase, alias);
   }
+
+  static TypeConverter<List<LatLng>, String> $converterroute =
+      LatlngListConverter();
 }
 
-class RouteData extends DataClass implements Insertable<RouteData> {
+class Route extends DataClass implements Insertable<Route> {
   final int id;
   final String filePath;
   final double distance;
-  final String routeJson;
-  const RouteData(
+  final List<LatLng> route;
+  const Route(
       {required this.id,
       required this.filePath,
       required this.distance,
-      required this.routeJson});
+      required this.route});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['file_path'] = Variable<String>(filePath);
     map['distance'] = Variable<double>(distance);
-    map['route_json'] = Variable<String>(routeJson);
+    {
+      map['route'] =
+          Variable<String>($RoutesTable.$converterroute.toSql(route));
+    }
     return map;
   }
 
-  RouteCompanion toCompanion(bool nullToAbsent) {
-    return RouteCompanion(
+  RoutesCompanion toCompanion(bool nullToAbsent) {
+    return RoutesCompanion(
       id: Value(id),
       filePath: Value(filePath),
       distance: Value(distance),
-      routeJson: Value(routeJson),
+      route: Value(route),
     );
   }
 
-  factory RouteData.fromJson(Map<String, dynamic> json,
+  factory Route.fromJson(Map<String, dynamic> json,
       {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return RouteData(
+    return Route(
       id: serializer.fromJson<int>(json['id']),
       filePath: serializer.fromJson<String>(json['filePath']),
       distance: serializer.fromJson<double>(json['distance']),
-      routeJson: serializer.fromJson<String>(json['routeJson']),
+      route: serializer.fromJson<List<LatLng>>(json['route']),
     );
   }
   @override
@@ -442,93 +439,93 @@ class RouteData extends DataClass implements Insertable<RouteData> {
       'id': serializer.toJson<int>(id),
       'filePath': serializer.toJson<String>(filePath),
       'distance': serializer.toJson<double>(distance),
-      'routeJson': serializer.toJson<String>(routeJson),
+      'route': serializer.toJson<List<LatLng>>(route),
     };
   }
 
-  RouteData copyWith(
-          {int? id, String? filePath, double? distance, String? routeJson}) =>
-      RouteData(
+  Route copyWith(
+          {int? id, String? filePath, double? distance, List<LatLng>? route}) =>
+      Route(
         id: id ?? this.id,
         filePath: filePath ?? this.filePath,
         distance: distance ?? this.distance,
-        routeJson: routeJson ?? this.routeJson,
+        route: route ?? this.route,
       );
-  RouteData copyWithCompanion(RouteCompanion data) {
-    return RouteData(
+  Route copyWithCompanion(RoutesCompanion data) {
+    return Route(
       id: data.id.present ? data.id.value : this.id,
       filePath: data.filePath.present ? data.filePath.value : this.filePath,
       distance: data.distance.present ? data.distance.value : this.distance,
-      routeJson: data.routeJson.present ? data.routeJson.value : this.routeJson,
+      route: data.route.present ? data.route.value : this.route,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('RouteData(')
+    return (StringBuffer('Route(')
           ..write('id: $id, ')
           ..write('filePath: $filePath, ')
           ..write('distance: $distance, ')
-          ..write('routeJson: $routeJson')
+          ..write('route: $route')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, filePath, distance, routeJson);
+  int get hashCode => Object.hash(id, filePath, distance, route);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is RouteData &&
+      (other is Route &&
           other.id == this.id &&
           other.filePath == this.filePath &&
           other.distance == this.distance &&
-          other.routeJson == this.routeJson);
+          other.route == this.route);
 }
 
-class RouteCompanion extends UpdateCompanion<RouteData> {
+class RoutesCompanion extends UpdateCompanion<Route> {
   final Value<int> id;
   final Value<String> filePath;
   final Value<double> distance;
-  final Value<String> routeJson;
-  const RouteCompanion({
+  final Value<List<LatLng>> route;
+  const RoutesCompanion({
     this.id = const Value.absent(),
     this.filePath = const Value.absent(),
     this.distance = const Value.absent(),
-    this.routeJson = const Value.absent(),
+    this.route = const Value.absent(),
   });
-  RouteCompanion.insert({
+  RoutesCompanion.insert({
     this.id = const Value.absent(),
     required String filePath,
     required double distance,
-    required String routeJson,
+    required List<LatLng> route,
   })  : filePath = Value(filePath),
         distance = Value(distance),
-        routeJson = Value(routeJson);
-  static Insertable<RouteData> custom({
+        route = Value(route);
+  static Insertable<Route> custom({
     Expression<int>? id,
     Expression<String>? filePath,
     Expression<double>? distance,
-    Expression<String>? routeJson,
+    Expression<String>? route,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (filePath != null) 'file_path': filePath,
       if (distance != null) 'distance': distance,
-      if (routeJson != null) 'route_json': routeJson,
+      if (route != null) 'route': route,
     });
   }
 
-  RouteCompanion copyWith(
+  RoutesCompanion copyWith(
       {Value<int>? id,
       Value<String>? filePath,
       Value<double>? distance,
-      Value<String>? routeJson}) {
-    return RouteCompanion(
+      Value<List<LatLng>>? route}) {
+    return RoutesCompanion(
       id: id ?? this.id,
       filePath: filePath ?? this.filePath,
       distance: distance ?? this.distance,
-      routeJson: routeJson ?? this.routeJson,
+      route: route ?? this.route,
     );
   }
 
@@ -544,29 +541,30 @@ class RouteCompanion extends UpdateCompanion<RouteData> {
     if (distance.present) {
       map['distance'] = Variable<double>(distance.value);
     }
-    if (routeJson.present) {
-      map['route_json'] = Variable<String>(routeJson.value);
+    if (route.present) {
+      map['route'] =
+          Variable<String>($RoutesTable.$converterroute.toSql(route.value));
     }
     return map;
   }
 
   @override
   String toString() {
-    return (StringBuffer('RouteCompanion(')
+    return (StringBuffer('RoutesCompanion(')
           ..write('id: $id, ')
           ..write('filePath: $filePath, ')
           ..write('distance: $distance, ')
-          ..write('routeJson: $routeJson')
+          ..write('route: $route')
           ..write(')'))
         .toString();
   }
 }
 
-class $SegmentTable extends Segment with TableInfo<$SegmentTable, SegmentData> {
+class $SegmentsTable extends Segments with TableInfo<$SegmentsTable, Segment> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $SegmentTable(this.attachedDatabase, [this._alias]);
+  $SegmentsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
@@ -576,11 +574,23 @@ class $SegmentTable extends Segment with TableInfo<$SegmentTable, SegmentData> {
       requiredDuringInsert: false,
       defaultConstraints:
           GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
-  static const VerificationMeta _segmentIndexMeta =
-      const VerificationMeta('segmentIndex');
+  static const VerificationMeta _routeIdMeta =
+      const VerificationMeta('routeId');
   @override
-  late final GeneratedColumn<int> segmentIndex = GeneratedColumn<int>(
-      'segment_index', aliasedName, false,
+  late final GeneratedColumn<int> routeId = GeneratedColumn<int>(
+      'route_id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _historyIdMeta =
+      const VerificationMeta('historyId');
+  @override
+  late final GeneratedColumn<int> historyId = GeneratedColumn<int>(
+      'history_id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _bestScoreIdMeta =
+      const VerificationMeta('bestScoreId');
+  @override
+  late final GeneratedColumn<int> bestScoreId = GeneratedColumn<int>(
+      'best_score_id', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
   static const VerificationMeta _startIndexMeta =
       const VerificationMeta('startIndex');
@@ -600,83 +610,48 @@ class $SegmentTable extends Segment with TableInfo<$SegmentTable, SegmentData> {
   late final GeneratedColumn<double> matchPercentage = GeneratedColumn<double>(
       'match_percentage', aliasedName, false,
       type: DriftSqlType.double, requiredDuringInsert: true);
-  static const VerificationMeta _startTimeMeta =
-      const VerificationMeta('startTime');
-  @override
-  late final GeneratedColumn<double> startTime = GeneratedColumn<double>(
-      'start_time', aliasedName, false,
-      type: DriftSqlType.double, requiredDuringInsert: true);
-  static const VerificationMeta _endTimeMeta =
-      const VerificationMeta('endTime');
-  @override
-  late final GeneratedColumn<double> endTime = GeneratedColumn<double>(
-      'end_time', aliasedName, false,
-      type: DriftSqlType.double, requiredDuringInsert: true);
-  static const VerificationMeta _durationMeta =
-      const VerificationMeta('duration');
-  @override
-  late final GeneratedColumn<double> duration = GeneratedColumn<double>(
-      'duration', aliasedName, false,
-      type: DriftSqlType.double, requiredDuringInsert: true);
-  static const VerificationMeta _avgSpeedMeta =
-      const VerificationMeta('avgSpeed');
-  @override
-  late final GeneratedColumn<double> avgSpeed = GeneratedColumn<double>(
-      'avg_speed', aliasedName, false,
-      type: DriftSqlType.double, requiredDuringInsert: true);
-  static const VerificationMeta _distanceMeta =
-      const VerificationMeta('distance');
-  @override
-  late final GeneratedColumn<double> distance = GeneratedColumn<double>(
-      'distance', aliasedName, false,
-      type: DriftSqlType.double, requiredDuringInsert: true);
-  static const VerificationMeta _routeJsonMeta =
-      const VerificationMeta('routeJson');
-  @override
-  late final GeneratedColumn<String> routeJson = GeneratedColumn<String>(
-      'route_json', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _segmentPointsJsonMeta =
-      const VerificationMeta('segmentPointsJson');
-  @override
-  late final GeneratedColumn<String> segmentPointsJson =
-      GeneratedColumn<String>('segment_points_json', aliasedName, false,
-          type: DriftSqlType.string, requiredDuringInsert: true);
   @override
   List<GeneratedColumn> get $columns => [
         id,
-        segmentIndex,
+        routeId,
+        historyId,
+        bestScoreId,
         startIndex,
         endIndex,
-        matchPercentage,
-        startTime,
-        endTime,
-        duration,
-        avgSpeed,
-        distance,
-        routeJson,
-        segmentPointsJson
+        matchPercentage
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'segment';
+  static const String $name = 'segments';
   @override
-  VerificationContext validateIntegrity(Insertable<SegmentData> instance,
+  VerificationContext validateIntegrity(Insertable<Segment> instance,
       {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     }
-    if (data.containsKey('segment_index')) {
-      context.handle(
-          _segmentIndexMeta,
-          segmentIndex.isAcceptableOrUnknown(
-              data['segment_index']!, _segmentIndexMeta));
+    if (data.containsKey('route_id')) {
+      context.handle(_routeIdMeta,
+          routeId.isAcceptableOrUnknown(data['route_id']!, _routeIdMeta));
     } else if (isInserting) {
-      context.missing(_segmentIndexMeta);
+      context.missing(_routeIdMeta);
+    }
+    if (data.containsKey('history_id')) {
+      context.handle(_historyIdMeta,
+          historyId.isAcceptableOrUnknown(data['history_id']!, _historyIdMeta));
+    } else if (isInserting) {
+      context.missing(_historyIdMeta);
+    }
+    if (data.containsKey('best_score_id')) {
+      context.handle(
+          _bestScoreIdMeta,
+          bestScoreId.isAcceptableOrUnknown(
+              data['best_score_id']!, _bestScoreIdMeta));
+    } else if (isInserting) {
+      context.missing(_bestScoreIdMeta);
     }
     if (data.containsKey('start_index')) {
       context.handle(
@@ -700,169 +675,90 @@ class $SegmentTable extends Segment with TableInfo<$SegmentTable, SegmentData> {
     } else if (isInserting) {
       context.missing(_matchPercentageMeta);
     }
-    if (data.containsKey('start_time')) {
-      context.handle(_startTimeMeta,
-          startTime.isAcceptableOrUnknown(data['start_time']!, _startTimeMeta));
-    } else if (isInserting) {
-      context.missing(_startTimeMeta);
-    }
-    if (data.containsKey('end_time')) {
-      context.handle(_endTimeMeta,
-          endTime.isAcceptableOrUnknown(data['end_time']!, _endTimeMeta));
-    } else if (isInserting) {
-      context.missing(_endTimeMeta);
-    }
-    if (data.containsKey('duration')) {
-      context.handle(_durationMeta,
-          duration.isAcceptableOrUnknown(data['duration']!, _durationMeta));
-    } else if (isInserting) {
-      context.missing(_durationMeta);
-    }
-    if (data.containsKey('avg_speed')) {
-      context.handle(_avgSpeedMeta,
-          avgSpeed.isAcceptableOrUnknown(data['avg_speed']!, _avgSpeedMeta));
-    } else if (isInserting) {
-      context.missing(_avgSpeedMeta);
-    }
-    if (data.containsKey('distance')) {
-      context.handle(_distanceMeta,
-          distance.isAcceptableOrUnknown(data['distance']!, _distanceMeta));
-    } else if (isInserting) {
-      context.missing(_distanceMeta);
-    }
-    if (data.containsKey('route_json')) {
-      context.handle(_routeJsonMeta,
-          routeJson.isAcceptableOrUnknown(data['route_json']!, _routeJsonMeta));
-    } else if (isInserting) {
-      context.missing(_routeJsonMeta);
-    }
-    if (data.containsKey('segment_points_json')) {
-      context.handle(
-          _segmentPointsJsonMeta,
-          segmentPointsJson.isAcceptableOrUnknown(
-              data['segment_points_json']!, _segmentPointsJsonMeta));
-    } else if (isInserting) {
-      context.missing(_segmentPointsJsonMeta);
-    }
     return context;
   }
 
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  SegmentData map(Map<String, dynamic> data, {String? tablePrefix}) {
+  Segment map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return SegmentData(
+    return Segment(
       id: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
-      segmentIndex: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}segment_index'])!,
+      routeId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}route_id'])!,
+      historyId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}history_id'])!,
+      bestScoreId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}best_score_id'])!,
       startIndex: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}start_index'])!,
       endIndex: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}end_index'])!,
       matchPercentage: attachedDatabase.typeMapping.read(
           DriftSqlType.double, data['${effectivePrefix}match_percentage'])!,
-      startTime: attachedDatabase.typeMapping
-          .read(DriftSqlType.double, data['${effectivePrefix}start_time'])!,
-      endTime: attachedDatabase.typeMapping
-          .read(DriftSqlType.double, data['${effectivePrefix}end_time'])!,
-      duration: attachedDatabase.typeMapping
-          .read(DriftSqlType.double, data['${effectivePrefix}duration'])!,
-      avgSpeed: attachedDatabase.typeMapping
-          .read(DriftSqlType.double, data['${effectivePrefix}avg_speed'])!,
-      distance: attachedDatabase.typeMapping
-          .read(DriftSqlType.double, data['${effectivePrefix}distance'])!,
-      routeJson: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}route_json'])!,
-      segmentPointsJson: attachedDatabase.typeMapping.read(
-          DriftSqlType.string, data['${effectivePrefix}segment_points_json'])!,
     );
   }
 
   @override
-  $SegmentTable createAlias(String alias) {
-    return $SegmentTable(attachedDatabase, alias);
+  $SegmentsTable createAlias(String alias) {
+    return $SegmentsTable(attachedDatabase, alias);
   }
 }
 
-class SegmentData extends DataClass implements Insertable<SegmentData> {
+class Segment extends DataClass implements Insertable<Segment> {
   final int id;
-  final int segmentIndex;
+  final int routeId;
+  final int historyId;
+  final int bestScoreId;
   final int startIndex;
   final int endIndex;
   final double matchPercentage;
-  final double startTime;
-  final double endTime;
-  final double duration;
-  final double avgSpeed;
-  final double distance;
-  final String routeJson;
-  final String segmentPointsJson;
-  const SegmentData(
+  const Segment(
       {required this.id,
-      required this.segmentIndex,
+      required this.routeId,
+      required this.historyId,
+      required this.bestScoreId,
       required this.startIndex,
       required this.endIndex,
-      required this.matchPercentage,
-      required this.startTime,
-      required this.endTime,
-      required this.duration,
-      required this.avgSpeed,
-      required this.distance,
-      required this.routeJson,
-      required this.segmentPointsJson});
+      required this.matchPercentage});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
-    map['segment_index'] = Variable<int>(segmentIndex);
+    map['route_id'] = Variable<int>(routeId);
+    map['history_id'] = Variable<int>(historyId);
+    map['best_score_id'] = Variable<int>(bestScoreId);
     map['start_index'] = Variable<int>(startIndex);
     map['end_index'] = Variable<int>(endIndex);
     map['match_percentage'] = Variable<double>(matchPercentage);
-    map['start_time'] = Variable<double>(startTime);
-    map['end_time'] = Variable<double>(endTime);
-    map['duration'] = Variable<double>(duration);
-    map['avg_speed'] = Variable<double>(avgSpeed);
-    map['distance'] = Variable<double>(distance);
-    map['route_json'] = Variable<String>(routeJson);
-    map['segment_points_json'] = Variable<String>(segmentPointsJson);
     return map;
   }
 
-  SegmentCompanion toCompanion(bool nullToAbsent) {
-    return SegmentCompanion(
+  SegmentsCompanion toCompanion(bool nullToAbsent) {
+    return SegmentsCompanion(
       id: Value(id),
-      segmentIndex: Value(segmentIndex),
+      routeId: Value(routeId),
+      historyId: Value(historyId),
+      bestScoreId: Value(bestScoreId),
       startIndex: Value(startIndex),
       endIndex: Value(endIndex),
       matchPercentage: Value(matchPercentage),
-      startTime: Value(startTime),
-      endTime: Value(endTime),
-      duration: Value(duration),
-      avgSpeed: Value(avgSpeed),
-      distance: Value(distance),
-      routeJson: Value(routeJson),
-      segmentPointsJson: Value(segmentPointsJson),
     );
   }
 
-  factory SegmentData.fromJson(Map<String, dynamic> json,
+  factory Segment.fromJson(Map<String, dynamic> json,
       {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return SegmentData(
+    return Segment(
       id: serializer.fromJson<int>(json['id']),
-      segmentIndex: serializer.fromJson<int>(json['segmentIndex']),
+      routeId: serializer.fromJson<int>(json['routeId']),
+      historyId: serializer.fromJson<int>(json['historyId']),
+      bestScoreId: serializer.fromJson<int>(json['bestScoreId']),
       startIndex: serializer.fromJson<int>(json['startIndex']),
       endIndex: serializer.fromJson<int>(json['endIndex']),
       matchPercentage: serializer.fromJson<double>(json['matchPercentage']),
-      startTime: serializer.fromJson<double>(json['startTime']),
-      endTime: serializer.fromJson<double>(json['endTime']),
-      duration: serializer.fromJson<double>(json['duration']),
-      avgSpeed: serializer.fromJson<double>(json['avgSpeed']),
-      distance: serializer.fromJson<double>(json['distance']),
-      routeJson: serializer.fromJson<String>(json['routeJson']),
-      segmentPointsJson: serializer.fromJson<String>(json['segmentPointsJson']),
     );
   }
   @override
@@ -870,229 +766,145 @@ class SegmentData extends DataClass implements Insertable<SegmentData> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
-      'segmentIndex': serializer.toJson<int>(segmentIndex),
+      'routeId': serializer.toJson<int>(routeId),
+      'historyId': serializer.toJson<int>(historyId),
+      'bestScoreId': serializer.toJson<int>(bestScoreId),
       'startIndex': serializer.toJson<int>(startIndex),
       'endIndex': serializer.toJson<int>(endIndex),
       'matchPercentage': serializer.toJson<double>(matchPercentage),
-      'startTime': serializer.toJson<double>(startTime),
-      'endTime': serializer.toJson<double>(endTime),
-      'duration': serializer.toJson<double>(duration),
-      'avgSpeed': serializer.toJson<double>(avgSpeed),
-      'distance': serializer.toJson<double>(distance),
-      'routeJson': serializer.toJson<String>(routeJson),
-      'segmentPointsJson': serializer.toJson<String>(segmentPointsJson),
     };
   }
 
-  SegmentData copyWith(
+  Segment copyWith(
           {int? id,
-          int? segmentIndex,
+          int? routeId,
+          int? historyId,
+          int? bestScoreId,
           int? startIndex,
           int? endIndex,
-          double? matchPercentage,
-          double? startTime,
-          double? endTime,
-          double? duration,
-          double? avgSpeed,
-          double? distance,
-          String? routeJson,
-          String? segmentPointsJson}) =>
-      SegmentData(
+          double? matchPercentage}) =>
+      Segment(
         id: id ?? this.id,
-        segmentIndex: segmentIndex ?? this.segmentIndex,
+        routeId: routeId ?? this.routeId,
+        historyId: historyId ?? this.historyId,
+        bestScoreId: bestScoreId ?? this.bestScoreId,
         startIndex: startIndex ?? this.startIndex,
         endIndex: endIndex ?? this.endIndex,
         matchPercentage: matchPercentage ?? this.matchPercentage,
-        startTime: startTime ?? this.startTime,
-        endTime: endTime ?? this.endTime,
-        duration: duration ?? this.duration,
-        avgSpeed: avgSpeed ?? this.avgSpeed,
-        distance: distance ?? this.distance,
-        routeJson: routeJson ?? this.routeJson,
-        segmentPointsJson: segmentPointsJson ?? this.segmentPointsJson,
       );
-  SegmentData copyWithCompanion(SegmentCompanion data) {
-    return SegmentData(
+  Segment copyWithCompanion(SegmentsCompanion data) {
+    return Segment(
       id: data.id.present ? data.id.value : this.id,
-      segmentIndex: data.segmentIndex.present
-          ? data.segmentIndex.value
-          : this.segmentIndex,
+      routeId: data.routeId.present ? data.routeId.value : this.routeId,
+      historyId: data.historyId.present ? data.historyId.value : this.historyId,
+      bestScoreId:
+          data.bestScoreId.present ? data.bestScoreId.value : this.bestScoreId,
       startIndex:
           data.startIndex.present ? data.startIndex.value : this.startIndex,
       endIndex: data.endIndex.present ? data.endIndex.value : this.endIndex,
       matchPercentage: data.matchPercentage.present
           ? data.matchPercentage.value
           : this.matchPercentage,
-      startTime: data.startTime.present ? data.startTime.value : this.startTime,
-      endTime: data.endTime.present ? data.endTime.value : this.endTime,
-      duration: data.duration.present ? data.duration.value : this.duration,
-      avgSpeed: data.avgSpeed.present ? data.avgSpeed.value : this.avgSpeed,
-      distance: data.distance.present ? data.distance.value : this.distance,
-      routeJson: data.routeJson.present ? data.routeJson.value : this.routeJson,
-      segmentPointsJson: data.segmentPointsJson.present
-          ? data.segmentPointsJson.value
-          : this.segmentPointsJson,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('SegmentData(')
+    return (StringBuffer('Segment(')
           ..write('id: $id, ')
-          ..write('segmentIndex: $segmentIndex, ')
+          ..write('routeId: $routeId, ')
+          ..write('historyId: $historyId, ')
+          ..write('bestScoreId: $bestScoreId, ')
           ..write('startIndex: $startIndex, ')
           ..write('endIndex: $endIndex, ')
-          ..write('matchPercentage: $matchPercentage, ')
-          ..write('startTime: $startTime, ')
-          ..write('endTime: $endTime, ')
-          ..write('duration: $duration, ')
-          ..write('avgSpeed: $avgSpeed, ')
-          ..write('distance: $distance, ')
-          ..write('routeJson: $routeJson, ')
-          ..write('segmentPointsJson: $segmentPointsJson')
+          ..write('matchPercentage: $matchPercentage')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-      id,
-      segmentIndex,
-      startIndex,
-      endIndex,
-      matchPercentage,
-      startTime,
-      endTime,
-      duration,
-      avgSpeed,
-      distance,
-      routeJson,
-      segmentPointsJson);
+  int get hashCode => Object.hash(id, routeId, historyId, bestScoreId,
+      startIndex, endIndex, matchPercentage);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is SegmentData &&
+      (other is Segment &&
           other.id == this.id &&
-          other.segmentIndex == this.segmentIndex &&
+          other.routeId == this.routeId &&
+          other.historyId == this.historyId &&
+          other.bestScoreId == this.bestScoreId &&
           other.startIndex == this.startIndex &&
           other.endIndex == this.endIndex &&
-          other.matchPercentage == this.matchPercentage &&
-          other.startTime == this.startTime &&
-          other.endTime == this.endTime &&
-          other.duration == this.duration &&
-          other.avgSpeed == this.avgSpeed &&
-          other.distance == this.distance &&
-          other.routeJson == this.routeJson &&
-          other.segmentPointsJson == this.segmentPointsJson);
+          other.matchPercentage == this.matchPercentage);
 }
 
-class SegmentCompanion extends UpdateCompanion<SegmentData> {
+class SegmentsCompanion extends UpdateCompanion<Segment> {
   final Value<int> id;
-  final Value<int> segmentIndex;
+  final Value<int> routeId;
+  final Value<int> historyId;
+  final Value<int> bestScoreId;
   final Value<int> startIndex;
   final Value<int> endIndex;
   final Value<double> matchPercentage;
-  final Value<double> startTime;
-  final Value<double> endTime;
-  final Value<double> duration;
-  final Value<double> avgSpeed;
-  final Value<double> distance;
-  final Value<String> routeJson;
-  final Value<String> segmentPointsJson;
-  const SegmentCompanion({
+  const SegmentsCompanion({
     this.id = const Value.absent(),
-    this.segmentIndex = const Value.absent(),
+    this.routeId = const Value.absent(),
+    this.historyId = const Value.absent(),
+    this.bestScoreId = const Value.absent(),
     this.startIndex = const Value.absent(),
     this.endIndex = const Value.absent(),
     this.matchPercentage = const Value.absent(),
-    this.startTime = const Value.absent(),
-    this.endTime = const Value.absent(),
-    this.duration = const Value.absent(),
-    this.avgSpeed = const Value.absent(),
-    this.distance = const Value.absent(),
-    this.routeJson = const Value.absent(),
-    this.segmentPointsJson = const Value.absent(),
   });
-  SegmentCompanion.insert({
+  SegmentsCompanion.insert({
     this.id = const Value.absent(),
-    required int segmentIndex,
+    required int routeId,
+    required int historyId,
+    required int bestScoreId,
     required int startIndex,
     required int endIndex,
     required double matchPercentage,
-    required double startTime,
-    required double endTime,
-    required double duration,
-    required double avgSpeed,
-    required double distance,
-    required String routeJson,
-    required String segmentPointsJson,
-  })  : segmentIndex = Value(segmentIndex),
+  })  : routeId = Value(routeId),
+        historyId = Value(historyId),
+        bestScoreId = Value(bestScoreId),
         startIndex = Value(startIndex),
         endIndex = Value(endIndex),
-        matchPercentage = Value(matchPercentage),
-        startTime = Value(startTime),
-        endTime = Value(endTime),
-        duration = Value(duration),
-        avgSpeed = Value(avgSpeed),
-        distance = Value(distance),
-        routeJson = Value(routeJson),
-        segmentPointsJson = Value(segmentPointsJson);
-  static Insertable<SegmentData> custom({
+        matchPercentage = Value(matchPercentage);
+  static Insertable<Segment> custom({
     Expression<int>? id,
-    Expression<int>? segmentIndex,
+    Expression<int>? routeId,
+    Expression<int>? historyId,
+    Expression<int>? bestScoreId,
     Expression<int>? startIndex,
     Expression<int>? endIndex,
     Expression<double>? matchPercentage,
-    Expression<double>? startTime,
-    Expression<double>? endTime,
-    Expression<double>? duration,
-    Expression<double>? avgSpeed,
-    Expression<double>? distance,
-    Expression<String>? routeJson,
-    Expression<String>? segmentPointsJson,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
-      if (segmentIndex != null) 'segment_index': segmentIndex,
+      if (routeId != null) 'route_id': routeId,
+      if (historyId != null) 'history_id': historyId,
+      if (bestScoreId != null) 'best_score_id': bestScoreId,
       if (startIndex != null) 'start_index': startIndex,
       if (endIndex != null) 'end_index': endIndex,
       if (matchPercentage != null) 'match_percentage': matchPercentage,
-      if (startTime != null) 'start_time': startTime,
-      if (endTime != null) 'end_time': endTime,
-      if (duration != null) 'duration': duration,
-      if (avgSpeed != null) 'avg_speed': avgSpeed,
-      if (distance != null) 'distance': distance,
-      if (routeJson != null) 'route_json': routeJson,
-      if (segmentPointsJson != null) 'segment_points_json': segmentPointsJson,
     });
   }
 
-  SegmentCompanion copyWith(
+  SegmentsCompanion copyWith(
       {Value<int>? id,
-      Value<int>? segmentIndex,
+      Value<int>? routeId,
+      Value<int>? historyId,
+      Value<int>? bestScoreId,
       Value<int>? startIndex,
       Value<int>? endIndex,
-      Value<double>? matchPercentage,
-      Value<double>? startTime,
-      Value<double>? endTime,
-      Value<double>? duration,
-      Value<double>? avgSpeed,
-      Value<double>? distance,
-      Value<String>? routeJson,
-      Value<String>? segmentPointsJson}) {
-    return SegmentCompanion(
+      Value<double>? matchPercentage}) {
+    return SegmentsCompanion(
       id: id ?? this.id,
-      segmentIndex: segmentIndex ?? this.segmentIndex,
+      routeId: routeId ?? this.routeId,
+      historyId: historyId ?? this.historyId,
+      bestScoreId: bestScoreId ?? this.bestScoreId,
       startIndex: startIndex ?? this.startIndex,
       endIndex: endIndex ?? this.endIndex,
       matchPercentage: matchPercentage ?? this.matchPercentage,
-      startTime: startTime ?? this.startTime,
-      endTime: endTime ?? this.endTime,
-      duration: duration ?? this.duration,
-      avgSpeed: avgSpeed ?? this.avgSpeed,
-      distance: distance ?? this.distance,
-      routeJson: routeJson ?? this.routeJson,
-      segmentPointsJson: segmentPointsJson ?? this.segmentPointsJson,
     );
   }
 
@@ -1102,8 +914,14 @@ class SegmentCompanion extends UpdateCompanion<SegmentData> {
     if (id.present) {
       map['id'] = Variable<int>(id.value);
     }
-    if (segmentIndex.present) {
-      map['segment_index'] = Variable<int>(segmentIndex.value);
+    if (routeId.present) {
+      map['route_id'] = Variable<int>(routeId.value);
+    }
+    if (historyId.present) {
+      map['history_id'] = Variable<int>(historyId.value);
+    }
+    if (bestScoreId.present) {
+      map['best_score_id'] = Variable<int>(bestScoreId.value);
     }
     if (startIndex.present) {
       map['start_index'] = Variable<int>(startIndex.value);
@@ -1114,55 +932,29 @@ class SegmentCompanion extends UpdateCompanion<SegmentData> {
     if (matchPercentage.present) {
       map['match_percentage'] = Variable<double>(matchPercentage.value);
     }
-    if (startTime.present) {
-      map['start_time'] = Variable<double>(startTime.value);
-    }
-    if (endTime.present) {
-      map['end_time'] = Variable<double>(endTime.value);
-    }
-    if (duration.present) {
-      map['duration'] = Variable<double>(duration.value);
-    }
-    if (avgSpeed.present) {
-      map['avg_speed'] = Variable<double>(avgSpeed.value);
-    }
-    if (distance.present) {
-      map['distance'] = Variable<double>(distance.value);
-    }
-    if (routeJson.present) {
-      map['route_json'] = Variable<String>(routeJson.value);
-    }
-    if (segmentPointsJson.present) {
-      map['segment_points_json'] = Variable<String>(segmentPointsJson.value);
-    }
     return map;
   }
 
   @override
   String toString() {
-    return (StringBuffer('SegmentCompanion(')
+    return (StringBuffer('SegmentsCompanion(')
           ..write('id: $id, ')
-          ..write('segmentIndex: $segmentIndex, ')
+          ..write('routeId: $routeId, ')
+          ..write('historyId: $historyId, ')
+          ..write('bestScoreId: $bestScoreId, ')
           ..write('startIndex: $startIndex, ')
           ..write('endIndex: $endIndex, ')
-          ..write('matchPercentage: $matchPercentage, ')
-          ..write('startTime: $startTime, ')
-          ..write('endTime: $endTime, ')
-          ..write('duration: $duration, ')
-          ..write('avgSpeed: $avgSpeed, ')
-          ..write('distance: $distance, ')
-          ..write('routeJson: $routeJson, ')
-          ..write('segmentPointsJson: $segmentPointsJson')
+          ..write('matchPercentage: $matchPercentage')
           ..write(')'))
         .toString();
   }
 }
 
-class $SummaryTable extends Summary with TableInfo<$SummaryTable, SummaryData> {
+class $SummarysTable extends Summarys with TableInfo<$SummarysTable, Summary> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $SummaryTable(this.attachedDatabase, [this._alias]);
+  $SummarysTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
@@ -1382,9 +1174,9 @@ class $SummaryTable extends Summary with TableInfo<$SummaryTable, SummaryData> {
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'summary';
+  static const String $name = 'summarys';
   @override
-  VerificationContext validateIntegrity(Insertable<SummaryData> instance,
+  VerificationContext validateIntegrity(Insertable<Summary> instance,
       {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
@@ -1553,9 +1345,9 @@ class $SummaryTable extends Summary with TableInfo<$SummaryTable, SummaryData> {
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  SummaryData map(Map<String, dynamic> data, {String? tablePrefix}) {
+  Summary map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return SummaryData(
+    return Summary(
       id: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
       timestamp: attachedDatabase.typeMapping
@@ -1620,12 +1412,12 @@ class $SummaryTable extends Summary with TableInfo<$SummaryTable, SummaryData> {
   }
 
   @override
-  $SummaryTable createAlias(String alias) {
-    return $SummaryTable(attachedDatabase, alias);
+  $SummarysTable createAlias(String alias) {
+    return $SummarysTable(attachedDatabase, alias);
   }
 }
 
-class SummaryData extends DataClass implements Insertable<SummaryData> {
+class Summary extends DataClass implements Insertable<Summary> {
   final int id;
   final int? timestamp;
   final DateTime? startTime;
@@ -1656,7 +1448,7 @@ class SummaryData extends DataClass implements Insertable<SummaryData> {
   final double? maxAltitude;
   final double? avgGrade;
   final double? thresholdPower;
-  const SummaryData(
+  const Summary(
       {required this.id,
       this.timestamp,
       this.startTime,
@@ -1781,8 +1573,8 @@ class SummaryData extends DataClass implements Insertable<SummaryData> {
     return map;
   }
 
-  SummaryCompanion toCompanion(bool nullToAbsent) {
-    return SummaryCompanion(
+  SummarysCompanion toCompanion(bool nullToAbsent) {
+    return SummarysCompanion(
       id: Value(id),
       timestamp: timestamp == null && nullToAbsent
           ? const Value.absent()
@@ -1873,10 +1665,10 @@ class SummaryData extends DataClass implements Insertable<SummaryData> {
     );
   }
 
-  factory SummaryData.fromJson(Map<String, dynamic> json,
+  factory Summary.fromJson(Map<String, dynamic> json,
       {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return SummaryData(
+    return Summary(
       id: serializer.fromJson<int>(json['id']),
       timestamp: serializer.fromJson<int?>(json['timestamp']),
       startTime: serializer.fromJson<DateTime?>(json['startTime']),
@@ -1948,7 +1740,7 @@ class SummaryData extends DataClass implements Insertable<SummaryData> {
     };
   }
 
-  SummaryData copyWith(
+  Summary copyWith(
           {int? id,
           Value<int?> timestamp = const Value.absent(),
           Value<DateTime?> startTime = const Value.absent(),
@@ -1979,7 +1771,7 @@ class SummaryData extends DataClass implements Insertable<SummaryData> {
           Value<double?> maxAltitude = const Value.absent(),
           Value<double?> avgGrade = const Value.absent(),
           Value<double?> thresholdPower = const Value.absent()}) =>
-      SummaryData(
+      Summary(
         id: id ?? this.id,
         timestamp: timestamp.present ? timestamp.value : this.timestamp,
         startTime: startTime.present ? startTime.value : this.startTime,
@@ -2032,8 +1824,8 @@ class SummaryData extends DataClass implements Insertable<SummaryData> {
         thresholdPower:
             thresholdPower.present ? thresholdPower.value : this.thresholdPower,
       );
-  SummaryData copyWithCompanion(SummaryCompanion data) {
-    return SummaryData(
+  Summary copyWithCompanion(SummarysCompanion data) {
+    return Summary(
       id: data.id.present ? data.id.value : this.id,
       timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
       startTime: data.startTime.present ? data.startTime.value : this.startTime,
@@ -2104,7 +1896,7 @@ class SummaryData extends DataClass implements Insertable<SummaryData> {
 
   @override
   String toString() {
-    return (StringBuffer('SummaryData(')
+    return (StringBuffer('Summary(')
           ..write('id: $id, ')
           ..write('timestamp: $timestamp, ')
           ..write('startTime: $startTime, ')
@@ -2175,7 +1967,7 @@ class SummaryData extends DataClass implements Insertable<SummaryData> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is SummaryData &&
+      (other is Summary &&
           other.id == this.id &&
           other.timestamp == this.timestamp &&
           other.startTime == this.startTime &&
@@ -2208,7 +2000,7 @@ class SummaryData extends DataClass implements Insertable<SummaryData> {
           other.thresholdPower == this.thresholdPower);
 }
 
-class SummaryCompanion extends UpdateCompanion<SummaryData> {
+class SummarysCompanion extends UpdateCompanion<Summary> {
   final Value<int> id;
   final Value<int?> timestamp;
   final Value<DateTime?> startTime;
@@ -2239,7 +2031,7 @@ class SummaryCompanion extends UpdateCompanion<SummaryData> {
   final Value<double?> maxAltitude;
   final Value<double?> avgGrade;
   final Value<double?> thresholdPower;
-  const SummaryCompanion({
+  const SummarysCompanion({
     this.id = const Value.absent(),
     this.timestamp = const Value.absent(),
     this.startTime = const Value.absent(),
@@ -2271,7 +2063,7 @@ class SummaryCompanion extends UpdateCompanion<SummaryData> {
     this.avgGrade = const Value.absent(),
     this.thresholdPower = const Value.absent(),
   });
-  SummaryCompanion.insert({
+  SummarysCompanion.insert({
     this.id = const Value.absent(),
     this.timestamp = const Value.absent(),
     this.startTime = const Value.absent(),
@@ -2303,7 +2095,7 @@ class SummaryCompanion extends UpdateCompanion<SummaryData> {
     this.avgGrade = const Value.absent(),
     this.thresholdPower = const Value.absent(),
   });
-  static Insertable<SummaryData> custom({
+  static Insertable<Summary> custom({
     Expression<int>? id,
     Expression<int>? timestamp,
     Expression<DateTime>? startTime,
@@ -2371,7 +2163,7 @@ class SummaryCompanion extends UpdateCompanion<SummaryData> {
     });
   }
 
-  SummaryCompanion copyWith(
+  SummarysCompanion copyWith(
       {Value<int>? id,
       Value<int?>? timestamp,
       Value<DateTime?>? startTime,
@@ -2402,7 +2194,7 @@ class SummaryCompanion extends UpdateCompanion<SummaryData> {
       Value<double?>? maxAltitude,
       Value<double?>? avgGrade,
       Value<double?>? thresholdPower}) {
-    return SummaryCompanion(
+    return SummarysCompanion(
       id: id ?? this.id,
       timestamp: timestamp ?? this.timestamp,
       startTime: startTime ?? this.startTime,
@@ -2536,7 +2328,7 @@ class SummaryCompanion extends UpdateCompanion<SummaryData> {
 
   @override
   String toString() {
-    return (StringBuffer('SummaryCompanion(')
+    return (StringBuffer('SummarysCompanion(')
           ..write('id: $id, ')
           ..write('timestamp: $timestamp, ')
           ..write('startTime: $startTime, ')
@@ -2572,11 +2364,11 @@ class SummaryCompanion extends UpdateCompanion<SummaryData> {
   }
 }
 
-class $RecordTable extends Record with TableInfo<$RecordTable, RecordData> {
+class $RecordsTable extends Records with TableInfo<$RecordsTable, Record> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $RecordTable(this.attachedDatabase, [this._alias]);
+  $RecordsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
@@ -2592,20 +2384,20 @@ class $RecordTable extends Record with TableInfo<$RecordTable, RecordData> {
   late final GeneratedColumn<int> historyId = GeneratedColumn<int>(
       'history_id', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
-  static const VerificationMeta _jsonMeta = const VerificationMeta('json');
   @override
-  late final GeneratedColumn<String> json = GeneratedColumn<String>(
-      'json', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
+  late final GeneratedColumnWithTypeConverter<List<RecordMessage>, Uint8List>
+      messages = GeneratedColumn<Uint8List>('messages', aliasedName, false,
+              type: DriftSqlType.blob, requiredDuringInsert: true)
+          .withConverter<List<RecordMessage>>($RecordsTable.$convertermessages);
   @override
-  List<GeneratedColumn> get $columns => [id, historyId, json];
+  List<GeneratedColumn> get $columns => [id, historyId, messages];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'record';
+  static const String $name = 'records';
   @override
-  VerificationContext validateIntegrity(Insertable<RecordData> instance,
+  VerificationContext validateIntegrity(Insertable<Record> instance,
       {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
@@ -2618,66 +2410,67 @@ class $RecordTable extends Record with TableInfo<$RecordTable, RecordData> {
     } else if (isInserting) {
       context.missing(_historyIdMeta);
     }
-    if (data.containsKey('json')) {
-      context.handle(
-          _jsonMeta, json.isAcceptableOrUnknown(data['json']!, _jsonMeta));
-    } else if (isInserting) {
-      context.missing(_jsonMeta);
-    }
     return context;
   }
 
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  RecordData map(Map<String, dynamic> data, {String? tablePrefix}) {
+  Record map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return RecordData(
+    return Record(
       id: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
       historyId: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}history_id'])!,
-      json: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}json'])!,
+      messages: $RecordsTable.$convertermessages.fromSql(attachedDatabase
+          .typeMapping
+          .read(DriftSqlType.blob, data['${effectivePrefix}messages'])!),
     );
   }
 
   @override
-  $RecordTable createAlias(String alias) {
-    return $RecordTable(attachedDatabase, alias);
+  $RecordsTable createAlias(String alias) {
+    return $RecordsTable(attachedDatabase, alias);
   }
+
+  static TypeConverter<List<RecordMessage>, Uint8List> $convertermessages =
+      RecordMessageListBinaryConverter();
 }
 
-class RecordData extends DataClass implements Insertable<RecordData> {
+class Record extends DataClass implements Insertable<Record> {
   final int id;
   final int historyId;
-  final String json;
-  const RecordData(
-      {required this.id, required this.historyId, required this.json});
+  final List<RecordMessage> messages;
+  const Record(
+      {required this.id, required this.historyId, required this.messages});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
     map['history_id'] = Variable<int>(historyId);
-    map['json'] = Variable<String>(json);
+    {
+      map['messages'] =
+          Variable<Uint8List>($RecordsTable.$convertermessages.toSql(messages));
+    }
     return map;
   }
 
-  RecordCompanion toCompanion(bool nullToAbsent) {
-    return RecordCompanion(
+  RecordsCompanion toCompanion(bool nullToAbsent) {
+    return RecordsCompanion(
       id: Value(id),
       historyId: Value(historyId),
-      json: Value(json),
+      messages: Value(messages),
     );
   }
 
-  factory RecordData.fromJson(Map<String, dynamic> json,
+  factory Record.fromJson(Map<String, dynamic> json,
       {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return RecordData(
+    return Record(
       id: serializer.fromJson<int>(json['id']),
       historyId: serializer.fromJson<int>(json['historyId']),
-      json: serializer.fromJson<String>(json['json']),
+      messages: serializer.fromJson<List<RecordMessage>>(json['messages']),
     );
   }
   @override
@@ -2686,77 +2479,80 @@ class RecordData extends DataClass implements Insertable<RecordData> {
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'historyId': serializer.toJson<int>(historyId),
-      'json': serializer.toJson<String>(json),
+      'messages': serializer.toJson<List<RecordMessage>>(messages),
     };
   }
 
-  RecordData copyWith({int? id, int? historyId, String? json}) => RecordData(
+  Record copyWith({int? id, int? historyId, List<RecordMessage>? messages}) =>
+      Record(
         id: id ?? this.id,
         historyId: historyId ?? this.historyId,
-        json: json ?? this.json,
+        messages: messages ?? this.messages,
       );
-  RecordData copyWithCompanion(RecordCompanion data) {
-    return RecordData(
+  Record copyWithCompanion(RecordsCompanion data) {
+    return Record(
       id: data.id.present ? data.id.value : this.id,
       historyId: data.historyId.present ? data.historyId.value : this.historyId,
-      json: data.json.present ? data.json.value : this.json,
+      messages: data.messages.present ? data.messages.value : this.messages,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('RecordData(')
+    return (StringBuffer('Record(')
           ..write('id: $id, ')
           ..write('historyId: $historyId, ')
-          ..write('json: $json')
+          ..write('messages: $messages')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, historyId, json);
+  int get hashCode => Object.hash(id, historyId, messages);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is RecordData &&
+      (other is Record &&
           other.id == this.id &&
           other.historyId == this.historyId &&
-          other.json == this.json);
+          other.messages == this.messages);
 }
 
-class RecordCompanion extends UpdateCompanion<RecordData> {
+class RecordsCompanion extends UpdateCompanion<Record> {
   final Value<int> id;
   final Value<int> historyId;
-  final Value<String> json;
-  const RecordCompanion({
+  final Value<List<RecordMessage>> messages;
+  const RecordsCompanion({
     this.id = const Value.absent(),
     this.historyId = const Value.absent(),
-    this.json = const Value.absent(),
+    this.messages = const Value.absent(),
   });
-  RecordCompanion.insert({
+  RecordsCompanion.insert({
     this.id = const Value.absent(),
     required int historyId,
-    required String json,
+    required List<RecordMessage> messages,
   })  : historyId = Value(historyId),
-        json = Value(json);
-  static Insertable<RecordData> custom({
+        messages = Value(messages);
+  static Insertable<Record> custom({
     Expression<int>? id,
     Expression<int>? historyId,
-    Expression<String>? json,
+    Expression<Uint8List>? messages,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (historyId != null) 'history_id': historyId,
-      if (json != null) 'json': json,
+      if (messages != null) 'messages': messages,
     });
   }
 
-  RecordCompanion copyWith(
-      {Value<int>? id, Value<int>? historyId, Value<String>? json}) {
-    return RecordCompanion(
+  RecordsCompanion copyWith(
+      {Value<int>? id,
+      Value<int>? historyId,
+      Value<List<RecordMessage>>? messages}) {
+    return RecordsCompanion(
       id: id ?? this.id,
       historyId: historyId ?? this.historyId,
-      json: json ?? this.json,
+      messages: messages ?? this.messages,
     );
   }
 
@@ -2769,29 +2565,30 @@ class RecordCompanion extends UpdateCompanion<RecordData> {
     if (historyId.present) {
       map['history_id'] = Variable<int>(historyId.value);
     }
-    if (json.present) {
-      map['json'] = Variable<String>(json.value);
+    if (messages.present) {
+      map['messages'] = Variable<Uint8List>(
+          $RecordsTable.$convertermessages.toSql(messages.value));
     }
     return map;
   }
 
   @override
   String toString() {
-    return (StringBuffer('RecordCompanion(')
+    return (StringBuffer('RecordsCompanion(')
           ..write('id: $id, ')
           ..write('historyId: $historyId, ')
-          ..write('json: $json')
+          ..write('messages: $messages')
           ..write(')'))
         .toString();
   }
 }
 
-class $BestScoreTable extends BestScore
-    with TableInfo<$BestScoreTable, BestScoreData> {
+class $BestScoresTable extends BestScores
+    with TableInfo<$BestScoresTable, BestScore> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $BestScoreTable(this.attachedDatabase, [this._alias]);
+  $BestScoresTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
@@ -2897,9 +2694,9 @@ class $BestScoreTable extends BestScore
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'best_score';
+  static const String $name = 'best_scores';
   @override
-  VerificationContext validateIntegrity(Insertable<BestScoreData> instance,
+  VerificationContext validateIntegrity(Insertable<BestScore> instance,
       {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
@@ -2963,9 +2760,9 @@ class $BestScoreTable extends BestScore
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  BestScoreData map(Map<String, dynamic> data, {String? tablePrefix}) {
+  BestScore map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return BestScoreData(
+    return BestScore(
       id: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
       maxSpeed: attachedDatabase.typeMapping
@@ -2994,12 +2791,12 @@ class $BestScoreTable extends BestScore
   }
 
   @override
-  $BestScoreTable createAlias(String alias) {
-    return $BestScoreTable(attachedDatabase, alias);
+  $BestScoresTable createAlias(String alias) {
+    return $BestScoresTable(attachedDatabase, alias);
   }
 }
 
-class BestScoreData extends DataClass implements Insertable<BestScoreData> {
+class BestScore extends DataClass implements Insertable<BestScore> {
   final int id;
   final double maxSpeed;
   final double maxAltitude;
@@ -3011,7 +2808,7 @@ class BestScoreData extends DataClass implements Insertable<BestScoreData> {
   final String bestPowerByTimeJson;
   final String bestHRByTimeJson;
   final int? historyId;
-  const BestScoreData(
+  const BestScore(
       {required this.id,
       required this.maxSpeed,
       required this.maxAltitude,
@@ -3043,8 +2840,8 @@ class BestScoreData extends DataClass implements Insertable<BestScoreData> {
     return map;
   }
 
-  BestScoreCompanion toCompanion(bool nullToAbsent) {
-    return BestScoreCompanion(
+  BestScoresCompanion toCompanion(bool nullToAbsent) {
+    return BestScoresCompanion(
       id: Value(id),
       maxSpeed: Value(maxSpeed),
       maxAltitude: Value(maxAltitude),
@@ -3061,10 +2858,10 @@ class BestScoreData extends DataClass implements Insertable<BestScoreData> {
     );
   }
 
-  factory BestScoreData.fromJson(Map<String, dynamic> json,
+  factory BestScore.fromJson(Map<String, dynamic> json,
       {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return BestScoreData(
+    return BestScore(
       id: serializer.fromJson<int>(json['id']),
       maxSpeed: serializer.fromJson<double>(json['maxSpeed']),
       maxAltitude: serializer.fromJson<double>(json['maxAltitude']),
@@ -3099,7 +2896,7 @@ class BestScoreData extends DataClass implements Insertable<BestScoreData> {
     };
   }
 
-  BestScoreData copyWith(
+  BestScore copyWith(
           {int? id,
           double? maxSpeed,
           double? maxAltitude,
@@ -3111,7 +2908,7 @@ class BestScoreData extends DataClass implements Insertable<BestScoreData> {
           String? bestPowerByTimeJson,
           String? bestHRByTimeJson,
           Value<int?> historyId = const Value.absent()}) =>
-      BestScoreData(
+      BestScore(
         id: id ?? this.id,
         maxSpeed: maxSpeed ?? this.maxSpeed,
         maxAltitude: maxAltitude ?? this.maxAltitude,
@@ -3125,8 +2922,8 @@ class BestScoreData extends DataClass implements Insertable<BestScoreData> {
         bestHRByTimeJson: bestHRByTimeJson ?? this.bestHRByTimeJson,
         historyId: historyId.present ? historyId.value : this.historyId,
       );
-  BestScoreData copyWithCompanion(BestScoreCompanion data) {
-    return BestScoreData(
+  BestScore copyWithCompanion(BestScoresCompanion data) {
+    return BestScore(
       id: data.id.present ? data.id.value : this.id,
       maxSpeed: data.maxSpeed.present ? data.maxSpeed.value : this.maxSpeed,
       maxAltitude:
@@ -3151,7 +2948,7 @@ class BestScoreData extends DataClass implements Insertable<BestScoreData> {
 
   @override
   String toString() {
-    return (StringBuffer('BestScoreData(')
+    return (StringBuffer('BestScore(')
           ..write('id: $id, ')
           ..write('maxSpeed: $maxSpeed, ')
           ..write('maxAltitude: $maxAltitude, ')
@@ -3183,7 +2980,7 @@ class BestScoreData extends DataClass implements Insertable<BestScoreData> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is BestScoreData &&
+      (other is BestScore &&
           other.id == this.id &&
           other.maxSpeed == this.maxSpeed &&
           other.maxAltitude == this.maxAltitude &&
@@ -3197,7 +2994,7 @@ class BestScoreData extends DataClass implements Insertable<BestScoreData> {
           other.historyId == this.historyId);
 }
 
-class BestScoreCompanion extends UpdateCompanion<BestScoreData> {
+class BestScoresCompanion extends UpdateCompanion<BestScore> {
   final Value<int> id;
   final Value<double> maxSpeed;
   final Value<double> maxAltitude;
@@ -3209,7 +3006,7 @@ class BestScoreCompanion extends UpdateCompanion<BestScoreData> {
   final Value<String> bestPowerByTimeJson;
   final Value<String> bestHRByTimeJson;
   final Value<int?> historyId;
-  const BestScoreCompanion({
+  const BestScoresCompanion({
     this.id = const Value.absent(),
     this.maxSpeed = const Value.absent(),
     this.maxAltitude = const Value.absent(),
@@ -3222,7 +3019,7 @@ class BestScoreCompanion extends UpdateCompanion<BestScoreData> {
     this.bestHRByTimeJson = const Value.absent(),
     this.historyId = const Value.absent(),
   });
-  BestScoreCompanion.insert({
+  BestScoresCompanion.insert({
     this.id = const Value.absent(),
     this.maxSpeed = const Value.absent(),
     this.maxAltitude = const Value.absent(),
@@ -3235,7 +3032,7 @@ class BestScoreCompanion extends UpdateCompanion<BestScoreData> {
     this.bestHRByTimeJson = const Value.absent(),
     this.historyId = const Value.absent(),
   });
-  static Insertable<BestScoreData> custom({
+  static Insertable<BestScore> custom({
     Expression<int>? id,
     Expression<double>? maxSpeed,
     Expression<double>? maxAltitude,
@@ -3265,7 +3062,7 @@ class BestScoreCompanion extends UpdateCompanion<BestScoreData> {
     });
   }
 
-  BestScoreCompanion copyWith(
+  BestScoresCompanion copyWith(
       {Value<int>? id,
       Value<double>? maxSpeed,
       Value<double>? maxAltitude,
@@ -3277,7 +3074,7 @@ class BestScoreCompanion extends UpdateCompanion<BestScoreData> {
       Value<String>? bestPowerByTimeJson,
       Value<String>? bestHRByTimeJson,
       Value<int?>? historyId}) {
-    return BestScoreCompanion(
+    return BestScoresCompanion(
       id: id ?? this.id,
       maxSpeed: maxSpeed ?? this.maxSpeed,
       maxAltitude: maxAltitude ?? this.maxAltitude,
@@ -3336,7 +3133,7 @@ class BestScoreCompanion extends UpdateCompanion<BestScoreData> {
 
   @override
   String toString() {
-    return (StringBuffer('BestScoreCompanion(')
+    return (StringBuffer('BestScoresCompanion(')
           ..write('id: $id, ')
           ..write('maxSpeed: $maxSpeed, ')
           ..write('maxAltitude: $maxAltitude, ')
@@ -3353,11 +3150,11 @@ class BestScoreCompanion extends UpdateCompanion<BestScoreData> {
   }
 }
 
-class $KVTable extends KV with TableInfo<$KVTable, KVData> {
+class $KVsTable extends KVs with TableInfo<$KVsTable, KV> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $KVTable(this.attachedDatabase, [this._alias]);
+  $KVsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
@@ -3385,9 +3182,9 @@ class $KVTable extends KV with TableInfo<$KVTable, KVData> {
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'kv';
+  static const String $name = 'k_vs';
   @override
-  VerificationContext validateIntegrity(Insertable<KVData> instance,
+  VerificationContext validateIntegrity(Insertable<KV> instance,
       {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
@@ -3412,9 +3209,9 @@ class $KVTable extends KV with TableInfo<$KVTable, KVData> {
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  KVData map(Map<String, dynamic> data, {String? tablePrefix}) {
+  KV map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return KVData(
+    return KV(
       id: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
       key: attachedDatabase.typeMapping
@@ -3425,16 +3222,16 @@ class $KVTable extends KV with TableInfo<$KVTable, KVData> {
   }
 
   @override
-  $KVTable createAlias(String alias) {
-    return $KVTable(attachedDatabase, alias);
+  $KVsTable createAlias(String alias) {
+    return $KVsTable(attachedDatabase, alias);
   }
 }
 
-class KVData extends DataClass implements Insertable<KVData> {
+class KV extends DataClass implements Insertable<KV> {
   final int id;
   final String key;
   final String value;
-  const KVData({required this.id, required this.key, required this.value});
+  const KV({required this.id, required this.key, required this.value});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -3444,18 +3241,18 @@ class KVData extends DataClass implements Insertable<KVData> {
     return map;
   }
 
-  KVCompanion toCompanion(bool nullToAbsent) {
-    return KVCompanion(
+  KVsCompanion toCompanion(bool nullToAbsent) {
+    return KVsCompanion(
       id: Value(id),
       key: Value(key),
       value: Value(value),
     );
   }
 
-  factory KVData.fromJson(Map<String, dynamic> json,
+  factory KV.fromJson(Map<String, dynamic> json,
       {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return KVData(
+    return KV(
       id: serializer.fromJson<int>(json['id']),
       key: serializer.fromJson<String>(json['key']),
       value: serializer.fromJson<String>(json['value']),
@@ -3471,13 +3268,13 @@ class KVData extends DataClass implements Insertable<KVData> {
     };
   }
 
-  KVData copyWith({int? id, String? key, String? value}) => KVData(
+  KV copyWith({int? id, String? key, String? value}) => KV(
         id: id ?? this.id,
         key: key ?? this.key,
         value: value ?? this.value,
       );
-  KVData copyWithCompanion(KVCompanion data) {
-    return KVData(
+  KV copyWithCompanion(KVsCompanion data) {
+    return KV(
       id: data.id.present ? data.id.value : this.id,
       key: data.key.present ? data.key.value : this.key,
       value: data.value.present ? data.value.value : this.value,
@@ -3486,7 +3283,7 @@ class KVData extends DataClass implements Insertable<KVData> {
 
   @override
   String toString() {
-    return (StringBuffer('KVData(')
+    return (StringBuffer('KV(')
           ..write('id: $id, ')
           ..write('key: $key, ')
           ..write('value: $value')
@@ -3499,28 +3296,28 @@ class KVData extends DataClass implements Insertable<KVData> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is KVData &&
+      (other is KV &&
           other.id == this.id &&
           other.key == this.key &&
           other.value == this.value);
 }
 
-class KVCompanion extends UpdateCompanion<KVData> {
+class KVsCompanion extends UpdateCompanion<KV> {
   final Value<int> id;
   final Value<String> key;
   final Value<String> value;
-  const KVCompanion({
+  const KVsCompanion({
     this.id = const Value.absent(),
     this.key = const Value.absent(),
     this.value = const Value.absent(),
   });
-  KVCompanion.insert({
+  KVsCompanion.insert({
     this.id = const Value.absent(),
     required String key,
     required String value,
   })  : key = Value(key),
         value = Value(value);
-  static Insertable<KVData> custom({
+  static Insertable<KV> custom({
     Expression<int>? id,
     Expression<String>? key,
     Expression<String>? value,
@@ -3532,9 +3329,9 @@ class KVCompanion extends UpdateCompanion<KVData> {
     });
   }
 
-  KVCompanion copyWith(
+  KVsCompanion copyWith(
       {Value<int>? id, Value<String>? key, Value<String>? value}) {
-    return KVCompanion(
+    return KVsCompanion(
       id: id ?? this.id,
       key: key ?? this.key,
       value: value ?? this.value,
@@ -3558,7 +3355,7 @@ class KVCompanion extends UpdateCompanion<KVData> {
 
   @override
   String toString() {
-    return (StringBuffer('KVCompanion(')
+    return (StringBuffer('KVsCompanion(')
           ..write('id: $id, ')
           ..write('key: $key, ')
           ..write('value: $value')
@@ -3570,38 +3367,39 @@ class KVCompanion extends UpdateCompanion<KVData> {
 abstract class _$Database extends GeneratedDatabase {
   _$Database(QueryExecutor e) : super(e);
   $DatabaseManager get managers => $DatabaseManager(this);
-  late final $HistoryTable history = $HistoryTable(this);
-  late final $RouteTable route = $RouteTable(this);
-  late final $SegmentTable segment = $SegmentTable(this);
-  late final $SummaryTable summary = $SummaryTable(this);
-  late final $RecordTable record = $RecordTable(this);
-  late final $BestScoreTable bestScore = $BestScoreTable(this);
-  late final $KVTable kv = $KVTable(this);
+  late final $HistorysTable historys = $HistorysTable(this);
+  late final $RoutesTable routes = $RoutesTable(this);
+  late final $SegmentsTable segments = $SegmentsTable(this);
+  late final $SummarysTable summarys = $SummarysTable(this);
+  late final $RecordsTable records = $RecordsTable(this);
+  late final $BestScoresTable bestScores = $BestScoresTable(this);
+  late final $KVsTable kVs = $KVsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities =>
-      [history, route, segment, summary, record, bestScore, kv];
+      [historys, routes, segments, summarys, records, bestScores, kVs];
 }
 
-typedef $$HistoryTableCreateCompanionBuilder = HistoryCompanion Function({
+typedef $$HistorysTableCreateCompanionBuilder = HistorysCompanion Function({
   Value<int> id,
   required String filePath,
   Value<DateTime?> createdAt,
-  Value<String?> routeJson,
+  required List<LatLng> route,
   Value<int?> summaryId,
 });
-typedef $$HistoryTableUpdateCompanionBuilder = HistoryCompanion Function({
+typedef $$HistorysTableUpdateCompanionBuilder = HistorysCompanion Function({
   Value<int> id,
   Value<String> filePath,
   Value<DateTime?> createdAt,
-  Value<String?> routeJson,
+  Value<List<LatLng>> route,
   Value<int?> summaryId,
 });
 
-class $$HistoryTableFilterComposer extends Composer<_$Database, $HistoryTable> {
-  $$HistoryTableFilterComposer({
+class $$HistorysTableFilterComposer
+    extends Composer<_$Database, $HistorysTable> {
+  $$HistorysTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -3617,16 +3415,18 @@ class $$HistoryTableFilterComposer extends Composer<_$Database, $HistoryTable> {
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get routeJson => $composableBuilder(
-      column: $table.routeJson, builder: (column) => ColumnFilters(column));
+  ColumnWithTypeConverterFilters<List<LatLng>, List<LatLng>, String>
+      get route => $composableBuilder(
+          column: $table.route,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
 
   ColumnFilters<int> get summaryId => $composableBuilder(
       column: $table.summaryId, builder: (column) => ColumnFilters(column));
 }
 
-class $$HistoryTableOrderingComposer
-    extends Composer<_$Database, $HistoryTable> {
-  $$HistoryTableOrderingComposer({
+class $$HistorysTableOrderingComposer
+    extends Composer<_$Database, $HistorysTable> {
+  $$HistorysTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -3642,16 +3442,16 @@ class $$HistoryTableOrderingComposer
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<String> get routeJson => $composableBuilder(
-      column: $table.routeJson, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<String> get route => $composableBuilder(
+      column: $table.route, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get summaryId => $composableBuilder(
       column: $table.summaryId, builder: (column) => ColumnOrderings(column));
 }
 
-class $$HistoryTableAnnotationComposer
-    extends Composer<_$Database, $HistoryTable> {
-  $$HistoryTableAnnotationComposer({
+class $$HistorysTableAnnotationComposer
+    extends Composer<_$Database, $HistorysTable> {
+  $$HistorysTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -3667,61 +3467,61 @@ class $$HistoryTableAnnotationComposer
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
-  GeneratedColumn<String> get routeJson =>
-      $composableBuilder(column: $table.routeJson, builder: (column) => column);
+  GeneratedColumnWithTypeConverter<List<LatLng>, String> get route =>
+      $composableBuilder(column: $table.route, builder: (column) => column);
 
   GeneratedColumn<int> get summaryId =>
       $composableBuilder(column: $table.summaryId, builder: (column) => column);
 }
 
-class $$HistoryTableTableManager extends RootTableManager<
+class $$HistorysTableTableManager extends RootTableManager<
     _$Database,
-    $HistoryTable,
-    HistoryData,
-    $$HistoryTableFilterComposer,
-    $$HistoryTableOrderingComposer,
-    $$HistoryTableAnnotationComposer,
-    $$HistoryTableCreateCompanionBuilder,
-    $$HistoryTableUpdateCompanionBuilder,
-    (HistoryData, BaseReferences<_$Database, $HistoryTable, HistoryData>),
-    HistoryData,
+    $HistorysTable,
+    History,
+    $$HistorysTableFilterComposer,
+    $$HistorysTableOrderingComposer,
+    $$HistorysTableAnnotationComposer,
+    $$HistorysTableCreateCompanionBuilder,
+    $$HistorysTableUpdateCompanionBuilder,
+    (History, BaseReferences<_$Database, $HistorysTable, History>),
+    History,
     PrefetchHooks Function()> {
-  $$HistoryTableTableManager(_$Database db, $HistoryTable table)
+  $$HistorysTableTableManager(_$Database db, $HistorysTable table)
       : super(TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$HistoryTableFilterComposer($db: db, $table: table),
+              $$HistorysTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$HistoryTableOrderingComposer($db: db, $table: table),
+              $$HistorysTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$HistoryTableAnnotationComposer($db: db, $table: table),
+              $$HistorysTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
             Value<int> id = const Value.absent(),
             Value<String> filePath = const Value.absent(),
             Value<DateTime?> createdAt = const Value.absent(),
-            Value<String?> routeJson = const Value.absent(),
+            Value<List<LatLng>> route = const Value.absent(),
             Value<int?> summaryId = const Value.absent(),
           }) =>
-              HistoryCompanion(
+              HistorysCompanion(
             id: id,
             filePath: filePath,
             createdAt: createdAt,
-            routeJson: routeJson,
+            route: route,
             summaryId: summaryId,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
             required String filePath,
             Value<DateTime?> createdAt = const Value.absent(),
-            Value<String?> routeJson = const Value.absent(),
+            required List<LatLng> route,
             Value<int?> summaryId = const Value.absent(),
           }) =>
-              HistoryCompanion.insert(
+              HistorysCompanion.insert(
             id: id,
             filePath: filePath,
             createdAt: createdAt,
-            routeJson: routeJson,
+            route: route,
             summaryId: summaryId,
           ),
           withReferenceMapper: (p0) => p0
@@ -3731,33 +3531,33 @@ class $$HistoryTableTableManager extends RootTableManager<
         ));
 }
 
-typedef $$HistoryTableProcessedTableManager = ProcessedTableManager<
+typedef $$HistorysTableProcessedTableManager = ProcessedTableManager<
     _$Database,
-    $HistoryTable,
-    HistoryData,
-    $$HistoryTableFilterComposer,
-    $$HistoryTableOrderingComposer,
-    $$HistoryTableAnnotationComposer,
-    $$HistoryTableCreateCompanionBuilder,
-    $$HistoryTableUpdateCompanionBuilder,
-    (HistoryData, BaseReferences<_$Database, $HistoryTable, HistoryData>),
-    HistoryData,
+    $HistorysTable,
+    History,
+    $$HistorysTableFilterComposer,
+    $$HistorysTableOrderingComposer,
+    $$HistorysTableAnnotationComposer,
+    $$HistorysTableCreateCompanionBuilder,
+    $$HistorysTableUpdateCompanionBuilder,
+    (History, BaseReferences<_$Database, $HistorysTable, History>),
+    History,
     PrefetchHooks Function()>;
-typedef $$RouteTableCreateCompanionBuilder = RouteCompanion Function({
+typedef $$RoutesTableCreateCompanionBuilder = RoutesCompanion Function({
   Value<int> id,
   required String filePath,
   required double distance,
-  required String routeJson,
+  required List<LatLng> route,
 });
-typedef $$RouteTableUpdateCompanionBuilder = RouteCompanion Function({
+typedef $$RoutesTableUpdateCompanionBuilder = RoutesCompanion Function({
   Value<int> id,
   Value<String> filePath,
   Value<double> distance,
-  Value<String> routeJson,
+  Value<List<LatLng>> route,
 });
 
-class $$RouteTableFilterComposer extends Composer<_$Database, $RouteTable> {
-  $$RouteTableFilterComposer({
+class $$RoutesTableFilterComposer extends Composer<_$Database, $RoutesTable> {
+  $$RoutesTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -3773,12 +3573,14 @@ class $$RouteTableFilterComposer extends Composer<_$Database, $RouteTable> {
   ColumnFilters<double> get distance => $composableBuilder(
       column: $table.distance, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get routeJson => $composableBuilder(
-      column: $table.routeJson, builder: (column) => ColumnFilters(column));
+  ColumnWithTypeConverterFilters<List<LatLng>, List<LatLng>, String>
+      get route => $composableBuilder(
+          column: $table.route,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
 }
 
-class $$RouteTableOrderingComposer extends Composer<_$Database, $RouteTable> {
-  $$RouteTableOrderingComposer({
+class $$RoutesTableOrderingComposer extends Composer<_$Database, $RoutesTable> {
+  $$RoutesTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -3794,12 +3596,13 @@ class $$RouteTableOrderingComposer extends Composer<_$Database, $RouteTable> {
   ColumnOrderings<double> get distance => $composableBuilder(
       column: $table.distance, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<String> get routeJson => $composableBuilder(
-      column: $table.routeJson, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<String> get route => $composableBuilder(
+      column: $table.route, builder: (column) => ColumnOrderings(column));
 }
 
-class $$RouteTableAnnotationComposer extends Composer<_$Database, $RouteTable> {
-  $$RouteTableAnnotationComposer({
+class $$RoutesTableAnnotationComposer
+    extends Composer<_$Database, $RoutesTable> {
+  $$RoutesTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -3815,55 +3618,55 @@ class $$RouteTableAnnotationComposer extends Composer<_$Database, $RouteTable> {
   GeneratedColumn<double> get distance =>
       $composableBuilder(column: $table.distance, builder: (column) => column);
 
-  GeneratedColumn<String> get routeJson =>
-      $composableBuilder(column: $table.routeJson, builder: (column) => column);
+  GeneratedColumnWithTypeConverter<List<LatLng>, String> get route =>
+      $composableBuilder(column: $table.route, builder: (column) => column);
 }
 
-class $$RouteTableTableManager extends RootTableManager<
+class $$RoutesTableTableManager extends RootTableManager<
     _$Database,
-    $RouteTable,
-    RouteData,
-    $$RouteTableFilterComposer,
-    $$RouteTableOrderingComposer,
-    $$RouteTableAnnotationComposer,
-    $$RouteTableCreateCompanionBuilder,
-    $$RouteTableUpdateCompanionBuilder,
-    (RouteData, BaseReferences<_$Database, $RouteTable, RouteData>),
-    RouteData,
+    $RoutesTable,
+    Route,
+    $$RoutesTableFilterComposer,
+    $$RoutesTableOrderingComposer,
+    $$RoutesTableAnnotationComposer,
+    $$RoutesTableCreateCompanionBuilder,
+    $$RoutesTableUpdateCompanionBuilder,
+    (Route, BaseReferences<_$Database, $RoutesTable, Route>),
+    Route,
     PrefetchHooks Function()> {
-  $$RouteTableTableManager(_$Database db, $RouteTable table)
+  $$RoutesTableTableManager(_$Database db, $RoutesTable table)
       : super(TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$RouteTableFilterComposer($db: db, $table: table),
+              $$RoutesTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$RouteTableOrderingComposer($db: db, $table: table),
+              $$RoutesTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$RouteTableAnnotationComposer($db: db, $table: table),
+              $$RoutesTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
             Value<int> id = const Value.absent(),
             Value<String> filePath = const Value.absent(),
             Value<double> distance = const Value.absent(),
-            Value<String> routeJson = const Value.absent(),
+            Value<List<LatLng>> route = const Value.absent(),
           }) =>
-              RouteCompanion(
+              RoutesCompanion(
             id: id,
             filePath: filePath,
             distance: distance,
-            routeJson: routeJson,
+            route: route,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
             required String filePath,
             required double distance,
-            required String routeJson,
+            required List<LatLng> route,
           }) =>
-              RouteCompanion.insert(
+              RoutesCompanion.insert(
             id: id,
             filePath: filePath,
             distance: distance,
-            routeJson: routeJson,
+            route: route,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -3872,49 +3675,40 @@ class $$RouteTableTableManager extends RootTableManager<
         ));
 }
 
-typedef $$RouteTableProcessedTableManager = ProcessedTableManager<
+typedef $$RoutesTableProcessedTableManager = ProcessedTableManager<
     _$Database,
-    $RouteTable,
-    RouteData,
-    $$RouteTableFilterComposer,
-    $$RouteTableOrderingComposer,
-    $$RouteTableAnnotationComposer,
-    $$RouteTableCreateCompanionBuilder,
-    $$RouteTableUpdateCompanionBuilder,
-    (RouteData, BaseReferences<_$Database, $RouteTable, RouteData>),
-    RouteData,
+    $RoutesTable,
+    Route,
+    $$RoutesTableFilterComposer,
+    $$RoutesTableOrderingComposer,
+    $$RoutesTableAnnotationComposer,
+    $$RoutesTableCreateCompanionBuilder,
+    $$RoutesTableUpdateCompanionBuilder,
+    (Route, BaseReferences<_$Database, $RoutesTable, Route>),
+    Route,
     PrefetchHooks Function()>;
-typedef $$SegmentTableCreateCompanionBuilder = SegmentCompanion Function({
+typedef $$SegmentsTableCreateCompanionBuilder = SegmentsCompanion Function({
   Value<int> id,
-  required int segmentIndex,
+  required int routeId,
+  required int historyId,
+  required int bestScoreId,
   required int startIndex,
   required int endIndex,
   required double matchPercentage,
-  required double startTime,
-  required double endTime,
-  required double duration,
-  required double avgSpeed,
-  required double distance,
-  required String routeJson,
-  required String segmentPointsJson,
 });
-typedef $$SegmentTableUpdateCompanionBuilder = SegmentCompanion Function({
+typedef $$SegmentsTableUpdateCompanionBuilder = SegmentsCompanion Function({
   Value<int> id,
-  Value<int> segmentIndex,
+  Value<int> routeId,
+  Value<int> historyId,
+  Value<int> bestScoreId,
   Value<int> startIndex,
   Value<int> endIndex,
   Value<double> matchPercentage,
-  Value<double> startTime,
-  Value<double> endTime,
-  Value<double> duration,
-  Value<double> avgSpeed,
-  Value<double> distance,
-  Value<String> routeJson,
-  Value<String> segmentPointsJson,
 });
 
-class $$SegmentTableFilterComposer extends Composer<_$Database, $SegmentTable> {
-  $$SegmentTableFilterComposer({
+class $$SegmentsTableFilterComposer
+    extends Composer<_$Database, $SegmentsTable> {
+  $$SegmentsTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -3924,8 +3718,14 @@ class $$SegmentTableFilterComposer extends Composer<_$Database, $SegmentTable> {
   ColumnFilters<int> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<int> get segmentIndex => $composableBuilder(
-      column: $table.segmentIndex, builder: (column) => ColumnFilters(column));
+  ColumnFilters<int> get routeId => $composableBuilder(
+      column: $table.routeId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get historyId => $composableBuilder(
+      column: $table.historyId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get bestScoreId => $composableBuilder(
+      column: $table.bestScoreId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get startIndex => $composableBuilder(
       column: $table.startIndex, builder: (column) => ColumnFilters(column));
@@ -3936,33 +3736,11 @@ class $$SegmentTableFilterComposer extends Composer<_$Database, $SegmentTable> {
   ColumnFilters<double> get matchPercentage => $composableBuilder(
       column: $table.matchPercentage,
       builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<double> get startTime => $composableBuilder(
-      column: $table.startTime, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<double> get endTime => $composableBuilder(
-      column: $table.endTime, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<double> get duration => $composableBuilder(
-      column: $table.duration, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<double> get avgSpeed => $composableBuilder(
-      column: $table.avgSpeed, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<double> get distance => $composableBuilder(
-      column: $table.distance, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get routeJson => $composableBuilder(
-      column: $table.routeJson, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get segmentPointsJson => $composableBuilder(
-      column: $table.segmentPointsJson,
-      builder: (column) => ColumnFilters(column));
 }
 
-class $$SegmentTableOrderingComposer
-    extends Composer<_$Database, $SegmentTable> {
-  $$SegmentTableOrderingComposer({
+class $$SegmentsTableOrderingComposer
+    extends Composer<_$Database, $SegmentsTable> {
+  $$SegmentsTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -3972,9 +3750,14 @@ class $$SegmentTableOrderingComposer
   ColumnOrderings<int> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<int> get segmentIndex => $composableBuilder(
-      column: $table.segmentIndex,
-      builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<int> get routeId => $composableBuilder(
+      column: $table.routeId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get historyId => $composableBuilder(
+      column: $table.historyId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get bestScoreId => $composableBuilder(
+      column: $table.bestScoreId, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get startIndex => $composableBuilder(
       column: $table.startIndex, builder: (column) => ColumnOrderings(column));
@@ -3985,33 +3768,11 @@ class $$SegmentTableOrderingComposer
   ColumnOrderings<double> get matchPercentage => $composableBuilder(
       column: $table.matchPercentage,
       builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<double> get startTime => $composableBuilder(
-      column: $table.startTime, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<double> get endTime => $composableBuilder(
-      column: $table.endTime, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<double> get duration => $composableBuilder(
-      column: $table.duration, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<double> get avgSpeed => $composableBuilder(
-      column: $table.avgSpeed, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<double> get distance => $composableBuilder(
-      column: $table.distance, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get routeJson => $composableBuilder(
-      column: $table.routeJson, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get segmentPointsJson => $composableBuilder(
-      column: $table.segmentPointsJson,
-      builder: (column) => ColumnOrderings(column));
 }
 
-class $$SegmentTableAnnotationComposer
-    extends Composer<_$Database, $SegmentTable> {
-  $$SegmentTableAnnotationComposer({
+class $$SegmentsTableAnnotationComposer
+    extends Composer<_$Database, $SegmentsTable> {
+  $$SegmentsTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -4021,8 +3782,14 @@ class $$SegmentTableAnnotationComposer
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<int> get segmentIndex => $composableBuilder(
-      column: $table.segmentIndex, builder: (column) => column);
+  GeneratedColumn<int> get routeId =>
+      $composableBuilder(column: $table.routeId, builder: (column) => column);
+
+  GeneratedColumn<int> get historyId =>
+      $composableBuilder(column: $table.historyId, builder: (column) => column);
+
+  GeneratedColumn<int> get bestScoreId => $composableBuilder(
+      column: $table.bestScoreId, builder: (column) => column);
 
   GeneratedColumn<int> get startIndex => $composableBuilder(
       column: $table.startIndex, builder: (column) => column);
@@ -4032,106 +3799,65 @@ class $$SegmentTableAnnotationComposer
 
   GeneratedColumn<double> get matchPercentage => $composableBuilder(
       column: $table.matchPercentage, builder: (column) => column);
-
-  GeneratedColumn<double> get startTime =>
-      $composableBuilder(column: $table.startTime, builder: (column) => column);
-
-  GeneratedColumn<double> get endTime =>
-      $composableBuilder(column: $table.endTime, builder: (column) => column);
-
-  GeneratedColumn<double> get duration =>
-      $composableBuilder(column: $table.duration, builder: (column) => column);
-
-  GeneratedColumn<double> get avgSpeed =>
-      $composableBuilder(column: $table.avgSpeed, builder: (column) => column);
-
-  GeneratedColumn<double> get distance =>
-      $composableBuilder(column: $table.distance, builder: (column) => column);
-
-  GeneratedColumn<String> get routeJson =>
-      $composableBuilder(column: $table.routeJson, builder: (column) => column);
-
-  GeneratedColumn<String> get segmentPointsJson => $composableBuilder(
-      column: $table.segmentPointsJson, builder: (column) => column);
 }
 
-class $$SegmentTableTableManager extends RootTableManager<
+class $$SegmentsTableTableManager extends RootTableManager<
     _$Database,
-    $SegmentTable,
-    SegmentData,
-    $$SegmentTableFilterComposer,
-    $$SegmentTableOrderingComposer,
-    $$SegmentTableAnnotationComposer,
-    $$SegmentTableCreateCompanionBuilder,
-    $$SegmentTableUpdateCompanionBuilder,
-    (SegmentData, BaseReferences<_$Database, $SegmentTable, SegmentData>),
-    SegmentData,
+    $SegmentsTable,
+    Segment,
+    $$SegmentsTableFilterComposer,
+    $$SegmentsTableOrderingComposer,
+    $$SegmentsTableAnnotationComposer,
+    $$SegmentsTableCreateCompanionBuilder,
+    $$SegmentsTableUpdateCompanionBuilder,
+    (Segment, BaseReferences<_$Database, $SegmentsTable, Segment>),
+    Segment,
     PrefetchHooks Function()> {
-  $$SegmentTableTableManager(_$Database db, $SegmentTable table)
+  $$SegmentsTableTableManager(_$Database db, $SegmentsTable table)
       : super(TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$SegmentTableFilterComposer($db: db, $table: table),
+              $$SegmentsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$SegmentTableOrderingComposer($db: db, $table: table),
+              $$SegmentsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$SegmentTableAnnotationComposer($db: db, $table: table),
+              $$SegmentsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
             Value<int> id = const Value.absent(),
-            Value<int> segmentIndex = const Value.absent(),
+            Value<int> routeId = const Value.absent(),
+            Value<int> historyId = const Value.absent(),
+            Value<int> bestScoreId = const Value.absent(),
             Value<int> startIndex = const Value.absent(),
             Value<int> endIndex = const Value.absent(),
             Value<double> matchPercentage = const Value.absent(),
-            Value<double> startTime = const Value.absent(),
-            Value<double> endTime = const Value.absent(),
-            Value<double> duration = const Value.absent(),
-            Value<double> avgSpeed = const Value.absent(),
-            Value<double> distance = const Value.absent(),
-            Value<String> routeJson = const Value.absent(),
-            Value<String> segmentPointsJson = const Value.absent(),
           }) =>
-              SegmentCompanion(
+              SegmentsCompanion(
             id: id,
-            segmentIndex: segmentIndex,
+            routeId: routeId,
+            historyId: historyId,
+            bestScoreId: bestScoreId,
             startIndex: startIndex,
             endIndex: endIndex,
             matchPercentage: matchPercentage,
-            startTime: startTime,
-            endTime: endTime,
-            duration: duration,
-            avgSpeed: avgSpeed,
-            distance: distance,
-            routeJson: routeJson,
-            segmentPointsJson: segmentPointsJson,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
-            required int segmentIndex,
+            required int routeId,
+            required int historyId,
+            required int bestScoreId,
             required int startIndex,
             required int endIndex,
             required double matchPercentage,
-            required double startTime,
-            required double endTime,
-            required double duration,
-            required double avgSpeed,
-            required double distance,
-            required String routeJson,
-            required String segmentPointsJson,
           }) =>
-              SegmentCompanion.insert(
+              SegmentsCompanion.insert(
             id: id,
-            segmentIndex: segmentIndex,
+            routeId: routeId,
+            historyId: historyId,
+            bestScoreId: bestScoreId,
             startIndex: startIndex,
             endIndex: endIndex,
             matchPercentage: matchPercentage,
-            startTime: startTime,
-            endTime: endTime,
-            duration: duration,
-            avgSpeed: avgSpeed,
-            distance: distance,
-            routeJson: routeJson,
-            segmentPointsJson: segmentPointsJson,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -4140,19 +3866,19 @@ class $$SegmentTableTableManager extends RootTableManager<
         ));
 }
 
-typedef $$SegmentTableProcessedTableManager = ProcessedTableManager<
+typedef $$SegmentsTableProcessedTableManager = ProcessedTableManager<
     _$Database,
-    $SegmentTable,
-    SegmentData,
-    $$SegmentTableFilterComposer,
-    $$SegmentTableOrderingComposer,
-    $$SegmentTableAnnotationComposer,
-    $$SegmentTableCreateCompanionBuilder,
-    $$SegmentTableUpdateCompanionBuilder,
-    (SegmentData, BaseReferences<_$Database, $SegmentTable, SegmentData>),
-    SegmentData,
+    $SegmentsTable,
+    Segment,
+    $$SegmentsTableFilterComposer,
+    $$SegmentsTableOrderingComposer,
+    $$SegmentsTableAnnotationComposer,
+    $$SegmentsTableCreateCompanionBuilder,
+    $$SegmentsTableUpdateCompanionBuilder,
+    (Segment, BaseReferences<_$Database, $SegmentsTable, Segment>),
+    Segment,
     PrefetchHooks Function()>;
-typedef $$SummaryTableCreateCompanionBuilder = SummaryCompanion Function({
+typedef $$SummarysTableCreateCompanionBuilder = SummarysCompanion Function({
   Value<int> id,
   Value<int?> timestamp,
   Value<DateTime?> startTime,
@@ -4184,7 +3910,7 @@ typedef $$SummaryTableCreateCompanionBuilder = SummaryCompanion Function({
   Value<double?> avgGrade,
   Value<double?> thresholdPower,
 });
-typedef $$SummaryTableUpdateCompanionBuilder = SummaryCompanion Function({
+typedef $$SummarysTableUpdateCompanionBuilder = SummarysCompanion Function({
   Value<int> id,
   Value<int?> timestamp,
   Value<DateTime?> startTime,
@@ -4217,8 +3943,9 @@ typedef $$SummaryTableUpdateCompanionBuilder = SummaryCompanion Function({
   Value<double?> thresholdPower,
 });
 
-class $$SummaryTableFilterComposer extends Composer<_$Database, $SummaryTable> {
-  $$SummaryTableFilterComposer({
+class $$SummarysTableFilterComposer
+    extends Composer<_$Database, $SummarysTable> {
+  $$SummarysTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -4326,9 +4053,9 @@ class $$SummaryTableFilterComposer extends Composer<_$Database, $SummaryTable> {
       builder: (column) => ColumnFilters(column));
 }
 
-class $$SummaryTableOrderingComposer
-    extends Composer<_$Database, $SummaryTable> {
-  $$SummaryTableOrderingComposer({
+class $$SummarysTableOrderingComposer
+    extends Composer<_$Database, $SummarysTable> {
+  $$SummarysTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -4441,9 +4168,9 @@ class $$SummaryTableOrderingComposer
       builder: (column) => ColumnOrderings(column));
 }
 
-class $$SummaryTableAnnotationComposer
-    extends Composer<_$Database, $SummaryTable> {
-  $$SummaryTableAnnotationComposer({
+class $$SummarysTableAnnotationComposer
+    extends Composer<_$Database, $SummarysTable> {
+  $$SummarysTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -4541,28 +4268,28 @@ class $$SummaryTableAnnotationComposer
       column: $table.thresholdPower, builder: (column) => column);
 }
 
-class $$SummaryTableTableManager extends RootTableManager<
+class $$SummarysTableTableManager extends RootTableManager<
     _$Database,
-    $SummaryTable,
-    SummaryData,
-    $$SummaryTableFilterComposer,
-    $$SummaryTableOrderingComposer,
-    $$SummaryTableAnnotationComposer,
-    $$SummaryTableCreateCompanionBuilder,
-    $$SummaryTableUpdateCompanionBuilder,
-    (SummaryData, BaseReferences<_$Database, $SummaryTable, SummaryData>),
-    SummaryData,
+    $SummarysTable,
+    Summary,
+    $$SummarysTableFilterComposer,
+    $$SummarysTableOrderingComposer,
+    $$SummarysTableAnnotationComposer,
+    $$SummarysTableCreateCompanionBuilder,
+    $$SummarysTableUpdateCompanionBuilder,
+    (Summary, BaseReferences<_$Database, $SummarysTable, Summary>),
+    Summary,
     PrefetchHooks Function()> {
-  $$SummaryTableTableManager(_$Database db, $SummaryTable table)
+  $$SummarysTableTableManager(_$Database db, $SummarysTable table)
       : super(TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$SummaryTableFilterComposer($db: db, $table: table),
+              $$SummarysTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$SummaryTableOrderingComposer($db: db, $table: table),
+              $$SummarysTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$SummaryTableAnnotationComposer($db: db, $table: table),
+              $$SummarysTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
             Value<int> id = const Value.absent(),
             Value<int?> timestamp = const Value.absent(),
@@ -4595,7 +4322,7 @@ class $$SummaryTableTableManager extends RootTableManager<
             Value<double?> avgGrade = const Value.absent(),
             Value<double?> thresholdPower = const Value.absent(),
           }) =>
-              SummaryCompanion(
+              SummarysCompanion(
             id: id,
             timestamp: timestamp,
             startTime: startTime,
@@ -4659,7 +4386,7 @@ class $$SummaryTableTableManager extends RootTableManager<
             Value<double?> avgGrade = const Value.absent(),
             Value<double?> thresholdPower = const Value.absent(),
           }) =>
-              SummaryCompanion.insert(
+              SummarysCompanion.insert(
             id: id,
             timestamp: timestamp,
             startTime: startTime,
@@ -4698,31 +4425,31 @@ class $$SummaryTableTableManager extends RootTableManager<
         ));
 }
 
-typedef $$SummaryTableProcessedTableManager = ProcessedTableManager<
+typedef $$SummarysTableProcessedTableManager = ProcessedTableManager<
     _$Database,
-    $SummaryTable,
-    SummaryData,
-    $$SummaryTableFilterComposer,
-    $$SummaryTableOrderingComposer,
-    $$SummaryTableAnnotationComposer,
-    $$SummaryTableCreateCompanionBuilder,
-    $$SummaryTableUpdateCompanionBuilder,
-    (SummaryData, BaseReferences<_$Database, $SummaryTable, SummaryData>),
-    SummaryData,
+    $SummarysTable,
+    Summary,
+    $$SummarysTableFilterComposer,
+    $$SummarysTableOrderingComposer,
+    $$SummarysTableAnnotationComposer,
+    $$SummarysTableCreateCompanionBuilder,
+    $$SummarysTableUpdateCompanionBuilder,
+    (Summary, BaseReferences<_$Database, $SummarysTable, Summary>),
+    Summary,
     PrefetchHooks Function()>;
-typedef $$RecordTableCreateCompanionBuilder = RecordCompanion Function({
+typedef $$RecordsTableCreateCompanionBuilder = RecordsCompanion Function({
   Value<int> id,
   required int historyId,
-  required String json,
+  required List<RecordMessage> messages,
 });
-typedef $$RecordTableUpdateCompanionBuilder = RecordCompanion Function({
+typedef $$RecordsTableUpdateCompanionBuilder = RecordsCompanion Function({
   Value<int> id,
   Value<int> historyId,
-  Value<String> json,
+  Value<List<RecordMessage>> messages,
 });
 
-class $$RecordTableFilterComposer extends Composer<_$Database, $RecordTable> {
-  $$RecordTableFilterComposer({
+class $$RecordsTableFilterComposer extends Composer<_$Database, $RecordsTable> {
+  $$RecordsTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -4735,12 +4462,16 @@ class $$RecordTableFilterComposer extends Composer<_$Database, $RecordTable> {
   ColumnFilters<int> get historyId => $composableBuilder(
       column: $table.historyId, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get json => $composableBuilder(
-      column: $table.json, builder: (column) => ColumnFilters(column));
+  ColumnWithTypeConverterFilters<List<RecordMessage>, List<RecordMessage>,
+          Uint8List>
+      get messages => $composableBuilder(
+          column: $table.messages,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
 }
 
-class $$RecordTableOrderingComposer extends Composer<_$Database, $RecordTable> {
-  $$RecordTableOrderingComposer({
+class $$RecordsTableOrderingComposer
+    extends Composer<_$Database, $RecordsTable> {
+  $$RecordsTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -4753,13 +4484,13 @@ class $$RecordTableOrderingComposer extends Composer<_$Database, $RecordTable> {
   ColumnOrderings<int> get historyId => $composableBuilder(
       column: $table.historyId, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<String> get json => $composableBuilder(
-      column: $table.json, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<Uint8List> get messages => $composableBuilder(
+      column: $table.messages, builder: (column) => ColumnOrderings(column));
 }
 
-class $$RecordTableAnnotationComposer
-    extends Composer<_$Database, $RecordTable> {
-  $$RecordTableAnnotationComposer({
+class $$RecordsTableAnnotationComposer
+    extends Composer<_$Database, $RecordsTable> {
+  $$RecordsTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -4772,51 +4503,52 @@ class $$RecordTableAnnotationComposer
   GeneratedColumn<int> get historyId =>
       $composableBuilder(column: $table.historyId, builder: (column) => column);
 
-  GeneratedColumn<String> get json =>
-      $composableBuilder(column: $table.json, builder: (column) => column);
+  GeneratedColumnWithTypeConverter<List<RecordMessage>, Uint8List>
+      get messages => $composableBuilder(
+          column: $table.messages, builder: (column) => column);
 }
 
-class $$RecordTableTableManager extends RootTableManager<
+class $$RecordsTableTableManager extends RootTableManager<
     _$Database,
-    $RecordTable,
-    RecordData,
-    $$RecordTableFilterComposer,
-    $$RecordTableOrderingComposer,
-    $$RecordTableAnnotationComposer,
-    $$RecordTableCreateCompanionBuilder,
-    $$RecordTableUpdateCompanionBuilder,
-    (RecordData, BaseReferences<_$Database, $RecordTable, RecordData>),
-    RecordData,
+    $RecordsTable,
+    Record,
+    $$RecordsTableFilterComposer,
+    $$RecordsTableOrderingComposer,
+    $$RecordsTableAnnotationComposer,
+    $$RecordsTableCreateCompanionBuilder,
+    $$RecordsTableUpdateCompanionBuilder,
+    (Record, BaseReferences<_$Database, $RecordsTable, Record>),
+    Record,
     PrefetchHooks Function()> {
-  $$RecordTableTableManager(_$Database db, $RecordTable table)
+  $$RecordsTableTableManager(_$Database db, $RecordsTable table)
       : super(TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$RecordTableFilterComposer($db: db, $table: table),
+              $$RecordsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$RecordTableOrderingComposer($db: db, $table: table),
+              $$RecordsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$RecordTableAnnotationComposer($db: db, $table: table),
+              $$RecordsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
             Value<int> id = const Value.absent(),
             Value<int> historyId = const Value.absent(),
-            Value<String> json = const Value.absent(),
+            Value<List<RecordMessage>> messages = const Value.absent(),
           }) =>
-              RecordCompanion(
+              RecordsCompanion(
             id: id,
             historyId: historyId,
-            json: json,
+            messages: messages,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
             required int historyId,
-            required String json,
+            required List<RecordMessage> messages,
           }) =>
-              RecordCompanion.insert(
+              RecordsCompanion.insert(
             id: id,
             historyId: historyId,
-            json: json,
+            messages: messages,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -4825,19 +4557,19 @@ class $$RecordTableTableManager extends RootTableManager<
         ));
 }
 
-typedef $$RecordTableProcessedTableManager = ProcessedTableManager<
+typedef $$RecordsTableProcessedTableManager = ProcessedTableManager<
     _$Database,
-    $RecordTable,
-    RecordData,
-    $$RecordTableFilterComposer,
-    $$RecordTableOrderingComposer,
-    $$RecordTableAnnotationComposer,
-    $$RecordTableCreateCompanionBuilder,
-    $$RecordTableUpdateCompanionBuilder,
-    (RecordData, BaseReferences<_$Database, $RecordTable, RecordData>),
-    RecordData,
+    $RecordsTable,
+    Record,
+    $$RecordsTableFilterComposer,
+    $$RecordsTableOrderingComposer,
+    $$RecordsTableAnnotationComposer,
+    $$RecordsTableCreateCompanionBuilder,
+    $$RecordsTableUpdateCompanionBuilder,
+    (Record, BaseReferences<_$Database, $RecordsTable, Record>),
+    Record,
     PrefetchHooks Function()>;
-typedef $$BestScoreTableCreateCompanionBuilder = BestScoreCompanion Function({
+typedef $$BestScoresTableCreateCompanionBuilder = BestScoresCompanion Function({
   Value<int> id,
   Value<double> maxSpeed,
   Value<double> maxAltitude,
@@ -4850,7 +4582,7 @@ typedef $$BestScoreTableCreateCompanionBuilder = BestScoreCompanion Function({
   Value<String> bestHRByTimeJson,
   Value<int?> historyId,
 });
-typedef $$BestScoreTableUpdateCompanionBuilder = BestScoreCompanion Function({
+typedef $$BestScoresTableUpdateCompanionBuilder = BestScoresCompanion Function({
   Value<int> id,
   Value<double> maxSpeed,
   Value<double> maxAltitude,
@@ -4864,9 +4596,9 @@ typedef $$BestScoreTableUpdateCompanionBuilder = BestScoreCompanion Function({
   Value<int?> historyId,
 });
 
-class $$BestScoreTableFilterComposer
-    extends Composer<_$Database, $BestScoreTable> {
-  $$BestScoreTableFilterComposer({
+class $$BestScoresTableFilterComposer
+    extends Composer<_$Database, $BestScoresTable> {
+  $$BestScoresTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -4910,9 +4642,9 @@ class $$BestScoreTableFilterComposer
       column: $table.historyId, builder: (column) => ColumnFilters(column));
 }
 
-class $$BestScoreTableOrderingComposer
-    extends Composer<_$Database, $BestScoreTable> {
-  $$BestScoreTableOrderingComposer({
+class $$BestScoresTableOrderingComposer
+    extends Composer<_$Database, $BestScoresTable> {
+  $$BestScoresTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -4956,9 +4688,9 @@ class $$BestScoreTableOrderingComposer
       column: $table.historyId, builder: (column) => ColumnOrderings(column));
 }
 
-class $$BestScoreTableAnnotationComposer
-    extends Composer<_$Database, $BestScoreTable> {
-  $$BestScoreTableAnnotationComposer({
+class $$BestScoresTableAnnotationComposer
+    extends Composer<_$Database, $BestScoresTable> {
+  $$BestScoresTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -4999,28 +4731,28 @@ class $$BestScoreTableAnnotationComposer
       $composableBuilder(column: $table.historyId, builder: (column) => column);
 }
 
-class $$BestScoreTableTableManager extends RootTableManager<
+class $$BestScoresTableTableManager extends RootTableManager<
     _$Database,
-    $BestScoreTable,
-    BestScoreData,
-    $$BestScoreTableFilterComposer,
-    $$BestScoreTableOrderingComposer,
-    $$BestScoreTableAnnotationComposer,
-    $$BestScoreTableCreateCompanionBuilder,
-    $$BestScoreTableUpdateCompanionBuilder,
-    (BestScoreData, BaseReferences<_$Database, $BestScoreTable, BestScoreData>),
-    BestScoreData,
+    $BestScoresTable,
+    BestScore,
+    $$BestScoresTableFilterComposer,
+    $$BestScoresTableOrderingComposer,
+    $$BestScoresTableAnnotationComposer,
+    $$BestScoresTableCreateCompanionBuilder,
+    $$BestScoresTableUpdateCompanionBuilder,
+    (BestScore, BaseReferences<_$Database, $BestScoresTable, BestScore>),
+    BestScore,
     PrefetchHooks Function()> {
-  $$BestScoreTableTableManager(_$Database db, $BestScoreTable table)
+  $$BestScoresTableTableManager(_$Database db, $BestScoresTable table)
       : super(TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$BestScoreTableFilterComposer($db: db, $table: table),
+              $$BestScoresTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$BestScoreTableOrderingComposer($db: db, $table: table),
+              $$BestScoresTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$BestScoreTableAnnotationComposer($db: db, $table: table),
+              $$BestScoresTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
             Value<int> id = const Value.absent(),
             Value<double> maxSpeed = const Value.absent(),
@@ -5034,7 +4766,7 @@ class $$BestScoreTableTableManager extends RootTableManager<
             Value<String> bestHRByTimeJson = const Value.absent(),
             Value<int?> historyId = const Value.absent(),
           }) =>
-              BestScoreCompanion(
+              BestScoresCompanion(
             id: id,
             maxSpeed: maxSpeed,
             maxAltitude: maxAltitude,
@@ -5060,7 +4792,7 @@ class $$BestScoreTableTableManager extends RootTableManager<
             Value<String> bestHRByTimeJson = const Value.absent(),
             Value<int?> historyId = const Value.absent(),
           }) =>
-              BestScoreCompanion.insert(
+              BestScoresCompanion.insert(
             id: id,
             maxSpeed: maxSpeed,
             maxAltitude: maxAltitude,
@@ -5080,31 +4812,31 @@ class $$BestScoreTableTableManager extends RootTableManager<
         ));
 }
 
-typedef $$BestScoreTableProcessedTableManager = ProcessedTableManager<
+typedef $$BestScoresTableProcessedTableManager = ProcessedTableManager<
     _$Database,
-    $BestScoreTable,
-    BestScoreData,
-    $$BestScoreTableFilterComposer,
-    $$BestScoreTableOrderingComposer,
-    $$BestScoreTableAnnotationComposer,
-    $$BestScoreTableCreateCompanionBuilder,
-    $$BestScoreTableUpdateCompanionBuilder,
-    (BestScoreData, BaseReferences<_$Database, $BestScoreTable, BestScoreData>),
-    BestScoreData,
+    $BestScoresTable,
+    BestScore,
+    $$BestScoresTableFilterComposer,
+    $$BestScoresTableOrderingComposer,
+    $$BestScoresTableAnnotationComposer,
+    $$BestScoresTableCreateCompanionBuilder,
+    $$BestScoresTableUpdateCompanionBuilder,
+    (BestScore, BaseReferences<_$Database, $BestScoresTable, BestScore>),
+    BestScore,
     PrefetchHooks Function()>;
-typedef $$KVTableCreateCompanionBuilder = KVCompanion Function({
+typedef $$KVsTableCreateCompanionBuilder = KVsCompanion Function({
   Value<int> id,
   required String key,
   required String value,
 });
-typedef $$KVTableUpdateCompanionBuilder = KVCompanion Function({
+typedef $$KVsTableUpdateCompanionBuilder = KVsCompanion Function({
   Value<int> id,
   Value<String> key,
   Value<String> value,
 });
 
-class $$KVTableFilterComposer extends Composer<_$Database, $KVTable> {
-  $$KVTableFilterComposer({
+class $$KVsTableFilterComposer extends Composer<_$Database, $KVsTable> {
+  $$KVsTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -5121,8 +4853,8 @@ class $$KVTableFilterComposer extends Composer<_$Database, $KVTable> {
       column: $table.value, builder: (column) => ColumnFilters(column));
 }
 
-class $$KVTableOrderingComposer extends Composer<_$Database, $KVTable> {
-  $$KVTableOrderingComposer({
+class $$KVsTableOrderingComposer extends Composer<_$Database, $KVsTable> {
+  $$KVsTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -5139,8 +4871,8 @@ class $$KVTableOrderingComposer extends Composer<_$Database, $KVTable> {
       column: $table.value, builder: (column) => ColumnOrderings(column));
 }
 
-class $$KVTableAnnotationComposer extends Composer<_$Database, $KVTable> {
-  $$KVTableAnnotationComposer({
+class $$KVsTableAnnotationComposer extends Composer<_$Database, $KVsTable> {
+  $$KVsTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -5157,34 +4889,34 @@ class $$KVTableAnnotationComposer extends Composer<_$Database, $KVTable> {
       $composableBuilder(column: $table.value, builder: (column) => column);
 }
 
-class $$KVTableTableManager extends RootTableManager<
+class $$KVsTableTableManager extends RootTableManager<
     _$Database,
-    $KVTable,
-    KVData,
-    $$KVTableFilterComposer,
-    $$KVTableOrderingComposer,
-    $$KVTableAnnotationComposer,
-    $$KVTableCreateCompanionBuilder,
-    $$KVTableUpdateCompanionBuilder,
-    (KVData, BaseReferences<_$Database, $KVTable, KVData>),
-    KVData,
+    $KVsTable,
+    KV,
+    $$KVsTableFilterComposer,
+    $$KVsTableOrderingComposer,
+    $$KVsTableAnnotationComposer,
+    $$KVsTableCreateCompanionBuilder,
+    $$KVsTableUpdateCompanionBuilder,
+    (KV, BaseReferences<_$Database, $KVsTable, KV>),
+    KV,
     PrefetchHooks Function()> {
-  $$KVTableTableManager(_$Database db, $KVTable table)
+  $$KVsTableTableManager(_$Database db, $KVsTable table)
       : super(TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$KVTableFilterComposer($db: db, $table: table),
+              $$KVsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$KVTableOrderingComposer($db: db, $table: table),
+              $$KVsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$KVTableAnnotationComposer($db: db, $table: table),
+              $$KVsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
             Value<int> id = const Value.absent(),
             Value<String> key = const Value.absent(),
             Value<String> value = const Value.absent(),
           }) =>
-              KVCompanion(
+              KVsCompanion(
             id: id,
             key: key,
             value: value,
@@ -5194,7 +4926,7 @@ class $$KVTableTableManager extends RootTableManager<
             required String key,
             required String value,
           }) =>
-              KVCompanion.insert(
+              KVsCompanion.insert(
             id: id,
             key: key,
             value: value,
@@ -5206,33 +4938,33 @@ class $$KVTableTableManager extends RootTableManager<
         ));
 }
 
-typedef $$KVTableProcessedTableManager = ProcessedTableManager<
+typedef $$KVsTableProcessedTableManager = ProcessedTableManager<
     _$Database,
-    $KVTable,
-    KVData,
-    $$KVTableFilterComposer,
-    $$KVTableOrderingComposer,
-    $$KVTableAnnotationComposer,
-    $$KVTableCreateCompanionBuilder,
-    $$KVTableUpdateCompanionBuilder,
-    (KVData, BaseReferences<_$Database, $KVTable, KVData>),
-    KVData,
+    $KVsTable,
+    KV,
+    $$KVsTableFilterComposer,
+    $$KVsTableOrderingComposer,
+    $$KVsTableAnnotationComposer,
+    $$KVsTableCreateCompanionBuilder,
+    $$KVsTableUpdateCompanionBuilder,
+    (KV, BaseReferences<_$Database, $KVsTable, KV>),
+    KV,
     PrefetchHooks Function()>;
 
 class $DatabaseManager {
   final _$Database _db;
   $DatabaseManager(this._db);
-  $$HistoryTableTableManager get history =>
-      $$HistoryTableTableManager(_db, _db.history);
-  $$RouteTableTableManager get route =>
-      $$RouteTableTableManager(_db, _db.route);
-  $$SegmentTableTableManager get segment =>
-      $$SegmentTableTableManager(_db, _db.segment);
-  $$SummaryTableTableManager get summary =>
-      $$SummaryTableTableManager(_db, _db.summary);
-  $$RecordTableTableManager get record =>
-      $$RecordTableTableManager(_db, _db.record);
-  $$BestScoreTableTableManager get bestScore =>
-      $$BestScoreTableTableManager(_db, _db.bestScore);
-  $$KVTableTableManager get kv => $$KVTableTableManager(_db, _db.kv);
+  $$HistorysTableTableManager get historys =>
+      $$HistorysTableTableManager(_db, _db.historys);
+  $$RoutesTableTableManager get routes =>
+      $$RoutesTableTableManager(_db, _db.routes);
+  $$SegmentsTableTableManager get segments =>
+      $$SegmentsTableTableManager(_db, _db.segments);
+  $$SummarysTableTableManager get summarys =>
+      $$SummarysTableTableManager(_db, _db.summarys);
+  $$RecordsTableTableManager get records =>
+      $$RecordsTableTableManager(_db, _db.records);
+  $$BestScoresTableTableManager get bestScores =>
+      $$BestScoresTableTableManager(_db, _db.bestScores);
+  $$KVsTableTableManager get kVs => $$KVsTableTableManager(_db, _db.kVs);
 }

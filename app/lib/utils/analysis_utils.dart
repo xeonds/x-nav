@@ -57,17 +57,17 @@ class Entry<T, K> {
 }
 
 // 计算给定滑动窗口尺寸列表的最大平均值算法
-Map<int, double> calculateMaxRangeAvgs(
-    List<int> keys, List<dynamic> values, Function calcRangeAvg) {
-  Map<int, double> res = {}; // 结果数组，key为keys, value为最大均值
+Map<int, R> calculateMaxRangeAvgs<T, R extends Comparable<R>>(
+    List<int> keys, List<T> values, R Function(int, List<T>) calcRangeAvg) {
+  Map<int, R> res = {}; // 结果数组，key为keys, value为最大均值
   for (var key in keys.where((e) => e <= values.length)) {
     // 处理不同区间长度
-    double maxAvg = 0.0; // 当前区间最大长度
+    R maxAvg = calcRangeAvg(key, values.sublist(0, key)); // 当前区间最大长度
     for (int start = 0; start + key < values.length; start++) {
       // 遍历所有可能的开头点
       final range = values.sublist(start, start + key);
       final avg = calcRangeAvg(key, range);
-      maxAvg = maxAvg > avg ? maxAvg : avg;
+      maxAvg = maxAvg.compareTo(avg) < 0 ? maxAvg : avg;
     }
     res[key] = maxAvg;
   }

@@ -5,11 +5,14 @@ import 'package:app/utils/model.dart';
 import 'package:app/utils/storage.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:fit_tool/fit_tool.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:path/path.dart' as p;
 
 part 'database.g.dart';
 
-@DriftDatabase(tables: [History, Route, Segment, Summary, Record, BestScore, KV])
+@DriftDatabase(
+    tables: [Historys, Routes, Segments, Summarys, Records, BestScores, KVs])
 class Database extends _$Database {
   Database() : super(_openConnection());
 

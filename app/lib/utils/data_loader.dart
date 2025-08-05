@@ -239,10 +239,8 @@ void _dataLoadIsolateEntryWithProgressPhased(
               .map((e) => LatLng(e.lat!, e.lon!))
               .toList();
           final distance = latlngToDistance(path);
-          db.into(db.route).insertOnConflictUpdate(RouteCompanion.insert(
-              filePath: file.path,
-              distance: distance,
-              routeJson: jsonEncode(path)));
+          db.into(db.routes).insertOnConflictUpdate(RoutesCompanion.insert(
+              filePath: file.path, distance: distance, route: path));
           sendPort.send({'progress': '路书解析中： ${i + 1}/${gpxFiles.length}'});
         } catch (e) {
           debugPrint('Error reading GPX file: $e');
@@ -262,18 +260,15 @@ void _dataLoadIsolateEntryWithProgressPhased(
           final records = fitMsgs.whereType<RecordMessage>().toList();
           final path = records
               .map((r) => LatLng(r.positionLat ?? 0, r.positionLong ?? 0));
-          final historyId = await db.into(db.history).insert(
-              HistoryCompanion.insert(
+          final historyId = await db.into(db.historys).insert(
+              HistorysCompanion.insert(
                   filePath: file.path,
                   createdAt: Value(DateTime(session.startTime ?? 0)),
-                  routeJson: Value(jsonEncode(path))));
-          db.into(db.record).insert(
-              RecordCompanion.insert(
-                historyId: historyId,
-                json: jsonEncode(fitMsgs),
-              ),
+                  route: path.toList()));
+          db.into(db.records).insert(
+              RecordsCompanion.insert(historyId: historyId, messages: records),
               mode: InsertMode.insertOrReplace);
-          db.into(db.summary).insert(SummaryCompanion.insert(
+          db.into(db.summarys).insert(SummarysCompanion.insert(
               timestamp: Value(session.timestamp),
               startTime: Value(DateTime(session.startTime!)),
               sport: Value(session.sport?.name),
@@ -293,32 +288,54 @@ void _dataLoadIsolateEntryWithProgressPhased(
     // 统计
     sendPort.send({'progress': '正在统计数据...'});
     await Future(() async {
-      final summary = await db.select(db.summary).get();
+      final summary = await db.select(db.summarys).get();
       final data = analyzeRideData(summary);
       for (var item in data.entries) {
-        db.into(db.kv).insert(
+        db.into(db.kVs).insert(
             mode: InsertMode.replace,
-            KVCompanion.insert(key: item.key, value: item.value.toString()));
+            KVsCompanion.insert(key: item.key, value: item.value.toString()));
       }
     });
 
     // 最佳成绩
     sendPort.send({'progress': '正在分析最佳成绩...'});
     await Future(() async {
-      final summary = await db.select(db.summary).get();
-      final data = analyzeBestScore(sessionMsgs);
-      for (var item in data.entries) {
-        db.insert('best_score', {'key': item.key, 'value': item.value});
+      final history = await db.select(db.historys).get();
+      for (var item in history) {
+        final summary = await (db.select(db.summarys)
+              ..where((s) => s.id.equals(item.summaryId ?? 0)))
+            .getSingleOrNull();
+        if (summary == null) continue;
+        final record = await (db.select(db.records)
+              ..where((r) => r.historyId.equals(item.id)))
+            .getSingleOrNull();
+        final res = analyzeBestScore(summary, record!);
+        db.into(db.bestScores).insert(res);
+      }
+    });
+
+    sendPort.send({'progress': '正在分析赛段成绩..'});
+    await Future(() async {
+      final routes = await db.select(db.routes).get();
+      final histories = await db.select(db.historys).get();
+      for (var item in histories) {
+        final summary = await (db.select(db.summarys)
+              ..where((s) => s.id.equals(item.summaryId ?? 0)))
+            .getSingleOrNull();
+        if (summary == null) continue;
+        final record = await (db.select(db.records)
+              ..where((r) => r.historyId.equals(item.id)))
+            .getSingleOrNull();
+        if (record == null) continue;
+        final segments = analyzeSegment(routes, record.messages, item);
+        for (final segment in segments) {
+          await db.into(db.segments).insert(segment);
+        }
+        final bestOfEach = analyzeSegment(summary);
+        db.into(db.bestScore).insert(item);
       }
     });
     sendPort.send({'phase': 'finish'});
-    // sendPort.send({
-    //   'phase': 'bestScore',
-    //   'bestScore': bestScoreData['bestScore'],
-    //   'bestScoreAt': bestScoreData['bestScoreAt'],
-    //   'bestSegment': bestScoreData['bestSegment'],
-    //   'subRoutesOfRoutes': bestScoreData['subRoutesOfRoutes'],
-    // });
   } catch (e, st) {
     sendPort.send({'error': e.toString(), 'stack': st.toString()});
   }
