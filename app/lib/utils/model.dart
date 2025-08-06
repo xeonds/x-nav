@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:app/database.dart';
 import 'package:drift/drift.dart';
 import 'package:fit_tool/fit_tool.dart';
 import 'package:latlong2/latlong.dart';
@@ -47,11 +46,13 @@ class Historys extends Table {
   DateTimeColumn get createdAt => dateTime().nullable()(); // 创建时间
   TextColumn get route => text().map(LatlngListConverter())(); // 路线点序列化为json字符串
   IntColumn get summaryId => integer().nullable()(); // 关联Summary的id
+  IntColumn get bestScoreId => integer().nullable()();
 }
 
 // data class for each ride's analysis
 class Summarys extends Table {
   IntColumn get id => integer().autoIncrement()();
+  IntColumn get historyId => integer()();
   IntColumn get timestamp => integer().nullable()();
   DateTimeColumn get startTime => dateTime().nullable()();
   TextColumn get sport => text().nullable()();
@@ -86,6 +87,7 @@ class Summarys extends Table {
 // data class for each data entry's best score, like speed, ride distance
 class BestScores extends Table {
   IntColumn get id => integer().autoIncrement()();
+  IntColumn get historyId => integer()();
   RealColumn get maxSpeed => real().withDefault(const Constant(0.0))();
   RealColumn get maxAltitude => real().withDefault(const Constant(0.0))();
   RealColumn get maxClimb => real().withDefault(const Constant(0.0))();
@@ -97,7 +99,6 @@ class BestScores extends Table {
   TextColumn get bestPowerByTimeJson =>
       text().withDefault(const Constant('{}'))();
   TextColumn get bestHRByTimeJson => text().withDefault(const Constant('{}'))();
-  IntColumn get historyId => integer().nullable()(); // 可选：关联历史记录
 
   // Map<String, String> getBestData() {
   //   return {

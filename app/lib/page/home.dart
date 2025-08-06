@@ -3,7 +3,6 @@ import 'package:app/database.dart';
 import 'package:app/page/routes.dart';
 import 'package:app/page/tachometer.dart';
 import 'package:app/utils/data_loader.dart';
-import 'package:app/utils/fit.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -22,25 +21,26 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final db = Database();
-  List<History> histories =[] ;
-  List<Summary> summaries =[];
-  List<KV> bestScores =[];
+  List<History> histories = [];
+  List<Summary> summaries = [];
+  List<KV> bestScores = [];
+  Map<DateTime, List<Summary>> summariesByDay = {};
 
   @override
   void initState() {
     super.initState();
-    db.select(db.historys).get().then((res)=>
-    setState(() {
-      histories = res;
-    }));
-    db.select(db.summarys).get().then((res)=>
-    setState(() {
-      summaries = res;
-    }));
-    db.select(db.kVs).get().then((res)=>
-    setState(() {
-      bestScores = res;
-    }));
+    db.select(db.historys).get().then((res) => setState(() {
+          histories = res;
+        }));
+    db.select(db.summarys).get().then((res) {
+      setState(() {
+        summaries = res;
+      });
+      summariesByDay = groupSummariesByDay(summaries);
+    });
+    db.select(db.kVs).get().then((res) => setState(() {
+          bestScores = res;
+        }));
   }
 
   @override
@@ -57,88 +57,85 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     } else {
-    // 获取历史数据
-    final rideData = groupSummariesByDay(summaries);
+      final ValueNotifier<LineTouchResponse?> touchInteraction =
+          ValueNotifier<LineTouchResponse?>(null);
+      ValueNotifier<DateTime> currentMonth =
+          ValueNotifier<DateTime>(DateTime.now());
 
-    final ValueNotifier<LineTouchResponse?> touchInteraction =
-        ValueNotifier<LineTouchResponse?>(null);
-    ValueNotifier<DateTime> currentMonth =
-        ValueNotifier<DateTime>(DateTime.now());
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('X-Nav'),
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 快捷磁贴按钮区
-              Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    QuickTile(
-                      icon: Icons.navigation,
-                      label: '快速导航',
-                      onTap: () {
-                        Navigator.of(context).pushNamed('/quick_nav');
-                      },
-                    ),
-                    QuickTile(
-                      icon: Icons.timer,
-                      label: '码表模式',
-                      onTap: () {
-                        Navigator.of(context).push(MaterialPageRoute(
-                            builder: (context) => const TachometerPage()));
-                      },
-                    ),
-                    QuickTile(
-                      icon: Icons.map,
-                      label: '路书创建',
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                              builder: (context) =>
-                                  const RouteEditPage(route: 'new_route')),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const Text(
-                '周骑行统计',
-                style: TextStyle(fontSize: 20),
-              ),
-              SizedBox(
-                height: 200,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('X-Nav'),
+        ),
+        body: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 快捷磁贴按钮区
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      weeklySummaryInfo(touchInteraction, rideData),
-                      const SizedBox(height: 16),
-                      weeklySummaryChart(touchInteraction, rideData),
+                      QuickTile(
+                        icon: Icons.navigation,
+                        label: '快速导航',
+                        onTap: () {
+                          Navigator.of(context).pushNamed('/quick_nav');
+                        },
+                      ),
+                      QuickTile(
+                        icon: Icons.timer,
+                        label: '码表模式',
+                        onTap: () {
+                          Navigator.of(context).push(MaterialPageRoute(
+                              builder: (context) => const TachometerPage()));
+                        },
+                      ),
+                      QuickTile(
+                        icon: Icons.map,
+                        label: '路书创建',
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (context) =>
+                                    const RouteEditPage(route: 'new_route')),
+                          );
+                        },
+                      ),
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                '月骑行记录',
-                style: TextStyle(fontSize: 20),
-              ),
-              // 新增：当月骑行统计卡片，随日历月份同步
-              monthlySummaryInfo(currentMonth, rideData),
-              monthlySummaryCalendar(rideData, currentMonth, histories),
-              const Text(
-                '最佳成绩',
-                style: TextStyle(fontSize: 20),
-              ),
+                const Text(
+                  '周骑行统计',
+                  style: TextStyle(fontSize: 20),
+                ),
+                SizedBox(
+                  height: 200,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        weeklySummaryInfo(touchInteraction),
+                        const SizedBox(height: 16),
+                        weeklySummaryChart(touchInteraction),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  '月骑行记录',
+                  style: TextStyle(fontSize: 20),
+                ),
+                // 新增：当月骑行统计卡片，随日历月份同步
+                monthlySummaryInfo(currentMonth),
+                monthlySummaryCalendar(currentMonth),
+                const Text(
+                  '最佳成绩',
+                  style: TextStyle(fontSize: 20),
+                ),
                 ListView(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -151,55 +148,54 @@ class _HomePageState extends State<HomePage> {
                     );
                   }).toList(),
                 )
-            ],
+              ],
+            ),
           ),
         ),
-      ),
-    );
+      );
     }
-
   }
 
-  Map<DateTime, Map<String, dynamic>> groupSummariesByDay(
-      List<Summary> summaries) {
-    return summaries
-        .map((e) => {
-              'timestamp': DateTime.fromMillisecondsSinceEpoch(
-                      timestampWithOffset(e.startTime!.microsecondsSinceEpoch))
-                  .toLocal(),
-              'total_distance': e.totalDistance,
-              'total_ascent': e.totalAscent,
-              'total_moving_time': e.totalMovingTime,
-            })
-        .groupFoldBy<DateTime, Map<String, dynamic>>(
-            (element) => DateTime(
-                (element['timestamp']! as DateTime).year,
-                (element['timestamp']! as DateTime).month,
-                (element['timestamp']! as DateTime).day), (previousValue, element) {
-      previousValue ??= {
-        'total_distance': 0,
-        'total_ascent': 0,
-        'total_moving_time': 0,
-        'count': 0,
-      };
-      previousValue['total_distance'] += element['total_distance'];
-      previousValue['total_ascent'] += element['total_ascent'];
-      previousValue['total_moving_time'] += element['total_moving_time'];
-      previousValue['count'] += 1;
-      return previousValue;
-    });
+  Map<DateTime, List<Summary>> groupSummariesByDay(List<Summary> summaries) {
+    return summaries.groupListsBy((e) => e.startTime!);
+    // return summaries
+    //     .map((e) => {
+    //           'timestamp': DateTime.fromMillisecondsSinceEpoch(
+    //                   timestampWithOffset(e.startTime!.microsecondsSinceEpoch))
+    //               .toLocal(),
+    //           'total_distance': e.totalDistance,
+    //           'total_ascent': e.totalAscent,
+    //           'total_moving_time': e.totalMovingTime,
+    //         })
+    //     .groupFoldBy<DateTime, Map<String, dynamic>>(
+    //         (element) => DateTime(
+    //             (element['timestamp']! as DateTime).year,
+    //             (element['timestamp']! as DateTime).month,
+    //             (element['timestamp']! as DateTime).day), (previousValue, element) {
+    //   previousValue ??= {
+    //     'total_distance': 0,
+    //     'total_ascent': 0,
+    //     'total_moving_time': 0,
+    //     'count': 0,
+    //   };
+    //   previousValue['total_distance'] += element['total_distance'];
+    //   previousValue['total_ascent'] += element['total_ascent'];
+    //   previousValue['total_moving_time'] += element['total_moving_time'];
+    //   previousValue['count'] += 1;
+    //   return previousValue;
+    // });
   }
 
-  SizedBox monthlySummaryCalendar(Map<DateTime, Map<String, dynamic>> rideData,
-      ValueNotifier<DateTime> currentMonth, List<History> histories) {
+  SizedBox monthlySummaryCalendar(ValueNotifier<DateTime> currentMonth) {
     return SizedBox(
       height: 400,
-      child: rideData.isEmpty
+      child: histories.isEmpty
           ? const Center(child: Text("data loading"))
           : NotificationListener<ScrollNotification>(
               onNotification: (notification) => false,
               child: TableCalendar(
-                firstDay: rideData.keys
+                firstDay: summaries
+                    .map((e) => e.startTime!)
                     .reduce((a, b) => a.isBefore(b) ? a : b)
                     .subtract(const Duration(days: 1)),
                 lastDay: DateTime.now(),
@@ -232,36 +228,25 @@ class _HomePageState extends State<HomePage> {
                 weekendDays: const [DateTime.saturday, DateTime.sunday],
                 calendarBuilders: CalendarBuilders(
                   prioritizedBuilder: (context, day, focusedDay) {
-                    final distance = rideData.entries
-                        .firstWhere(
-                          (entry) =>
-                              entry.key.year == day.year &&
-                              entry.key.month == day.month &&
-                              entry.key.day == day.day,
-                          orElse: () => MapEntry(
-                            DateTime(0),
-                            {
-                              'total_distance': 0,
-                              'total_ascent': 0,
-                              'total_moving_time': 0,
-                            },
-                          ),
-                        )
-                        .value['total_distance'];
+                    final distance = summaries
+                        .where((entry) =>
+                            entry.startTime!.year == day.year &&
+                            entry.startTime!.month == day.month &&
+                            entry.startTime!.day == day.day)
+                        .fold(0.0, (e0, e) => e0 + (e.totalDistance ?? 0.0));
                     final size =
                         (20.0 + (distance / 5000).clamp(0.0, 30.0)).toDouble();
                     if (distance == 0) {
                       return Center(
                         child: GestureDetector(
-                          onTap: () =>
-                              showDailyRecords(context, day, histories),
+                          onTap: () => showDailyRecords(context, day),
                           child: Text('${day.day}'),
                         ),
                       );
                     }
                     return Center(
                       child: GestureDetector(
-                        onTap: () => showDailyRecords(context, day, histories),
+                        onTap: () => showDailyRecords(context, day),
                         child: Container(
                           width: size,
                           height: size,
@@ -291,31 +276,37 @@ class _HomePageState extends State<HomePage> {
   }
 
   ValueListenableBuilder<DateTime> monthlySummaryInfo(
-      ValueNotifier<DateTime> currentMonth,
-      Map<DateTime, Map<String, dynamic>> rideData) {
+      ValueNotifier<DateTime> currentMonth) {
     return ValueListenableBuilder<DateTime>(
       valueListenable: currentMonth,
       builder: (context, focusedMonth, _) {
         // 计算当前日历显示月份的起止
         final monthStart = DateTime(focusedMonth.year, focusedMonth.month, 1);
         final monthEnd = DateTime(focusedMonth.year, focusedMonth.month + 1, 0);
-        final monthRecords = rideData.entries.where((entry) =>
+        final monthRecords = summariesByDay.entries.where((entry) =>
             entry.key
                 .isAfter(monthStart.subtract(const Duration(seconds: 1))) &&
             entry.key.isBefore(monthEnd.add(const Duration(days: 1))));
         final totalDistance = monthRecords.fold<double>(
-            0.0, (sum, entry) => sum + (entry.value['total_distance'] ?? 0));
+            0.0,
+            (sum, entry) =>
+                sum + entry.value.fold(0.0, (e0, e) => e0 + e.totalDistance!));
         final totalAscent = monthRecords.fold<double>(
-            0.0, (sum, entry) => sum + (entry.value['total_ascent'] ?? 0));
+            0.0,
+            (sum, entry) =>
+                sum + entry.value.fold(0.0, (e0, e) => e0 + e.totalAscent!));
         final totalTime = monthRecords.fold<double>(
-            0.0, (sum, entry) => sum + (entry.value['total_moving_time'] ?? 0));
+            0.0,
+            (sum, entry) =>
+                sum +
+                entry.value.fold(0.0, (e0, e) => e0 + e.totalElapsedTime!));
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 8.0),
           child: RideSummary(
             rideData: {
               'totalDistance': totalDistance,
               'totalRides': monthRecords.fold<int>(
-                  0, (sum, entry) => (sum + entry.value['count']).toInt()),
+                  0, (sum, entry) => (sum + entry.value.length).toInt()),
               'totalTime': totalTime,
               'totalAscent': totalAscent,
             },
@@ -326,8 +317,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Expanded weeklySummaryChart(
-      ValueNotifier<LineTouchResponse?> touchInteraction,
-      Map<DateTime, Map<String, dynamic>> rideData) {
+      ValueNotifier<LineTouchResponse?> touchInteraction) {
     return Expanded(
       child: LineChart(
         LineChartData(
@@ -380,14 +370,18 @@ class _HomePageState extends State<HomePage> {
                 final weekStart = now.subtract(
                     Duration(days: now.weekday - 1 + (11 - index) * 7));
                 final weekEnd = weekStart.add(const Duration(days: 6));
-                final weeklyDistance = rideData.entries
+                final weeklyDistance = summariesByDay.entries
                     .where((entry) =>
                         entry.key.isAfter(
                             weekStart.subtract(const Duration(seconds: 1))) &&
                         entry.key
                             .isBefore(weekEnd.add(const Duration(seconds: 1))))
-                    .fold(0.0,
-                        (sum, entry) => sum + entry.value['total_distance']);
+                    .fold(
+                        0.0,
+                        (sum, entry) =>
+                            sum +
+                            entry.value
+                                .fold(0.0, (e0, e) => e0 + e.totalDistance!));
                 return FlSpot(
                     index.toDouble(), (weeklyDistance / 1000).toDouble());
               }),
@@ -406,8 +400,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   ValueListenableBuilder<LineTouchResponse?> weeklySummaryInfo(
-      ValueNotifier<LineTouchResponse?> touchInteraction,
-      Map<DateTime, Map<String, dynamic>> rideData) {
+      ValueNotifier<LineTouchResponse?> touchInteraction) {
     return ValueListenableBuilder<LineTouchResponse?>(
       valueListenable: touchInteraction,
       builder: (context, touchInteraction, child) {
@@ -455,29 +448,35 @@ class _HomePageState extends State<HomePage> {
         final weekStart =
             now.subtract(Duration(days: now.weekday - 1 + (11 - index) * 7));
         final weekEnd = weekStart.add(const Duration(days: 6));
-        final weeklyDistance = rideData.entries
+        final weeklyDistance = summariesByDay.entries
             .where((entry) =>
                 entry.key
                     .isAfter(weekStart.subtract(const Duration(seconds: 1))) &&
                 entry.key.isBefore(weekEnd.add(const Duration(seconds: 1))))
-            .fold(0.0, (sum, entry) => sum + entry.value['total_distance']);
-        final weeklyElevation = rideData.entries
+            .fold(
+                0.0,
+                (sum, entry) =>
+                    sum +
+                    entry.value.fold(0, (e0, e) => e0 + e.totalDistance!));
+        final weeklyElevation = summariesByDay.entries
             .where((entry) =>
                 entry.key
                     .isAfter(weekStart.subtract(const Duration(seconds: 1))) &&
                 entry.key.isBefore(weekEnd.add(const Duration(seconds: 1))))
-            .fold(0.0, (sum, entry) => sum + entry.value['total_ascent']);
-        final weeklyTime = rideData.entries
+            .fold(
+                0.0,
+                (sum, entry) =>
+                    sum + entry.value.fold(0, (e0, e) => e0 + e.totalAscent!));
+        final weeklyTime = summariesByDay.entries
             .where((entry) =>
                 entry.key
                     .isAfter(weekStart.subtract(const Duration(seconds: 1))) &&
                 entry.key.isBefore(weekEnd.add(const Duration(seconds: 1))))
-            .fold(0.0, (sum, entry) => sum + entry.value['total_moving_time']);
-        String parseTime(int seconds) {
-          final hours = (seconds / 3600).floor();
-          final minutes = ((seconds % 3600) / 60).floor();
-          return '${hours.toString().padLeft(2, '0')}h:${minutes.toString().padLeft(2, '0')}m';
-        }
+            .fold(
+                0.0,
+                (sum, entry) =>
+                    sum +
+                    entry.value.fold(0, (e0, e) => e0 + e.totalElapsedTime!));
 
         return Column(
           children: [
@@ -523,28 +522,18 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void showDailyRecords(
-      BuildContext context, DateTime day, List<History> histories) {
+  void showDailyRecords(BuildContext context, DateTime day) {
     // 筛选出当天的骑行记录
-    final dailyRecords = histories
-        .where((record) {
-          final recordDate = DateTime.fromMillisecondsSinceEpoch(
-              (record.startTime! * 1000 + 631065600000)
-                  .toInt());
-          return recordDate.year == day.year &&
-              recordDate.month == day.month &&
-              recordDate.day == day.day;
-        })
-        .map((record) => MapEntry(
-              DateTime.fromMillisecondsSinceEpoch(
-                  (parseFitDataToSummary(record).startTime! * 1000 +
-                          631065600000)
-                      .toInt()),
-              record,
-            ))
-        .sorted(
-          (a, b) => a.key.compareTo(b.key),
-        )
+    final summaryToday = summaries
+        .where((e) =>
+            e.startTime!.year == day.year &&
+            e.startTime!.month == day.month &&
+            e.startTime!.day == day.day)
+        .sorted((a, b) => a.startTime!.compareTo(b.startTime!));
+    final ids = summaryToday.map((e) => e.historyId).toList();
+    final dailyRecords = ids
+        .map((id) => histories.firstWhereOrNull((e) => e.id == id))
+        .whereType<History>()
         .toList();
 
     showModalBottomSheet(
@@ -561,33 +550,25 @@ class _HomePageState extends State<HomePage> {
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
                         child: RideSummary(rideData: {
-                          'totalDistance': dailyRecords.fold(
-                              0.0,
-                              (a, b) =>
-                                  a +
-                                  parseFitDataToSummary(b.value)
-                                      .totalDistance!),
-                          'totalRides': dailyRecords.length,
-                          'totalTime': dailyRecords.fold(
-                              0.0,
-                              (a, b) =>
-                                  a +
-                                  parseFitDataToSummary(b.value)
-                                      .totalElapsedTime!)
+                          'totalDistance': summaryToday.fold(
+                              0.0, (a, b) => a + b.totalDistance!),
+                          'totalRides': summaryToday.length,
+                          'totalTime': summaryToday.fold(
+                              0.0, (a, b) => a + b.totalElapsedTime!)
                         }),
                       ),
                     ),
                     SliverList(
                         delegate: SliverChildBuilderDelegate(
                       (context, index) {
-                        final record = dailyRecords[index];
                         return RideHistoryCard(
-                          rideData: record.value,
+                          rideData: dailyRecords[index],
+                          summary: summaryToday[index],
                           onTap: () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (context) => RideDetailPage(
-                                    rideData: MapEntry('path', record.value)),
+                                    rideData: dailyRecords[index]),
                               ),
                             );
                           },
@@ -601,4 +582,10 @@ class _HomePageState extends State<HomePage> {
       },
     );
   }
+}
+
+String parseTime(int seconds) {
+  final hours = (seconds / 3600).floor();
+  final minutes = ((seconds % 3600) / 60).floor();
+  return '${hours.toString().padLeft(2, '0')}h:${minutes.toString().padLeft(2, '0')}m';
 }

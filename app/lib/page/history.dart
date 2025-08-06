@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:app/component/data.dart';
+import 'package:app/database.dart';
 import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit.dart';
@@ -310,27 +311,25 @@ class RideHistoryListState extends State<RideHistoryList> {
 }
 
 class RideHistoryCard extends StatelessWidget {
-  final List<Message> rideData;
+  final History rideData;
+  final Summary summary;
   final VoidCallback onTap;
 
   const RideHistoryCard({
     super.key,
     required this.rideData,
+    required this.summary,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final summary = parseFitDataToSummary(rideData);
-
     return Card(
       child: ListTile(
         leading: SizedBox(
           width: 50,
           height: 50,
-          child: CustomPaint(
-            painter: RidePathPainter(parseFitDataToRoute(rideData)),
-          ),
+          child: CustomPaint(painter: RidePathPainter(rideData.route)),
         ),
         title: Text(
             '${DateTime.fromMillisecondsSinceEpoch((summary.startTime! * 1000 + 631065600000).toInt()).toLocal().toString().replaceFirst('T', ' ')} 的骑行'),
@@ -349,7 +348,7 @@ class RideHistoryCard extends StatelessWidget {
 }
 
 class RideDetailPage extends StatefulWidget {
-  final MapEntry<String, List<Message>> rideData;
+  final History rideData;
   const RideDetailPage({super.key, required this.rideData});
 
   @override
@@ -357,7 +356,7 @@ class RideDetailPage extends StatefulWidget {
 }
 
 class _RideDetailPageState extends State<RideDetailPage> {
-  late final MapEntry<String, List<Message>> rideData;
+  late final History rideData;
   late final RideScore rideScore;
   late final DataLoader dataLoader;
   late int highlightRouteIndex;

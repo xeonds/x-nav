@@ -40,9 +40,15 @@ class $HistorysTable extends Historys with TableInfo<$HistorysTable, History> {
   late final GeneratedColumn<int> summaryId = GeneratedColumn<int>(
       'summary_id', aliasedName, true,
       type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _bestScoreIdMeta =
+      const VerificationMeta('bestScoreId');
+  @override
+  late final GeneratedColumn<int> bestScoreId = GeneratedColumn<int>(
+      'best_score_id', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns =>
-      [id, filePath, createdAt, route, summaryId];
+      [id, filePath, createdAt, route, summaryId, bestScoreId];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -70,6 +76,12 @@ class $HistorysTable extends Historys with TableInfo<$HistorysTable, History> {
       context.handle(_summaryIdMeta,
           summaryId.isAcceptableOrUnknown(data['summary_id']!, _summaryIdMeta));
     }
+    if (data.containsKey('best_score_id')) {
+      context.handle(
+          _bestScoreIdMeta,
+          bestScoreId.isAcceptableOrUnknown(
+              data['best_score_id']!, _bestScoreIdMeta));
+    }
     return context;
   }
 
@@ -89,6 +101,8 @@ class $HistorysTable extends Historys with TableInfo<$HistorysTable, History> {
           .read(DriftSqlType.string, data['${effectivePrefix}route'])!),
       summaryId: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}summary_id']),
+      bestScoreId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}best_score_id']),
     );
   }
 
@@ -107,12 +121,14 @@ class History extends DataClass implements Insertable<History> {
   final DateTime? createdAt;
   final List<LatLng> route;
   final int? summaryId;
+  final int? bestScoreId;
   const History(
       {required this.id,
       required this.filePath,
       this.createdAt,
       required this.route,
-      this.summaryId});
+      this.summaryId,
+      this.bestScoreId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -128,6 +144,9 @@ class History extends DataClass implements Insertable<History> {
     if (!nullToAbsent || summaryId != null) {
       map['summary_id'] = Variable<int>(summaryId);
     }
+    if (!nullToAbsent || bestScoreId != null) {
+      map['best_score_id'] = Variable<int>(bestScoreId);
+    }
     return map;
   }
 
@@ -142,6 +161,9 @@ class History extends DataClass implements Insertable<History> {
       summaryId: summaryId == null && nullToAbsent
           ? const Value.absent()
           : Value(summaryId),
+      bestScoreId: bestScoreId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bestScoreId),
     );
   }
 
@@ -154,6 +176,7 @@ class History extends DataClass implements Insertable<History> {
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
       route: serializer.fromJson<List<LatLng>>(json['route']),
       summaryId: serializer.fromJson<int?>(json['summaryId']),
+      bestScoreId: serializer.fromJson<int?>(json['bestScoreId']),
     );
   }
   @override
@@ -165,6 +188,7 @@ class History extends DataClass implements Insertable<History> {
       'createdAt': serializer.toJson<DateTime?>(createdAt),
       'route': serializer.toJson<List<LatLng>>(route),
       'summaryId': serializer.toJson<int?>(summaryId),
+      'bestScoreId': serializer.toJson<int?>(bestScoreId),
     };
   }
 
@@ -173,13 +197,15 @@ class History extends DataClass implements Insertable<History> {
           String? filePath,
           Value<DateTime?> createdAt = const Value.absent(),
           List<LatLng>? route,
-          Value<int?> summaryId = const Value.absent()}) =>
+          Value<int?> summaryId = const Value.absent(),
+          Value<int?> bestScoreId = const Value.absent()}) =>
       History(
         id: id ?? this.id,
         filePath: filePath ?? this.filePath,
         createdAt: createdAt.present ? createdAt.value : this.createdAt,
         route: route ?? this.route,
         summaryId: summaryId.present ? summaryId.value : this.summaryId,
+        bestScoreId: bestScoreId.present ? bestScoreId.value : this.bestScoreId,
       );
   History copyWithCompanion(HistorysCompanion data) {
     return History(
@@ -188,6 +214,8 @@ class History extends DataClass implements Insertable<History> {
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       route: data.route.present ? data.route.value : this.route,
       summaryId: data.summaryId.present ? data.summaryId.value : this.summaryId,
+      bestScoreId:
+          data.bestScoreId.present ? data.bestScoreId.value : this.bestScoreId,
     );
   }
 
@@ -198,13 +226,15 @@ class History extends DataClass implements Insertable<History> {
           ..write('filePath: $filePath, ')
           ..write('createdAt: $createdAt, ')
           ..write('route: $route, ')
-          ..write('summaryId: $summaryId')
+          ..write('summaryId: $summaryId, ')
+          ..write('bestScoreId: $bestScoreId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, filePath, createdAt, route, summaryId);
+  int get hashCode =>
+      Object.hash(id, filePath, createdAt, route, summaryId, bestScoreId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -213,7 +243,8 @@ class History extends DataClass implements Insertable<History> {
           other.filePath == this.filePath &&
           other.createdAt == this.createdAt &&
           other.route == this.route &&
-          other.summaryId == this.summaryId);
+          other.summaryId == this.summaryId &&
+          other.bestScoreId == this.bestScoreId);
 }
 
 class HistorysCompanion extends UpdateCompanion<History> {
@@ -222,12 +253,14 @@ class HistorysCompanion extends UpdateCompanion<History> {
   final Value<DateTime?> createdAt;
   final Value<List<LatLng>> route;
   final Value<int?> summaryId;
+  final Value<int?> bestScoreId;
   const HistorysCompanion({
     this.id = const Value.absent(),
     this.filePath = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.route = const Value.absent(),
     this.summaryId = const Value.absent(),
+    this.bestScoreId = const Value.absent(),
   });
   HistorysCompanion.insert({
     this.id = const Value.absent(),
@@ -235,6 +268,7 @@ class HistorysCompanion extends UpdateCompanion<History> {
     this.createdAt = const Value.absent(),
     required List<LatLng> route,
     this.summaryId = const Value.absent(),
+    this.bestScoreId = const Value.absent(),
   })  : filePath = Value(filePath),
         route = Value(route);
   static Insertable<History> custom({
@@ -243,6 +277,7 @@ class HistorysCompanion extends UpdateCompanion<History> {
     Expression<DateTime>? createdAt,
     Expression<String>? route,
     Expression<int>? summaryId,
+    Expression<int>? bestScoreId,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -250,6 +285,7 @@ class HistorysCompanion extends UpdateCompanion<History> {
       if (createdAt != null) 'created_at': createdAt,
       if (route != null) 'route': route,
       if (summaryId != null) 'summary_id': summaryId,
+      if (bestScoreId != null) 'best_score_id': bestScoreId,
     });
   }
 
@@ -258,13 +294,15 @@ class HistorysCompanion extends UpdateCompanion<History> {
       Value<String>? filePath,
       Value<DateTime?>? createdAt,
       Value<List<LatLng>>? route,
-      Value<int?>? summaryId}) {
+      Value<int?>? summaryId,
+      Value<int?>? bestScoreId}) {
     return HistorysCompanion(
       id: id ?? this.id,
       filePath: filePath ?? this.filePath,
       createdAt: createdAt ?? this.createdAt,
       route: route ?? this.route,
       summaryId: summaryId ?? this.summaryId,
+      bestScoreId: bestScoreId ?? this.bestScoreId,
     );
   }
 
@@ -287,6 +325,9 @@ class HistorysCompanion extends UpdateCompanion<History> {
     if (summaryId.present) {
       map['summary_id'] = Variable<int>(summaryId.value);
     }
+    if (bestScoreId.present) {
+      map['best_score_id'] = Variable<int>(bestScoreId.value);
+    }
     return map;
   }
 
@@ -297,7 +338,8 @@ class HistorysCompanion extends UpdateCompanion<History> {
           ..write('filePath: $filePath, ')
           ..write('createdAt: $createdAt, ')
           ..write('route: $route, ')
-          ..write('summaryId: $summaryId')
+          ..write('summaryId: $summaryId, ')
+          ..write('bestScoreId: $bestScoreId')
           ..write(')'))
         .toString();
   }
@@ -964,6 +1006,12 @@ class $SummarysTable extends Summarys with TableInfo<$SummarysTable, Summary> {
       requiredDuringInsert: false,
       defaultConstraints:
           GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _historyIdMeta =
+      const VerificationMeta('historyId');
+  @override
+  late final GeneratedColumn<int> historyId = GeneratedColumn<int>(
+      'history_id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
   static const VerificationMeta _timestampMeta =
       const VerificationMeta('timestamp');
   @override
@@ -1140,6 +1188,7 @@ class $SummarysTable extends Summarys with TableInfo<$SummarysTable, Summary> {
   @override
   List<GeneratedColumn> get $columns => [
         id,
+        historyId,
         timestamp,
         startTime,
         sport,
@@ -1182,6 +1231,12 @@ class $SummarysTable extends Summarys with TableInfo<$SummarysTable, Summary> {
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('history_id')) {
+      context.handle(_historyIdMeta,
+          historyId.isAcceptableOrUnknown(data['history_id']!, _historyIdMeta));
+    } else if (isInserting) {
+      context.missing(_historyIdMeta);
     }
     if (data.containsKey('timestamp')) {
       context.handle(_timestampMeta,
@@ -1350,6 +1405,8 @@ class $SummarysTable extends Summarys with TableInfo<$SummarysTable, Summary> {
     return Summary(
       id: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      historyId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}history_id'])!,
       timestamp: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}timestamp']),
       startTime: attachedDatabase.typeMapping
@@ -1419,6 +1476,7 @@ class $SummarysTable extends Summarys with TableInfo<$SummarysTable, Summary> {
 
 class Summary extends DataClass implements Insertable<Summary> {
   final int id;
+  final int historyId;
   final int? timestamp;
   final DateTime? startTime;
   final String? sport;
@@ -1450,6 +1508,7 @@ class Summary extends DataClass implements Insertable<Summary> {
   final double? thresholdPower;
   const Summary(
       {required this.id,
+      required this.historyId,
       this.timestamp,
       this.startTime,
       this.sport,
@@ -1483,6 +1542,7 @@ class Summary extends DataClass implements Insertable<Summary> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
+    map['history_id'] = Variable<int>(historyId);
     if (!nullToAbsent || timestamp != null) {
       map['timestamp'] = Variable<int>(timestamp);
     }
@@ -1576,6 +1636,7 @@ class Summary extends DataClass implements Insertable<Summary> {
   SummarysCompanion toCompanion(bool nullToAbsent) {
     return SummarysCompanion(
       id: Value(id),
+      historyId: Value(historyId),
       timestamp: timestamp == null && nullToAbsent
           ? const Value.absent()
           : Value(timestamp),
@@ -1670,6 +1731,7 @@ class Summary extends DataClass implements Insertable<Summary> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return Summary(
       id: serializer.fromJson<int>(json['id']),
+      historyId: serializer.fromJson<int>(json['historyId']),
       timestamp: serializer.fromJson<int?>(json['timestamp']),
       startTime: serializer.fromJson<DateTime?>(json['startTime']),
       sport: serializer.fromJson<String?>(json['sport']),
@@ -1708,6 +1770,7 @@ class Summary extends DataClass implements Insertable<Summary> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
+      'historyId': serializer.toJson<int>(historyId),
       'timestamp': serializer.toJson<int?>(timestamp),
       'startTime': serializer.toJson<DateTime?>(startTime),
       'sport': serializer.toJson<String?>(sport),
@@ -1742,6 +1805,7 @@ class Summary extends DataClass implements Insertable<Summary> {
 
   Summary copyWith(
           {int? id,
+          int? historyId,
           Value<int?> timestamp = const Value.absent(),
           Value<DateTime?> startTime = const Value.absent(),
           Value<String?> sport = const Value.absent(),
@@ -1773,6 +1837,7 @@ class Summary extends DataClass implements Insertable<Summary> {
           Value<double?> thresholdPower = const Value.absent()}) =>
       Summary(
         id: id ?? this.id,
+        historyId: historyId ?? this.historyId,
         timestamp: timestamp.present ? timestamp.value : this.timestamp,
         startTime: startTime.present ? startTime.value : this.startTime,
         sport: sport.present ? sport.value : this.sport,
@@ -1827,6 +1892,7 @@ class Summary extends DataClass implements Insertable<Summary> {
   Summary copyWithCompanion(SummarysCompanion data) {
     return Summary(
       id: data.id.present ? data.id.value : this.id,
+      historyId: data.historyId.present ? data.historyId.value : this.historyId,
       timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
       startTime: data.startTime.present ? data.startTime.value : this.startTime,
       sport: data.sport.present ? data.sport.value : this.sport,
@@ -1898,6 +1964,7 @@ class Summary extends DataClass implements Insertable<Summary> {
   String toString() {
     return (StringBuffer('Summary(')
           ..write('id: $id, ')
+          ..write('historyId: $historyId, ')
           ..write('timestamp: $timestamp, ')
           ..write('startTime: $startTime, ')
           ..write('sport: $sport, ')
@@ -1934,6 +2001,7 @@ class Summary extends DataClass implements Insertable<Summary> {
   @override
   int get hashCode => Object.hashAll([
         id,
+        historyId,
         timestamp,
         startTime,
         sport,
@@ -1969,6 +2037,7 @@ class Summary extends DataClass implements Insertable<Summary> {
       identical(this, other) ||
       (other is Summary &&
           other.id == this.id &&
+          other.historyId == this.historyId &&
           other.timestamp == this.timestamp &&
           other.startTime == this.startTime &&
           other.sport == this.sport &&
@@ -2002,6 +2071,7 @@ class Summary extends DataClass implements Insertable<Summary> {
 
 class SummarysCompanion extends UpdateCompanion<Summary> {
   final Value<int> id;
+  final Value<int> historyId;
   final Value<int?> timestamp;
   final Value<DateTime?> startTime;
   final Value<String?> sport;
@@ -2033,6 +2103,7 @@ class SummarysCompanion extends UpdateCompanion<Summary> {
   final Value<double?> thresholdPower;
   const SummarysCompanion({
     this.id = const Value.absent(),
+    this.historyId = const Value.absent(),
     this.timestamp = const Value.absent(),
     this.startTime = const Value.absent(),
     this.sport = const Value.absent(),
@@ -2065,6 +2136,7 @@ class SummarysCompanion extends UpdateCompanion<Summary> {
   });
   SummarysCompanion.insert({
     this.id = const Value.absent(),
+    required int historyId,
     this.timestamp = const Value.absent(),
     this.startTime = const Value.absent(),
     this.sport = const Value.absent(),
@@ -2094,9 +2166,10 @@ class SummarysCompanion extends UpdateCompanion<Summary> {
     this.maxAltitude = const Value.absent(),
     this.avgGrade = const Value.absent(),
     this.thresholdPower = const Value.absent(),
-  });
+  }) : historyId = Value(historyId);
   static Insertable<Summary> custom({
     Expression<int>? id,
+    Expression<int>? historyId,
     Expression<int>? timestamp,
     Expression<DateTime>? startTime,
     Expression<String>? sport,
@@ -2129,6 +2202,7 @@ class SummarysCompanion extends UpdateCompanion<Summary> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (historyId != null) 'history_id': historyId,
       if (timestamp != null) 'timestamp': timestamp,
       if (startTime != null) 'start_time': startTime,
       if (sport != null) 'sport': sport,
@@ -2165,6 +2239,7 @@ class SummarysCompanion extends UpdateCompanion<Summary> {
 
   SummarysCompanion copyWith(
       {Value<int>? id,
+      Value<int>? historyId,
       Value<int?>? timestamp,
       Value<DateTime?>? startTime,
       Value<String?>? sport,
@@ -2196,6 +2271,7 @@ class SummarysCompanion extends UpdateCompanion<Summary> {
       Value<double?>? thresholdPower}) {
     return SummarysCompanion(
       id: id ?? this.id,
+      historyId: historyId ?? this.historyId,
       timestamp: timestamp ?? this.timestamp,
       startTime: startTime ?? this.startTime,
       sport: sport ?? this.sport,
@@ -2233,6 +2309,9 @@ class SummarysCompanion extends UpdateCompanion<Summary> {
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<int>(id.value);
+    }
+    if (historyId.present) {
+      map['history_id'] = Variable<int>(historyId.value);
     }
     if (timestamp.present) {
       map['timestamp'] = Variable<int>(timestamp.value);
@@ -2330,6 +2409,7 @@ class SummarysCompanion extends UpdateCompanion<Summary> {
   String toString() {
     return (StringBuffer('SummarysCompanion(')
           ..write('id: $id, ')
+          ..write('historyId: $historyId, ')
           ..write('timestamp: $timestamp, ')
           ..write('startTime: $startTime, ')
           ..write('sport: $sport, ')
@@ -2598,6 +2678,12 @@ class $BestScoresTable extends BestScores
       requiredDuringInsert: false,
       defaultConstraints:
           GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _historyIdMeta =
+      const VerificationMeta('historyId');
+  @override
+  late final GeneratedColumn<int> historyId = GeneratedColumn<int>(
+      'history_id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
   static const VerificationMeta _maxSpeedMeta =
       const VerificationMeta('maxSpeed');
   @override
@@ -2670,15 +2756,10 @@ class $BestScoresTable extends BestScores
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       defaultValue: const Constant('{}'));
-  static const VerificationMeta _historyIdMeta =
-      const VerificationMeta('historyId');
-  @override
-  late final GeneratedColumn<int> historyId = GeneratedColumn<int>(
-      'history_id', aliasedName, true,
-      type: DriftSqlType.int, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
+        historyId,
         maxSpeed,
         maxAltitude,
         maxClimb,
@@ -2687,8 +2768,7 @@ class $BestScoresTable extends BestScores
         maxTime,
         bestSpeedByDistanceJson,
         bestPowerByTimeJson,
-        bestHRByTimeJson,
-        historyId
+        bestHRByTimeJson
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2702,6 +2782,12 @@ class $BestScoresTable extends BestScores
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('history_id')) {
+      context.handle(_historyIdMeta,
+          historyId.isAcceptableOrUnknown(data['history_id']!, _historyIdMeta));
+    } else if (isInserting) {
+      context.missing(_historyIdMeta);
     }
     if (data.containsKey('max_speed')) {
       context.handle(_maxSpeedMeta,
@@ -2750,10 +2836,6 @@ class $BestScoresTable extends BestScores
           bestHRByTimeJson.isAcceptableOrUnknown(
               data['best_h_r_by_time_json']!, _bestHRByTimeJsonMeta));
     }
-    if (data.containsKey('history_id')) {
-      context.handle(_historyIdMeta,
-          historyId.isAcceptableOrUnknown(data['history_id']!, _historyIdMeta));
-    }
     return context;
   }
 
@@ -2765,6 +2847,8 @@ class $BestScoresTable extends BestScores
     return BestScore(
       id: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      historyId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}history_id'])!,
       maxSpeed: attachedDatabase.typeMapping
           .read(DriftSqlType.double, data['${effectivePrefix}max_speed'])!,
       maxAltitude: attachedDatabase.typeMapping
@@ -2785,8 +2869,6 @@ class $BestScoresTable extends BestScores
           data['${effectivePrefix}best_power_by_time_json'])!,
       bestHRByTimeJson: attachedDatabase.typeMapping.read(DriftSqlType.string,
           data['${effectivePrefix}best_h_r_by_time_json'])!,
-      historyId: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}history_id']),
     );
   }
 
@@ -2798,6 +2880,7 @@ class $BestScoresTable extends BestScores
 
 class BestScore extends DataClass implements Insertable<BestScore> {
   final int id;
+  final int historyId;
   final double maxSpeed;
   final double maxAltitude;
   final double maxClimb;
@@ -2807,9 +2890,9 @@ class BestScore extends DataClass implements Insertable<BestScore> {
   final String bestSpeedByDistanceJson;
   final String bestPowerByTimeJson;
   final String bestHRByTimeJson;
-  final int? historyId;
   const BestScore(
       {required this.id,
+      required this.historyId,
       required this.maxSpeed,
       required this.maxAltitude,
       required this.maxClimb,
@@ -2818,12 +2901,12 @@ class BestScore extends DataClass implements Insertable<BestScore> {
       required this.maxTime,
       required this.bestSpeedByDistanceJson,
       required this.bestPowerByTimeJson,
-      required this.bestHRByTimeJson,
-      this.historyId});
+      required this.bestHRByTimeJson});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
+    map['history_id'] = Variable<int>(historyId);
     map['max_speed'] = Variable<double>(maxSpeed);
     map['max_altitude'] = Variable<double>(maxAltitude);
     map['max_climb'] = Variable<double>(maxClimb);
@@ -2834,15 +2917,13 @@ class BestScore extends DataClass implements Insertable<BestScore> {
         Variable<String>(bestSpeedByDistanceJson);
     map['best_power_by_time_json'] = Variable<String>(bestPowerByTimeJson);
     map['best_h_r_by_time_json'] = Variable<String>(bestHRByTimeJson);
-    if (!nullToAbsent || historyId != null) {
-      map['history_id'] = Variable<int>(historyId);
-    }
     return map;
   }
 
   BestScoresCompanion toCompanion(bool nullToAbsent) {
     return BestScoresCompanion(
       id: Value(id),
+      historyId: Value(historyId),
       maxSpeed: Value(maxSpeed),
       maxAltitude: Value(maxAltitude),
       maxClimb: Value(maxClimb),
@@ -2852,9 +2933,6 @@ class BestScore extends DataClass implements Insertable<BestScore> {
       bestSpeedByDistanceJson: Value(bestSpeedByDistanceJson),
       bestPowerByTimeJson: Value(bestPowerByTimeJson),
       bestHRByTimeJson: Value(bestHRByTimeJson),
-      historyId: historyId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(historyId),
     );
   }
 
@@ -2863,6 +2941,7 @@ class BestScore extends DataClass implements Insertable<BestScore> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return BestScore(
       id: serializer.fromJson<int>(json['id']),
+      historyId: serializer.fromJson<int>(json['historyId']),
       maxSpeed: serializer.fromJson<double>(json['maxSpeed']),
       maxAltitude: serializer.fromJson<double>(json['maxAltitude']),
       maxClimb: serializer.fromJson<double>(json['maxClimb']),
@@ -2874,7 +2953,6 @@ class BestScore extends DataClass implements Insertable<BestScore> {
       bestPowerByTimeJson:
           serializer.fromJson<String>(json['bestPowerByTimeJson']),
       bestHRByTimeJson: serializer.fromJson<String>(json['bestHRByTimeJson']),
-      historyId: serializer.fromJson<int?>(json['historyId']),
     );
   }
   @override
@@ -2882,6 +2960,7 @@ class BestScore extends DataClass implements Insertable<BestScore> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
+      'historyId': serializer.toJson<int>(historyId),
       'maxSpeed': serializer.toJson<double>(maxSpeed),
       'maxAltitude': serializer.toJson<double>(maxAltitude),
       'maxClimb': serializer.toJson<double>(maxClimb),
@@ -2892,12 +2971,12 @@ class BestScore extends DataClass implements Insertable<BestScore> {
           serializer.toJson<String>(bestSpeedByDistanceJson),
       'bestPowerByTimeJson': serializer.toJson<String>(bestPowerByTimeJson),
       'bestHRByTimeJson': serializer.toJson<String>(bestHRByTimeJson),
-      'historyId': serializer.toJson<int?>(historyId),
     };
   }
 
   BestScore copyWith(
           {int? id,
+          int? historyId,
           double? maxSpeed,
           double? maxAltitude,
           double? maxClimb,
@@ -2906,10 +2985,10 @@ class BestScore extends DataClass implements Insertable<BestScore> {
           int? maxTime,
           String? bestSpeedByDistanceJson,
           String? bestPowerByTimeJson,
-          String? bestHRByTimeJson,
-          Value<int?> historyId = const Value.absent()}) =>
+          String? bestHRByTimeJson}) =>
       BestScore(
         id: id ?? this.id,
+        historyId: historyId ?? this.historyId,
         maxSpeed: maxSpeed ?? this.maxSpeed,
         maxAltitude: maxAltitude ?? this.maxAltitude,
         maxClimb: maxClimb ?? this.maxClimb,
@@ -2920,11 +2999,11 @@ class BestScore extends DataClass implements Insertable<BestScore> {
             bestSpeedByDistanceJson ?? this.bestSpeedByDistanceJson,
         bestPowerByTimeJson: bestPowerByTimeJson ?? this.bestPowerByTimeJson,
         bestHRByTimeJson: bestHRByTimeJson ?? this.bestHRByTimeJson,
-        historyId: historyId.present ? historyId.value : this.historyId,
       );
   BestScore copyWithCompanion(BestScoresCompanion data) {
     return BestScore(
       id: data.id.present ? data.id.value : this.id,
+      historyId: data.historyId.present ? data.historyId.value : this.historyId,
       maxSpeed: data.maxSpeed.present ? data.maxSpeed.value : this.maxSpeed,
       maxAltitude:
           data.maxAltitude.present ? data.maxAltitude.value : this.maxAltitude,
@@ -2942,7 +3021,6 @@ class BestScore extends DataClass implements Insertable<BestScore> {
       bestHRByTimeJson: data.bestHRByTimeJson.present
           ? data.bestHRByTimeJson.value
           : this.bestHRByTimeJson,
-      historyId: data.historyId.present ? data.historyId.value : this.historyId,
     );
   }
 
@@ -2950,6 +3028,7 @@ class BestScore extends DataClass implements Insertable<BestScore> {
   String toString() {
     return (StringBuffer('BestScore(')
           ..write('id: $id, ')
+          ..write('historyId: $historyId, ')
           ..write('maxSpeed: $maxSpeed, ')
           ..write('maxAltitude: $maxAltitude, ')
           ..write('maxClimb: $maxClimb, ')
@@ -2958,8 +3037,7 @@ class BestScore extends DataClass implements Insertable<BestScore> {
           ..write('maxTime: $maxTime, ')
           ..write('bestSpeedByDistanceJson: $bestSpeedByDistanceJson, ')
           ..write('bestPowerByTimeJson: $bestPowerByTimeJson, ')
-          ..write('bestHRByTimeJson: $bestHRByTimeJson, ')
-          ..write('historyId: $historyId')
+          ..write('bestHRByTimeJson: $bestHRByTimeJson')
           ..write(')'))
         .toString();
   }
@@ -2967,6 +3045,7 @@ class BestScore extends DataClass implements Insertable<BestScore> {
   @override
   int get hashCode => Object.hash(
       id,
+      historyId,
       maxSpeed,
       maxAltitude,
       maxClimb,
@@ -2975,13 +3054,13 @@ class BestScore extends DataClass implements Insertable<BestScore> {
       maxTime,
       bestSpeedByDistanceJson,
       bestPowerByTimeJson,
-      bestHRByTimeJson,
-      historyId);
+      bestHRByTimeJson);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is BestScore &&
           other.id == this.id &&
+          other.historyId == this.historyId &&
           other.maxSpeed == this.maxSpeed &&
           other.maxAltitude == this.maxAltitude &&
           other.maxClimb == this.maxClimb &&
@@ -2990,12 +3069,12 @@ class BestScore extends DataClass implements Insertable<BestScore> {
           other.maxTime == this.maxTime &&
           other.bestSpeedByDistanceJson == this.bestSpeedByDistanceJson &&
           other.bestPowerByTimeJson == this.bestPowerByTimeJson &&
-          other.bestHRByTimeJson == this.bestHRByTimeJson &&
-          other.historyId == this.historyId);
+          other.bestHRByTimeJson == this.bestHRByTimeJson);
 }
 
 class BestScoresCompanion extends UpdateCompanion<BestScore> {
   final Value<int> id;
+  final Value<int> historyId;
   final Value<double> maxSpeed;
   final Value<double> maxAltitude;
   final Value<double> maxClimb;
@@ -3005,9 +3084,9 @@ class BestScoresCompanion extends UpdateCompanion<BestScore> {
   final Value<String> bestSpeedByDistanceJson;
   final Value<String> bestPowerByTimeJson;
   final Value<String> bestHRByTimeJson;
-  final Value<int?> historyId;
   const BestScoresCompanion({
     this.id = const Value.absent(),
+    this.historyId = const Value.absent(),
     this.maxSpeed = const Value.absent(),
     this.maxAltitude = const Value.absent(),
     this.maxClimb = const Value.absent(),
@@ -3017,10 +3096,10 @@ class BestScoresCompanion extends UpdateCompanion<BestScore> {
     this.bestSpeedByDistanceJson = const Value.absent(),
     this.bestPowerByTimeJson = const Value.absent(),
     this.bestHRByTimeJson = const Value.absent(),
-    this.historyId = const Value.absent(),
   });
   BestScoresCompanion.insert({
     this.id = const Value.absent(),
+    required int historyId,
     this.maxSpeed = const Value.absent(),
     this.maxAltitude = const Value.absent(),
     this.maxClimb = const Value.absent(),
@@ -3030,10 +3109,10 @@ class BestScoresCompanion extends UpdateCompanion<BestScore> {
     this.bestSpeedByDistanceJson = const Value.absent(),
     this.bestPowerByTimeJson = const Value.absent(),
     this.bestHRByTimeJson = const Value.absent(),
-    this.historyId = const Value.absent(),
-  });
+  }) : historyId = Value(historyId);
   static Insertable<BestScore> custom({
     Expression<int>? id,
+    Expression<int>? historyId,
     Expression<double>? maxSpeed,
     Expression<double>? maxAltitude,
     Expression<double>? maxClimb,
@@ -3043,10 +3122,10 @@ class BestScoresCompanion extends UpdateCompanion<BestScore> {
     Expression<String>? bestSpeedByDistanceJson,
     Expression<String>? bestPowerByTimeJson,
     Expression<String>? bestHRByTimeJson,
-    Expression<int>? historyId,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (historyId != null) 'history_id': historyId,
       if (maxSpeed != null) 'max_speed': maxSpeed,
       if (maxAltitude != null) 'max_altitude': maxAltitude,
       if (maxClimb != null) 'max_climb': maxClimb,
@@ -3058,12 +3137,12 @@ class BestScoresCompanion extends UpdateCompanion<BestScore> {
       if (bestPowerByTimeJson != null)
         'best_power_by_time_json': bestPowerByTimeJson,
       if (bestHRByTimeJson != null) 'best_h_r_by_time_json': bestHRByTimeJson,
-      if (historyId != null) 'history_id': historyId,
     });
   }
 
   BestScoresCompanion copyWith(
       {Value<int>? id,
+      Value<int>? historyId,
       Value<double>? maxSpeed,
       Value<double>? maxAltitude,
       Value<double>? maxClimb,
@@ -3072,10 +3151,10 @@ class BestScoresCompanion extends UpdateCompanion<BestScore> {
       Value<int>? maxTime,
       Value<String>? bestSpeedByDistanceJson,
       Value<String>? bestPowerByTimeJson,
-      Value<String>? bestHRByTimeJson,
-      Value<int?>? historyId}) {
+      Value<String>? bestHRByTimeJson}) {
     return BestScoresCompanion(
       id: id ?? this.id,
+      historyId: historyId ?? this.historyId,
       maxSpeed: maxSpeed ?? this.maxSpeed,
       maxAltitude: maxAltitude ?? this.maxAltitude,
       maxClimb: maxClimb ?? this.maxClimb,
@@ -3086,7 +3165,6 @@ class BestScoresCompanion extends UpdateCompanion<BestScore> {
           bestSpeedByDistanceJson ?? this.bestSpeedByDistanceJson,
       bestPowerByTimeJson: bestPowerByTimeJson ?? this.bestPowerByTimeJson,
       bestHRByTimeJson: bestHRByTimeJson ?? this.bestHRByTimeJson,
-      historyId: historyId ?? this.historyId,
     );
   }
 
@@ -3095,6 +3173,9 @@ class BestScoresCompanion extends UpdateCompanion<BestScore> {
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<int>(id.value);
+    }
+    if (historyId.present) {
+      map['history_id'] = Variable<int>(historyId.value);
     }
     if (maxSpeed.present) {
       map['max_speed'] = Variable<double>(maxSpeed.value);
@@ -3125,9 +3206,6 @@ class BestScoresCompanion extends UpdateCompanion<BestScore> {
     if (bestHRByTimeJson.present) {
       map['best_h_r_by_time_json'] = Variable<String>(bestHRByTimeJson.value);
     }
-    if (historyId.present) {
-      map['history_id'] = Variable<int>(historyId.value);
-    }
     return map;
   }
 
@@ -3135,6 +3213,7 @@ class BestScoresCompanion extends UpdateCompanion<BestScore> {
   String toString() {
     return (StringBuffer('BestScoresCompanion(')
           ..write('id: $id, ')
+          ..write('historyId: $historyId, ')
           ..write('maxSpeed: $maxSpeed, ')
           ..write('maxAltitude: $maxAltitude, ')
           ..write('maxClimb: $maxClimb, ')
@@ -3143,8 +3222,7 @@ class BestScoresCompanion extends UpdateCompanion<BestScore> {
           ..write('maxTime: $maxTime, ')
           ..write('bestSpeedByDistanceJson: $bestSpeedByDistanceJson, ')
           ..write('bestPowerByTimeJson: $bestPowerByTimeJson, ')
-          ..write('bestHRByTimeJson: $bestHRByTimeJson, ')
-          ..write('historyId: $historyId')
+          ..write('bestHRByTimeJson: $bestHRByTimeJson')
           ..write(')'))
         .toString();
   }
@@ -3388,6 +3466,7 @@ typedef $$HistorysTableCreateCompanionBuilder = HistorysCompanion Function({
   Value<DateTime?> createdAt,
   required List<LatLng> route,
   Value<int?> summaryId,
+  Value<int?> bestScoreId,
 });
 typedef $$HistorysTableUpdateCompanionBuilder = HistorysCompanion Function({
   Value<int> id,
@@ -3395,6 +3474,7 @@ typedef $$HistorysTableUpdateCompanionBuilder = HistorysCompanion Function({
   Value<DateTime?> createdAt,
   Value<List<LatLng>> route,
   Value<int?> summaryId,
+  Value<int?> bestScoreId,
 });
 
 class $$HistorysTableFilterComposer
@@ -3422,6 +3502,9 @@ class $$HistorysTableFilterComposer
 
   ColumnFilters<int> get summaryId => $composableBuilder(
       column: $table.summaryId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get bestScoreId => $composableBuilder(
+      column: $table.bestScoreId, builder: (column) => ColumnFilters(column));
 }
 
 class $$HistorysTableOrderingComposer
@@ -3447,6 +3530,9 @@ class $$HistorysTableOrderingComposer
 
   ColumnOrderings<int> get summaryId => $composableBuilder(
       column: $table.summaryId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get bestScoreId => $composableBuilder(
+      column: $table.bestScoreId, builder: (column) => ColumnOrderings(column));
 }
 
 class $$HistorysTableAnnotationComposer
@@ -3472,6 +3558,9 @@ class $$HistorysTableAnnotationComposer
 
   GeneratedColumn<int> get summaryId =>
       $composableBuilder(column: $table.summaryId, builder: (column) => column);
+
+  GeneratedColumn<int> get bestScoreId => $composableBuilder(
+      column: $table.bestScoreId, builder: (column) => column);
 }
 
 class $$HistorysTableTableManager extends RootTableManager<
@@ -3502,6 +3591,7 @@ class $$HistorysTableTableManager extends RootTableManager<
             Value<DateTime?> createdAt = const Value.absent(),
             Value<List<LatLng>> route = const Value.absent(),
             Value<int?> summaryId = const Value.absent(),
+            Value<int?> bestScoreId = const Value.absent(),
           }) =>
               HistorysCompanion(
             id: id,
@@ -3509,6 +3599,7 @@ class $$HistorysTableTableManager extends RootTableManager<
             createdAt: createdAt,
             route: route,
             summaryId: summaryId,
+            bestScoreId: bestScoreId,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
@@ -3516,6 +3607,7 @@ class $$HistorysTableTableManager extends RootTableManager<
             Value<DateTime?> createdAt = const Value.absent(),
             required List<LatLng> route,
             Value<int?> summaryId = const Value.absent(),
+            Value<int?> bestScoreId = const Value.absent(),
           }) =>
               HistorysCompanion.insert(
             id: id,
@@ -3523,6 +3615,7 @@ class $$HistorysTableTableManager extends RootTableManager<
             createdAt: createdAt,
             route: route,
             summaryId: summaryId,
+            bestScoreId: bestScoreId,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -3880,6 +3973,7 @@ typedef $$SegmentsTableProcessedTableManager = ProcessedTableManager<
     PrefetchHooks Function()>;
 typedef $$SummarysTableCreateCompanionBuilder = SummarysCompanion Function({
   Value<int> id,
+  required int historyId,
   Value<int?> timestamp,
   Value<DateTime?> startTime,
   Value<String?> sport,
@@ -3912,6 +4006,7 @@ typedef $$SummarysTableCreateCompanionBuilder = SummarysCompanion Function({
 });
 typedef $$SummarysTableUpdateCompanionBuilder = SummarysCompanion Function({
   Value<int> id,
+  Value<int> historyId,
   Value<int?> timestamp,
   Value<DateTime?> startTime,
   Value<String?> sport,
@@ -3954,6 +4049,9 @@ class $$SummarysTableFilterComposer
   });
   ColumnFilters<int> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get historyId => $composableBuilder(
+      column: $table.historyId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get timestamp => $composableBuilder(
       column: $table.timestamp, builder: (column) => ColumnFilters(column));
@@ -4064,6 +4162,9 @@ class $$SummarysTableOrderingComposer
   });
   ColumnOrderings<int> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get historyId => $composableBuilder(
+      column: $table.historyId, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get timestamp => $composableBuilder(
       column: $table.timestamp, builder: (column) => ColumnOrderings(column));
@@ -4180,6 +4281,9 @@ class $$SummarysTableAnnotationComposer
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
+  GeneratedColumn<int> get historyId =>
+      $composableBuilder(column: $table.historyId, builder: (column) => column);
+
   GeneratedColumn<int> get timestamp =>
       $composableBuilder(column: $table.timestamp, builder: (column) => column);
 
@@ -4292,6 +4396,7 @@ class $$SummarysTableTableManager extends RootTableManager<
               $$SummarysTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
             Value<int> id = const Value.absent(),
+            Value<int> historyId = const Value.absent(),
             Value<int?> timestamp = const Value.absent(),
             Value<DateTime?> startTime = const Value.absent(),
             Value<String?> sport = const Value.absent(),
@@ -4324,6 +4429,7 @@ class $$SummarysTableTableManager extends RootTableManager<
           }) =>
               SummarysCompanion(
             id: id,
+            historyId: historyId,
             timestamp: timestamp,
             startTime: startTime,
             sport: sport,
@@ -4356,6 +4462,7 @@ class $$SummarysTableTableManager extends RootTableManager<
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
+            required int historyId,
             Value<int?> timestamp = const Value.absent(),
             Value<DateTime?> startTime = const Value.absent(),
             Value<String?> sport = const Value.absent(),
@@ -4388,6 +4495,7 @@ class $$SummarysTableTableManager extends RootTableManager<
           }) =>
               SummarysCompanion.insert(
             id: id,
+            historyId: historyId,
             timestamp: timestamp,
             startTime: startTime,
             sport: sport,
@@ -4571,6 +4679,7 @@ typedef $$RecordsTableProcessedTableManager = ProcessedTableManager<
     PrefetchHooks Function()>;
 typedef $$BestScoresTableCreateCompanionBuilder = BestScoresCompanion Function({
   Value<int> id,
+  required int historyId,
   Value<double> maxSpeed,
   Value<double> maxAltitude,
   Value<double> maxClimb,
@@ -4580,10 +4689,10 @@ typedef $$BestScoresTableCreateCompanionBuilder = BestScoresCompanion Function({
   Value<String> bestSpeedByDistanceJson,
   Value<String> bestPowerByTimeJson,
   Value<String> bestHRByTimeJson,
-  Value<int?> historyId,
 });
 typedef $$BestScoresTableUpdateCompanionBuilder = BestScoresCompanion Function({
   Value<int> id,
+  Value<int> historyId,
   Value<double> maxSpeed,
   Value<double> maxAltitude,
   Value<double> maxClimb,
@@ -4593,7 +4702,6 @@ typedef $$BestScoresTableUpdateCompanionBuilder = BestScoresCompanion Function({
   Value<String> bestSpeedByDistanceJson,
   Value<String> bestPowerByTimeJson,
   Value<String> bestHRByTimeJson,
-  Value<int?> historyId,
 });
 
 class $$BestScoresTableFilterComposer
@@ -4607,6 +4715,9 @@ class $$BestScoresTableFilterComposer
   });
   ColumnFilters<int> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get historyId => $composableBuilder(
+      column: $table.historyId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<double> get maxSpeed => $composableBuilder(
       column: $table.maxSpeed, builder: (column) => ColumnFilters(column));
@@ -4637,9 +4748,6 @@ class $$BestScoresTableFilterComposer
   ColumnFilters<String> get bestHRByTimeJson => $composableBuilder(
       column: $table.bestHRByTimeJson,
       builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<int> get historyId => $composableBuilder(
-      column: $table.historyId, builder: (column) => ColumnFilters(column));
 }
 
 class $$BestScoresTableOrderingComposer
@@ -4653,6 +4761,9 @@ class $$BestScoresTableOrderingComposer
   });
   ColumnOrderings<int> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get historyId => $composableBuilder(
+      column: $table.historyId, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<double> get maxSpeed => $composableBuilder(
       column: $table.maxSpeed, builder: (column) => ColumnOrderings(column));
@@ -4683,9 +4794,6 @@ class $$BestScoresTableOrderingComposer
   ColumnOrderings<String> get bestHRByTimeJson => $composableBuilder(
       column: $table.bestHRByTimeJson,
       builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<int> get historyId => $composableBuilder(
-      column: $table.historyId, builder: (column) => ColumnOrderings(column));
 }
 
 class $$BestScoresTableAnnotationComposer
@@ -4699,6 +4807,9 @@ class $$BestScoresTableAnnotationComposer
   });
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get historyId =>
+      $composableBuilder(column: $table.historyId, builder: (column) => column);
 
   GeneratedColumn<double> get maxSpeed =>
       $composableBuilder(column: $table.maxSpeed, builder: (column) => column);
@@ -4726,9 +4837,6 @@ class $$BestScoresTableAnnotationComposer
 
   GeneratedColumn<String> get bestHRByTimeJson => $composableBuilder(
       column: $table.bestHRByTimeJson, builder: (column) => column);
-
-  GeneratedColumn<int> get historyId =>
-      $composableBuilder(column: $table.historyId, builder: (column) => column);
 }
 
 class $$BestScoresTableTableManager extends RootTableManager<
@@ -4755,6 +4863,7 @@ class $$BestScoresTableTableManager extends RootTableManager<
               $$BestScoresTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
             Value<int> id = const Value.absent(),
+            Value<int> historyId = const Value.absent(),
             Value<double> maxSpeed = const Value.absent(),
             Value<double> maxAltitude = const Value.absent(),
             Value<double> maxClimb = const Value.absent(),
@@ -4764,10 +4873,10 @@ class $$BestScoresTableTableManager extends RootTableManager<
             Value<String> bestSpeedByDistanceJson = const Value.absent(),
             Value<String> bestPowerByTimeJson = const Value.absent(),
             Value<String> bestHRByTimeJson = const Value.absent(),
-            Value<int?> historyId = const Value.absent(),
           }) =>
               BestScoresCompanion(
             id: id,
+            historyId: historyId,
             maxSpeed: maxSpeed,
             maxAltitude: maxAltitude,
             maxClimb: maxClimb,
@@ -4777,10 +4886,10 @@ class $$BestScoresTableTableManager extends RootTableManager<
             bestSpeedByDistanceJson: bestSpeedByDistanceJson,
             bestPowerByTimeJson: bestPowerByTimeJson,
             bestHRByTimeJson: bestHRByTimeJson,
-            historyId: historyId,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
+            required int historyId,
             Value<double> maxSpeed = const Value.absent(),
             Value<double> maxAltitude = const Value.absent(),
             Value<double> maxClimb = const Value.absent(),
@@ -4790,10 +4899,10 @@ class $$BestScoresTableTableManager extends RootTableManager<
             Value<String> bestSpeedByDistanceJson = const Value.absent(),
             Value<String> bestPowerByTimeJson = const Value.absent(),
             Value<String> bestHRByTimeJson = const Value.absent(),
-            Value<int?> historyId = const Value.absent(),
           }) =>
               BestScoresCompanion.insert(
             id: id,
+            historyId: historyId,
             maxSpeed: maxSpeed,
             maxAltitude: maxAltitude,
             maxClimb: maxClimb,
@@ -4803,7 +4912,6 @@ class $$BestScoresTableTableManager extends RootTableManager<
             bestSpeedByDistanceJson: bestSpeedByDistanceJson,
             bestPowerByTimeJson: bestPowerByTimeJson,
             bestHRByTimeJson: bestHRByTimeJson,
-            historyId: historyId,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
