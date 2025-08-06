@@ -1,4 +1,5 @@
 import 'package:app/component/data.dart';
+import 'package:app/database.dart';
 import 'package:app/page/routes.dart';
 import 'package:app/page/tachometer.dart';
 import 'package:app/utils/analysis_utils.dart';
@@ -22,155 +23,172 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final db = Database();
+
   @override
   Widget build(BuildContext context) {
-    final dataLoader = Provider.of<DataLoader>(context, listen: true);
+    final dataLoader = Provider.of<DataLoader>(context);
 
-    late final Map<int, BestScore> bestScore;
-    if (dataLoader.isInitialized && dataLoader.fitData.isEmpty) {
-      return Scaffold(
+    return StreamBuilder<List<History>>(
+      stream: db.select(db.historys).watch(),
+      builder: (context, snapshot) {
+        if (dataLoader.isInitialized &&
+            snapshot.connectionState == ConnectionState.active &&
+            (snapshot.data?.isEmpty ?? true)) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('X-Nav'),
+            ),
+            body: const Center(
+              child: Text('没有骑行记录，请先导入'),
+            ),
+          );
+        }
+
+        // 获取历史数据
+        final histories = snapshot.data ?? [];
+
+        // 处理 bestScore
+        Map<int, BestScore> bestScore;
+        if (dataLoader.bestScore.isNotEmpty) {
+          bestScore = dataLoader.bestScore;
+        } else {
+          bestScore = {0: BestScore()};
+        }
+        final bestScoreDisplay = bestScore.entries.last.value.getBestData();
+
+        // 按日分组骑行数据
+        late final Map<DateTime, Map<String, dynamic>> rideData;
+        if (dataLoader.summaryLoaded) {
+          rideData = groupSummariesByDay({}, dataLoader.summaries);
+        } else {
+          rideData = {};
+        }
+
+        final ValueNotifier<LineTouchResponse?> touchInteraction =
+            ValueNotifier<LineTouchResponse?>(null);
+        ValueNotifier<DateTime> currentMonth =
+            ValueNotifier<DateTime>(DateTime.now());
+
+        return Scaffold(
           appBar: AppBar(
             title: const Text('X-Nav'),
           ),
-          body: const Center(
-            child: Text('没有骑行记录，请先导入'),
-          ));
-    }
-    if (dataLoader.bestScore.isNotEmpty) {
-      bestScore = dataLoader.bestScore;
-    } else {
-      bestScore = {0: BestScore()};
-    }
-    // 取bestscore中key最大的值
-    final bestScoreDisplay = bestScore.entries.last.value.getBestData();
-    late final Map<DateTime, Map<String, dynamic>> rideData;
-    // 骑行数据按日分组
-    if (dataLoader.summaryLoaded) {
-      rideData = groupSummariesByDay(rideData, dataLoader);
-    } else {
-      rideData = {};
-    }
-    final ValueNotifier<LineTouchResponse?> touchInteraction =
-        ValueNotifier<LineTouchResponse?>(null);
-    ValueNotifier<DateTime> currentMonth =
-        ValueNotifier<DateTime>(DateTime.now());
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('X-Nav'),
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 快捷磁贴按钮区
-              Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    QuickTile(
-                      icon: Icons.navigation,
-                      label: '快速导航',
-                      onTap: () {
-                        Navigator.of(context).pushNamed('/quick_nav');
-                      },
+          body: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 快捷磁贴按钮区
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 20),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        QuickTile(
+                          icon: Icons.navigation,
+                          label: '快速导航',
+                          onTap: () {
+                            Navigator.of(context).pushNamed('/quick_nav');
+                          },
+                        ),
+                        QuickTile(
+                          icon: Icons.timer,
+                          label: '码表模式',
+                          onTap: () {
+                            Navigator.of(context).push(MaterialPageRoute(
+                                builder: (context) => const TachometerPage()));
+                          },
+                        ),
+                        QuickTile(
+                          icon: Icons.map,
+                          label: '路书创建',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                  builder: (context) =>
+                                      const RouteEditPage(route: 'new_route')),
+                            );
+                          },
+                        ),
+                      ],
                     ),
-                    QuickTile(
-                      icon: Icons.timer,
-                      label: '码表模式',
-                      onTap: () {
-                        Navigator.of(context).push(MaterialPageRoute(
-                            builder: (context) => const TachometerPage()));
-                      },
+                  ),
+                  const Text(
+                    '周骑行统计',
+                    style: TextStyle(fontSize: 20),
+                  ),
+                  SizedBox(
+                    height: 200,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          weeklySummaryInfo(touchInteraction, rideData),
+                          const SizedBox(height: 16),
+                          weeklySummaryChart(touchInteraction, rideData),
+                        ],
+                      ),
                     ),
-                    QuickTile(
-                      icon: Icons.map,
-                      label: '路书创建',
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                              builder: (context) =>
-                                  const RouteEditPage(route: 'new_route')),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    '月骑行记录',
+                    style: TextStyle(fontSize: 20),
+                  ),
+                  // 新增：当月骑行统计卡片，随日历月份同步
+                  monthlySummaryInfo(currentMonth, rideData),
+                  monthlySummaryCalendar(rideData, currentMonth, histories),
+                  const Text(
+                    '最佳成绩',
+                    style: TextStyle(fontSize: 20),
+                  ),
+                  if (dataLoader.bestScoreLoaded)
+                    ListView(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      children: bestScoreDisplay.entries.map((entry) {
+                        final key = entry.key;
+                        final value = entry.value;
+                        return ListTile(
+                          title: Text(key),
+                          subtitle: Text(value),
                         );
-                      },
+                      }).toList(),
+                    )
+                  else
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('数据加载中'),
+                      ),
                     ),
-                  ],
-                ),
+                ],
               ),
-              const Text(
-                '周骑行统计',
-                style: TextStyle(fontSize: 20),
-              ),
-              SizedBox(
-                height: 200,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      weeklySummaryInfo(touchInteraction, rideData),
-                      const SizedBox(height: 16),
-                      weeklySummaryChart(touchInteraction, rideData),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                '月骑行记录',
-                style: TextStyle(fontSize: 20),
-              ),
-              // 新增：当月骑行统计卡片，随日历月份同步
-              monthlySummaryInfo(currentMonth, rideData),
-              monthlySummaryCalendar(rideData, currentMonth),
-              const Text(
-                '最佳成绩',
-                style: TextStyle(fontSize: 20),
-              ),
-              if (dataLoader.bestScoreLoaded)
-                ListView(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: bestScoreDisplay.entries.map((entry) {
-                    final key = entry.key;
-                    final value = entry.value;
-                    return ListTile(
-                      title: Text(key),
-                      subtitle: Text(value),
-                    );
-                  }).toList(),
-                )
-              else
-                Center(
-                  child: const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('数据加载中'),
-                  ),
-                ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Map<DateTime, Map<String, dynamic>> groupSummariesByDay(Map<DateTime, Map<String, dynamic>> rideData, List<Summary> summaries) {
+  Map<DateTime, Map<String, dynamic>> groupSummariesByDay(
+      Map<DateTime, Map<String, dynamic>> rideData, List<Summary> summaries) {
     rideData = summaries
         .map((e) => {
               'timestamp': DateTime.fromMillisecondsSinceEpoch(
-                      timestampWithOffset(e['start_time'].toInt()))
+                      timestampWithOffset(e.startTime!.microsecondsSinceEpoch))
                   .toLocal(),
-              'total_distance': e['total_distance'],
-              'total_ascent': e['total_ascent'],
-              'total_moving_time': e['total_moving_time'],
+              'total_distance': e.totalDistance,
+              'total_ascent': e.totalAscent,
+              'total_moving_time': e.totalMovingTime,
             })
         .groupFoldBy<DateTime, Map<String, dynamic>>(
             (element) => DateTime(
-                element['timestamp'].year,
-                element['timestamp'].month,
-                element['timestamp'].day), (previousValue, element) {
+                element['timestamp']!.year,
+                element['timestamp']!.month,
+                element['timestamp']!.day), (previousValue, element) {
       previousValue ??= {
         'total_distance': 0,
         'total_ascent': 0,
@@ -186,8 +204,10 @@ class _HomePageState extends State<HomePage> {
     return rideData;
   }
 
-  SizedBox monthlySummaryCalendar(Map<DateTime, Map<String, dynamic>> rideData,
-      ValueNotifier<DateTime> currentMonth) {
+  SizedBox monthlySummaryCalendar(
+      Map<DateTime, Map<String, dynamic>> rideData,
+      ValueNotifier<DateTime> currentMonth,
+      List<History> histories) {
     return SizedBox(
       height: 400,
       child: rideData.isEmpty
@@ -249,14 +269,14 @@ class _HomePageState extends State<HomePage> {
                     if (distance == 0) {
                       return Center(
                         child: GestureDetector(
-                          onTap: () => showDailyRecords(context, day),
+                          onTap: () => showDailyRecords(context, day, histories),
                           child: Text('${day.day}'),
                         ),
                       );
                     }
                     return Center(
                       child: GestureDetector(
-                        onTap: () => showDailyRecords(context, day),
+                        onTap: () => showDailyRecords(context, day, histories),
                         child: Container(
                           width: size,
                           height: size,
@@ -518,7 +538,8 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void showDailyRecords(BuildContext context, DateTime day, List<History> histories) {
+  void showDailyRecords(
+      BuildContext context, DateTime day, List<History> histories) {
     // 筛选出当天的骑行记录
     final dailyRecords = histories
         .where((record) {

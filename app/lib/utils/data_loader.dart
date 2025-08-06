@@ -1,12 +1,9 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'package:app/database.dart';
-import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/data_parser.dart';
 import 'package:app/utils/fit.dart';
-import 'package:app/utils/model.dart';
 import 'package:app/utils/path_utils.dart';
 import 'package:app/utils/storage.dart';
 import 'package:drift/drift.dart';
@@ -15,7 +12,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:gpx/gpx.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:sqflite/sqflite.dart' hide Database;
 
 class _DataLoadRequest {
   final String appDocPath;
@@ -327,12 +323,11 @@ void _dataLoadIsolateEntryWithProgressPhased(
               ..where((r) => r.historyId.equals(item.id)))
             .getSingleOrNull();
         if (record == null) continue;
-        final segments = analyzeSegment(routes, record.messages, item);
+        final segments = await analyzeSegment(routes, record.messages, item);
         for (final segment in segments) {
           await db.into(db.segments).insert(segment);
         }
-        final bestOfEach = analyzeSegment(summary);
-        db.into(db.bestScore).insert(item);
+        sendPort.send({'progress': '赛段成绩分析中： ${item.filePath}'});
       }
     });
     sendPort.send({'phase': 'finish'});

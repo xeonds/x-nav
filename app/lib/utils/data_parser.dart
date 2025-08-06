@@ -1,16 +1,12 @@
 import 'dart:convert';
-import 'dart:ffi';
 import 'dart:io';
 
 import 'package:app/database.dart';
 import 'package:app/utils/analysis_utils.dart';
-import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit.dart';
-import 'package:app/utils/model.dart';
 import 'package:app/utils/path_utils.dart';
 import 'package:drift/drift.dart';
 import 'package:fit_tool/fit_tool.dart' hide Record;
-import 'package:latlong2/latlong.dart';
 
 String parseGpxFile(File file) {
   final gpxData = file.readAsStringSync();
@@ -103,11 +99,12 @@ extension on Map<int, num> {
   }
 }
 
-List<SegmentsCompanion> analyzeSegment(
-    List<Route> routes, List<RecordMessage> records, History history) {
+Future<List<SegmentsCompanion>> analyzeSegment(
+    List<Route> routes, List<RecordMessage> records, History history) async {
   final segments = routes.map((e) => e.route).toList();
   final subRoutes = SegmentMatcher().findSegments(history.route, segments);
   var res = <SegmentsCompanion>[];
+  final db = Database();
   //
   for (final subRoute in subRoutes) {
     // final segmentRecords = records.sublist(startIndex, endIndex + 1);
@@ -126,11 +123,12 @@ List<SegmentsCompanion> analyzeSegment(
       historyId: 0,
     );
     final bestScore = analyzeBestScore(summary, recordMsg);
+    final bestScoreId = await db.into(db.bestScores).insert(bestScore);
     res.add(SegmentsCompanion(
       routeId: Value(subRoute.segmentId),
       historyId: Value(history.id),
       startIndex: Value(subRoute.startIndex),
-      bestScoreId: Value(0), // 关联BestScores表的id
+      bestScoreId: Value(bestScoreId), // 关联BestScores表的id
       endIndex: Value(subRoute.endIndex),
       matchPercentage: Value(subRoute.matchPercentage),
     ));
@@ -155,29 +153,37 @@ Summary parseRecordsToSummary(Record recordMsg) {
   final firstRecord = records.first;
   final lastRecord = records.last;
   var res = {
-    'maxSpeed': firstRecord.speed ?? 0.0,
-    'maxAltitude': firstRecord.altitude ?? 0.0,
-    'totalAscent': firstRecord.ascent ?? 0.0,
-    'totalDistance': lastRecord.distance ?? 0.0,
-    'maxPower': firstRecord.power ?? 0.0,
-    'totalElapsedTime': (lastRecord.timestamp! - firstRecord.timestamp!).toDouble(),
+    'maxSpeed': 0.0,
+    'maxAltitude': 0.0,
+    'totalAscent': 0.0,
+    'totalDistance': lastRecord.distance! - firstRecord.distance!,
+    'maxPower': 0.0,
+    'totalElapsedTime':
+        (lastRecord.timestamp! - firstRecord.timestamp!).toDouble(),
   };
 
   for (final record in records) {
-    res['maxSpeed'] = record.speed ?? res['maxSpeed'];
-    res['maxAltitude'] = record.altitude ?? res['maxAltitude'];
-    res['totalAscent'] += record.ascent ?? 0.0;
-    res['totalDistance'] += record.distance ?? 0.0;
-    res['maxPower'] = record.power ?? res['maxPower'];
+    res['maxSpeed'] = (record.speed != null
+        ? (record.speed! > res['maxSpeed']! ? record.speed! : res['maxSpeed'])
+        : res['maxSpeed'])!;
+    res['maxAltitude'] = (record.altitude != null
+        ? (record.altitude! > res['maxAltitude']!
+            ? record.altitude!
+            : res['maxAltitude'])
+        : res['maxAltitude'])!;
+    res['maxPower'] = record.power != null
+        ? (record.power! > res['maxPower']! ? record.power! : res['maxPower'])
+            as double
+        : res['maxPower'] as double;
   }
 
   return Summary(
     id: recordMsg.id,
-    maxSpeed: res['maxSpeed'] ?? 0.0,
-    maxAltitude: res['maxAltitude'] ?? 0.0,
-    totalAscent: res['totalAscent'] ?? 0.0,
-    totalDistance: res['totalDistance'] ?? 0.0,
-    maxPower: res['maxPower'] ?? 0.0,
-    totalElapsedTime: (lastRecord.timestamp! - firstRecord.timestamp!).toDouble(),
+    maxSpeed: res['maxSpeed'],
+    maxAltitude: res['maxAltitude'],
+    totalAscent: res['totalAscent'],
+    totalDistance: res['totalDistance'],
+    maxPower: res['maxPower'],
+    totalElapsedTime: res['totalElapsedTime'] as double,
   );
 }
