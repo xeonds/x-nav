@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'dart:async';
 import 'package:app/utils/data_loader.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' show ProviderScope;
 import 'package:provider/provider.dart';
 
 Future<void> main() async {
@@ -20,7 +21,7 @@ Future<void> main() async {
             create: (_) => DataLoader()..initialize()), // 初始化 DataLoader
         ChangeNotifierProvider(create: (_) => LocationProvider()),
       ],
-      child: const AppMain(),
+      child: ProviderScope(child: AppMain()),
     ),
   );
 }
