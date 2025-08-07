@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:app/database.dart';
 import 'package:app/utils/analysis_utils.dart';
@@ -7,12 +6,6 @@ import 'package:app/utils/fit.dart';
 import 'package:app/utils/path_utils.dart';
 import 'package:drift/drift.dart';
 import 'package:fit_tool/fit_tool.dart' hide Record;
-
-String parseGpxFile(File file) {
-  final gpxData = file.readAsStringSync();
-
-  return gpxData;
-}
 
 Map<String, dynamic> analyzeRideData(List<Summary> summaries) {
   return summaries.fold<Map<String, dynamic>>(
@@ -110,6 +103,7 @@ Future<List<SegmentsCompanion>> analyzeSegment(
     // final segmentRecords = records.sublist(startIndex, endIndex + 1);
     final summary = Summary(
       id: 0,
+      historyId: history.id,
       maxSpeed: 0,
       maxAltitude: 0,
       totalAscent: 0,
@@ -141,6 +135,7 @@ Summary parseRecordsToSummary(Record recordMsg) {
   if (records.isEmpty) {
     return Summary(
       id: 0,
+      historyId: 0,
       maxSpeed: 0,
       maxAltitude: 0,
       totalAscent: 0,
@@ -179,6 +174,7 @@ Summary parseRecordsToSummary(Record recordMsg) {
 
   return Summary(
     id: recordMsg.id,
+    historyId: 0,
     maxSpeed: res['maxSpeed'],
     maxAltitude: res['maxAltitude'],
     totalAscent: res['totalAscent'],

@@ -48,70 +48,86 @@ class AppMain extends StatelessWidget {
           headlineMedium: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
       ),
-      themeMode:
-          ThemeMode.system, // Automatically switch based on system settings
-      home: const AppMainPages(),
+      themeMode: ThemeMode.system,
       debugShowCheckedModeBanner: false,
+      home: const AppNavigator(),
     );
   }
 }
 
-class AppMainPages extends StatefulWidget {
-  const AppMainPages({super.key});
+class AppNavigator extends StatefulWidget {
+  const AppNavigator({super.key});
 
   @override
-  State<AppMainPages> createState() => _AppMainPagesState();
+  State<AppNavigator> createState() => _AppNavigatorState();
 }
 
-class _AppMainPagesState extends State<AppMainPages> {
-  int _selectedIndex = 0;
-  late List<Widget> _widgetOptions;
+class _AppNavigatorState extends State<AppNavigator> {
+  final List<Page> _pages = [
+    const MaterialPage(child: MainMenuPage(), key: ValueKey('MainMenu')),
+  ];
 
-  @override
-  void initState() {
-    super.initState();
-    _widgetOptions = <Widget>[
-      HomePage(),
-      MapPage(),
-      RideHistory(),
-      UserPage(),
-    ];
+  void _pushPage(Widget page, String key) {
+    setState(() {
+      _pages.add(MaterialPage(child: page, key: ValueKey(key)));
+    });
   }
 
-  void _onItemTapped(int index) {
+  bool _onPopPage(Route route, result) {
+    if (!route.didPop(result)) {
+      return false;
+    }
     setState(() {
-      _selectedIndex = index;
+      if (_pages.length > 1) {
+        _pages.removeLast();
+      }
     });
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
+    return Navigator(
+      pages: List.of(_pages),
+      onPopPage: _onPopPage,
+    );
+  }
+}
+
+class MainMenuPage extends StatelessWidget {
+  const MainMenuPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final navState = context.findAncestorStateOfType<_AppNavigatorState>();
     return Scaffold(
+      appBar: AppBar(title: const Text('X-Nav')),
       body: Center(
-        child: _widgetOptions.elementAt(_selectedIndex),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: _onItemTapped,
-        backgroundColor: Theme.of(context).colorScheme.surfaceBright,
-        destinations: const <NavigationDestination>[
-          NavigationDestination(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.map),
-            label: 'Map',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.history),
-            label: 'History',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person),
-            label: 'Me',
-          ),
-        ],
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton.icon(
+              icon: const Icon(Icons.home),
+              label: const Text('Home'),
+              onPressed: () => navState?._pushPage(const HomePage(), 'Home'),
+            ),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.map),
+              label: const Text('Map'),
+              onPressed: () => navState?._pushPage(const MapPage(), 'Map'),
+            ),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.history),
+              label: const Text('History'),
+              onPressed: () => navState?._pushPage(const RideHistory(), 'History'),
+            ),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.person),
+              label: const Text('Me'),
+              onPressed: () => navState?._pushPage(const UserPage(), 'Me'),
+            ),
+          ],
+        ),
       ),
     );
   }

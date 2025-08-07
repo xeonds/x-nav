@@ -1,8 +1,11 @@
 import 'package:app/component/data.dart';
+import 'package:app/page/routes/edit_route.dart';
+import 'package:app/utils/provider.dart' show routesProvider;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:io';
@@ -14,27 +17,15 @@ import 'dart:convert';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:provider/provider.dart';
 
-class RoutesPage extends StatefulWidget {
-  const RoutesPage({super.key, this.onFullScreenToggle});
-  final ValueChanged<bool>? onFullScreenToggle;
-
-  @override
-  State<RoutesPage> createState() => RoutesPageState();
-}
-
-class RoutesPageState extends State<RoutesPage> {
+class RoutesPage extends ConsumerWidget {
   File? _selectedGpxFile;
   Gpx? _previewGpx;
   RangeValues? _routeLengthFilter;
   RangeValues? _distanceToStartFilter;
   RangeValues? _avgSlopeFilter;
 
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  Widget _FilterTag({
+  Widget _FilterTag(
+    BuildContext context, {
     required String label,
     required IconData icon,
     required VoidCallback onTap,
@@ -49,7 +40,8 @@ class RoutesPageState extends State<RoutesPage> {
     );
   }
 
-  Widget _RangeSliderSheet({
+  Widget _RangeSliderSheet(
+    BuildContext context, {
     required String title,
     required double min,
     required double max,
@@ -73,9 +65,7 @@ class RoutesPageState extends State<RoutesPage> {
               _currentValues.end.toStringAsFixed(1),
             ),
             onChanged: (values) {
-              setState(() {
-                _currentValues = values;
-              });
+              _currentValues = values;
             },
           ),
           ElevatedButton(
@@ -90,8 +80,9 @@ class RoutesPageState extends State<RoutesPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final dataLoader = context.watch<DataLoader>(); // 监听 DataLoader 的状态
+    final routesState = ref.watch(routesProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Routes')),
@@ -105,6 +96,7 @@ class RoutesPageState extends State<RoutesPage> {
               spacing: 8,
               children: [
                 _FilterTag(
+                  context,
                   label: _routeLengthFilter != null
                       ? '长度: ${_routeLengthFilter!.start.toStringAsFixed(1)}-${_routeLengthFilter!.end.toStringAsFixed(1)} km'
                       : '长度',
@@ -113,6 +105,7 @@ class RoutesPageState extends State<RoutesPage> {
                     final result = await showModalBottomSheet<RangeValues>(
                       context: context,
                       builder: (context) => _RangeSliderSheet(
+                        context,
                         title: '选择路线长度 (km)',
                         min: 0,
                         max: 100,
@@ -121,13 +114,12 @@ class RoutesPageState extends State<RoutesPage> {
                       ),
                     );
                     if (result != null) {
-                      setState(() {
-                        _routeLengthFilter = result;
-                      });
+                      _routeLengthFilter = result;
                     }
                   },
                 ),
                 _FilterTag(
+                  context,
                   label: _distanceToStartFilter != null
                       ? '起点距离: ${_distanceToStartFilter!.start.toStringAsFixed(1)}-${_distanceToStartFilter!.end.toStringAsFixed(1)} km'
                       : '起点距离',
@@ -136,6 +128,7 @@ class RoutesPageState extends State<RoutesPage> {
                     final result = await showModalBottomSheet<RangeValues>(
                       context: context,
                       builder: (context) => _RangeSliderSheet(
+                        context,
                         title: '选择起点距离 (km)',
                         min: 0,
                         max: 50,
@@ -144,13 +137,12 @@ class RoutesPageState extends State<RoutesPage> {
                       ),
                     );
                     if (result != null) {
-                      setState(() {
-                        _distanceToStartFilter = result;
-                      });
+                      _distanceToStartFilter = result;
                     }
                   },
                 ),
                 _FilterTag(
+                  context,
                   label: _avgSlopeFilter != null
                       ? '平均坡度: ${_avgSlopeFilter!.start.toStringAsFixed(1)}%-${_avgSlopeFilter!.end.toStringAsFixed(1)}%'
                       : '平均坡度',
@@ -159,6 +151,7 @@ class RoutesPageState extends State<RoutesPage> {
                     final result = await showModalBottomSheet<RangeValues>(
                       context: context,
                       builder: (context) => _RangeSliderSheet(
+                        context,
                         title: '选择平均坡度 (%)',
                         min: 0,
                         max: 30,
@@ -166,9 +159,7 @@ class RoutesPageState extends State<RoutesPage> {
                       ),
                     );
                     if (result != null) {
-                      setState(() {
-                        _avgSlopeFilter = result;
-                      });
+                      _avgSlopeFilter = result;
                     }
                   },
                 ),
@@ -193,132 +184,127 @@ class RoutesPageState extends State<RoutesPage> {
             ),
           ),
           Expanded(
-            child: dataLoader.gpxData.isEmpty
-                ? Center(
-                    child: Text(
-                      '无路书',
-                      style: TextStyle(
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? Colors.white
-                            : Colors.black,
+            child: routesState.when(
+              data: (data) => data.isEmpty
+                  ? Center(
+                      child: Text(
+                        '无路书',
+                        style: TextStyle(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white
+                              : Colors.black,
+                        ),
                       ),
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: dataLoader.gpxData.length,
-                    itemBuilder: (context, index) {
-                      final file = dataLoader.gpxData.entries.toList()[index];
-                      return Card(
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? Colors.grey[800]
-                            : Colors.white,
-                        child: ListTile(
-                          title: Text(
-                            file.key.split('/').last,
-                            style: TextStyle(
-                              color: Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? Colors.white
-                                  : Colors.black,
+                    )
+                  : ListView.builder(
+                      itemCount: data.length,
+                      itemBuilder: (context, index) {
+                        final file = data[index];
+                        return Card(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.grey[800]
+                              : Colors.white,
+                          child: ListTile(
+                            title: Text(
+                              file.filePath.split('/').last,
+                              style: TextStyle(
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? Colors.white
+                                    : Colors.black,
+                              ),
                             ),
-                          ),
-                          onTap: () async {
-                            try {
-                              final gpxData = file.value;
-                              final gpx = GpxReader().fromString(gpxData);
-                              final points = gpx.trks
-                                  .expand((trk) => trk.trksegs)
-                                  .expand((trkseg) => trkseg.trkpts)
-                                  .map(
-                                      (trkpt) => LatLng(trkpt.lat!, trkpt.lon!))
-                                  .toList();
-                              setState(() {
-                                _selectedGpxFile = File(file.key);
+                            onTap: () async {
+                              try {
+                                final gpxData = file.data;
+                                final gpx = GpxReader().fromString(gpxData);
+                                final points = file.route;
+                                _selectedGpxFile = File(file.filePath);
                                 _previewGpx = gpx;
-                              });
-                              // Show as bottom sheet first
-                              showModalBottomSheet(
-                                context: context,
-                                isScrollControlled: true,
-                                backgroundColor:
-                                    Theme.of(context).scaffoldBackgroundColor,
-                                shape: const RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.vertical(
-                                      top: Radius.circular(16)),
-                                ),
-                                builder: (context) {
-                                  return DraggableScrollableSheet(
-                                    initialChildSize: 0.5,
-                                    minChildSize: 0.3,
-                                    maxChildSize: 1.0,
-                                    expand: false,
-                                    builder: (context, scrollController) {
-                                      return NotificationListener<
-                                          DraggableScrollableNotification>(
-                                        onNotification: (notification) {
-                                          // If dragged to full screen, push to full page
-                                          if (notification.extent >= 0.99) {
-                                            Navigator.of(context).pop();
-                                            Navigator.of(context).push(
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    RoutePreviewPage(
-                                                  gpx: _previewGpx,
-                                                  file: _selectedGpxFile,
-                                                  onDelete: () {
-                                                    setState(() {
+                                // Show as bottom sheet first
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  backgroundColor:
+                                      Theme.of(context).scaffoldBackgroundColor,
+                                  shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.vertical(
+                                        top: Radius.circular(16)),
+                                  ),
+                                  builder: (context) {
+                                    return DraggableScrollableSheet(
+                                      initialChildSize: 0.5,
+                                      minChildSize: 0.3,
+                                      maxChildSize: 1.0,
+                                      expand: false,
+                                      builder: (context, scrollController) {
+                                        return NotificationListener<
+                                            DraggableScrollableNotification>(
+                                          onNotification: (notification) {
+                                            // If dragged to full screen, push to full page
+                                            if (notification.extent >= 0.99) {
+                                              Navigator.of(context).pop();
+                                              Navigator.of(context).push(
+                                                MaterialPageRoute(
+                                                  builder: (_) =>
+                                                      RoutePreviewPage(
+                                                    gpx: _previewGpx,
+                                                    file: _selectedGpxFile,
+                                                    onDelete: () {
                                                       _selectedGpxFile = null;
                                                       _previewGpx = null;
-                                                    });
-                                                  },
+                                                    },
+                                                  ),
                                                 ),
-                                              ),
-                                            );
-                                          }
-                                          return false;
-                                        },
-                                        child: RoutePreviewContent(
-                                          gpx: _previewGpx!,
-                                          file: _selectedGpxFile!,
-                                          // onDelete: () {
-                                          //   setState(() {
-                                          //     _selectedGpxData =
-                                          //         null;
-                                          //     _selectedGpxFile =
-                                          //         null;
-                                          //     _previewPath = [];
-                                          //     _previewGpx = null;
-                                          //   });
-                                          //   Navigator.of(context)
-                                          //       .pop();
-                                          // },
-                                          // scrollController:
-                                          //     scrollController,
-                                        ),
-                                      );
-                                    },
-                                  );
-                                },
-                              );
-                            } catch (e) {
-                              if (kDebugMode) {
-                                print('Error loading GPX file: $e');
-                              }
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Failed to load GPX file: $e'),
-                                ),
-                              );
-                              setState(() {
-                                _selectedGpxFile = File(file.key);
+                                              );
+                                            }
+                                            return false;
+                                          },
+                                          child: RoutePreviewContent(
+                                            gpx: _previewGpx!,
+                                            file: _selectedGpxFile!,
+                                            // onDelete: () {
+                                            //   setState(() {
+                                            //     _selectedGpxData =
+                                            //         null;
+                                            //     _selectedGpxFile =
+                                            //         null;
+                                            //     _previewPath = [];
+                                            //     _previewGpx = null;
+                                            //   });
+                                            //   Navigator.of(context)
+                                            //       .pop();
+                                            // },
+                                            // scrollController:
+                                            //     scrollController,
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
+                                );
+                              } catch (e) {
+                                if (kDebugMode) {
+                                  print('Error loading GPX file: $e');
+                                }
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content:
+                                        Text('Failed to load GPX file: $e'),
+                                  ),
+                                );
+                                _selectedGpxFile = File(file.filePath);
                                 _previewGpx = null;
-                              });
-                            }
-                          },
-                        ),
-                      );
-                    },
-                  ),
+                              }
+                            },
+                          ),
+                        );
+                      },
+                    ),
+              error: (err, stack) =>
+                  const Center(child: Text('No route selected')),
+              loading: () => const Center(child: CircularProgressIndicator()),
+            ),
           ),
         ],
       ),
@@ -349,7 +335,7 @@ class RoutesPageState extends State<RoutesPage> {
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => const RouteEditPage(route: 'new_route'),
+                  builder: (context) => RouteEditPage(route: 'new_route'),
                 ),
               );
             },
@@ -428,4 +414,3 @@ class RoutePreviewContent extends StatelessWidget {
     );
   }
 }
-

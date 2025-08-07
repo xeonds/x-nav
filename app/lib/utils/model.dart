@@ -36,6 +36,7 @@ class Routes extends Table {
   TextColumn get filePath => text()(); // 路径文件
   RealColumn get distance => real()(); // 路线距离
   TextColumn get route => text().map(LatlngListConverter())(); // 路线点序列化为json字符串
+  TextColumn get data => text()();
 }
 
 // data class for ride histories

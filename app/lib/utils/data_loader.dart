@@ -229,14 +229,14 @@ void _dataLoadIsolateEntryWithProgressPhased(
       for (var i = 0; i < gpxFiles.length; i++) {
         try {
           final file = gpxFiles[i];
-          final str = parseGpxFile(file);
+          final str = file.readAsStringSync();
           final parsed = GpxReader().fromString(str);
           final path = parsed.trks.first.trksegs.first.trkpts
               .map((e) => LatLng(e.lat!, e.lon!))
               .toList();
           final distance = latlngToDistance(path);
           db.into(db.routes).insertOnConflictUpdate(RoutesCompanion.insert(
-              filePath: file.path, distance: distance, route: path));
+              filePath: file.path, distance: distance, route: path, data: str));
           sendPort.send({'progress': '路书解析中： ${i + 1}/${gpxFiles.length}'});
         } catch (e) {
           debugPrint('Error reading GPX file: $e');
@@ -265,6 +265,7 @@ void _dataLoadIsolateEntryWithProgressPhased(
               RecordsCompanion.insert(historyId: historyId, messages: records),
               mode: InsertMode.insertOrReplace);
           db.into(db.summarys).insert(SummarysCompanion.insert(
+              historyId: historyId,
               timestamp: Value(session.timestamp),
               startTime: Value(DateTime(session.startTime!)),
               sport: Value(session.sport?.name),

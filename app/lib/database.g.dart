@@ -376,8 +376,13 @@ class $RoutesTable extends Routes with TableInfo<$RoutesTable, Route> {
       GeneratedColumn<String>('route', aliasedName, false,
               type: DriftSqlType.string, requiredDuringInsert: true)
           .withConverter<List<LatLng>>($RoutesTable.$converterroute);
+  static const VerificationMeta _dataMeta = const VerificationMeta('data');
   @override
-  List<GeneratedColumn> get $columns => [id, filePath, distance, route];
+  late final GeneratedColumn<String> data = GeneratedColumn<String>(
+      'data', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [id, filePath, distance, route, data];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -403,6 +408,12 @@ class $RoutesTable extends Routes with TableInfo<$RoutesTable, Route> {
     } else if (isInserting) {
       context.missing(_distanceMeta);
     }
+    if (data.containsKey('data')) {
+      context.handle(
+          _dataMeta, this.data.isAcceptableOrUnknown(data['data']!, _dataMeta));
+    } else if (isInserting) {
+      context.missing(_dataMeta);
+    }
     return context;
   }
 
@@ -420,6 +431,8 @@ class $RoutesTable extends Routes with TableInfo<$RoutesTable, Route> {
           .read(DriftSqlType.double, data['${effectivePrefix}distance'])!,
       route: $RoutesTable.$converterroute.fromSql(attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}route'])!),
+      data: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}data'])!,
     );
   }
 
@@ -437,11 +450,13 @@ class Route extends DataClass implements Insertable<Route> {
   final String filePath;
   final double distance;
   final List<LatLng> route;
+  final String data;
   const Route(
       {required this.id,
       required this.filePath,
       required this.distance,
-      required this.route});
+      required this.route,
+      required this.data});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -452,6 +467,7 @@ class Route extends DataClass implements Insertable<Route> {
       map['route'] =
           Variable<String>($RoutesTable.$converterroute.toSql(route));
     }
+    map['data'] = Variable<String>(data);
     return map;
   }
 
@@ -461,6 +477,7 @@ class Route extends DataClass implements Insertable<Route> {
       filePath: Value(filePath),
       distance: Value(distance),
       route: Value(route),
+      data: Value(data),
     );
   }
 
@@ -472,6 +489,7 @@ class Route extends DataClass implements Insertable<Route> {
       filePath: serializer.fromJson<String>(json['filePath']),
       distance: serializer.fromJson<double>(json['distance']),
       route: serializer.fromJson<List<LatLng>>(json['route']),
+      data: serializer.fromJson<String>(json['data']),
     );
   }
   @override
@@ -482,16 +500,22 @@ class Route extends DataClass implements Insertable<Route> {
       'filePath': serializer.toJson<String>(filePath),
       'distance': serializer.toJson<double>(distance),
       'route': serializer.toJson<List<LatLng>>(route),
+      'data': serializer.toJson<String>(data),
     };
   }
 
   Route copyWith(
-          {int? id, String? filePath, double? distance, List<LatLng>? route}) =>
+          {int? id,
+          String? filePath,
+          double? distance,
+          List<LatLng>? route,
+          String? data}) =>
       Route(
         id: id ?? this.id,
         filePath: filePath ?? this.filePath,
         distance: distance ?? this.distance,
         route: route ?? this.route,
+        data: data ?? this.data,
       );
   Route copyWithCompanion(RoutesCompanion data) {
     return Route(
@@ -499,6 +523,7 @@ class Route extends DataClass implements Insertable<Route> {
       filePath: data.filePath.present ? data.filePath.value : this.filePath,
       distance: data.distance.present ? data.distance.value : this.distance,
       route: data.route.present ? data.route.value : this.route,
+      data: data.data.present ? data.data.value : this.data,
     );
   }
 
@@ -508,13 +533,14 @@ class Route extends DataClass implements Insertable<Route> {
           ..write('id: $id, ')
           ..write('filePath: $filePath, ')
           ..write('distance: $distance, ')
-          ..write('route: $route')
+          ..write('route: $route, ')
+          ..write('data: $data')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, filePath, distance, route);
+  int get hashCode => Object.hash(id, filePath, distance, route, data);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -522,7 +548,8 @@ class Route extends DataClass implements Insertable<Route> {
           other.id == this.id &&
           other.filePath == this.filePath &&
           other.distance == this.distance &&
-          other.route == this.route);
+          other.route == this.route &&
+          other.data == this.data);
 }
 
 class RoutesCompanion extends UpdateCompanion<Route> {
@@ -530,31 +557,37 @@ class RoutesCompanion extends UpdateCompanion<Route> {
   final Value<String> filePath;
   final Value<double> distance;
   final Value<List<LatLng>> route;
+  final Value<String> data;
   const RoutesCompanion({
     this.id = const Value.absent(),
     this.filePath = const Value.absent(),
     this.distance = const Value.absent(),
     this.route = const Value.absent(),
+    this.data = const Value.absent(),
   });
   RoutesCompanion.insert({
     this.id = const Value.absent(),
     required String filePath,
     required double distance,
     required List<LatLng> route,
+    required String data,
   })  : filePath = Value(filePath),
         distance = Value(distance),
-        route = Value(route);
+        route = Value(route),
+        data = Value(data);
   static Insertable<Route> custom({
     Expression<int>? id,
     Expression<String>? filePath,
     Expression<double>? distance,
     Expression<String>? route,
+    Expression<String>? data,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (filePath != null) 'file_path': filePath,
       if (distance != null) 'distance': distance,
       if (route != null) 'route': route,
+      if (data != null) 'data': data,
     });
   }
 
@@ -562,12 +595,14 @@ class RoutesCompanion extends UpdateCompanion<Route> {
       {Value<int>? id,
       Value<String>? filePath,
       Value<double>? distance,
-      Value<List<LatLng>>? route}) {
+      Value<List<LatLng>>? route,
+      Value<String>? data}) {
     return RoutesCompanion(
       id: id ?? this.id,
       filePath: filePath ?? this.filePath,
       distance: distance ?? this.distance,
       route: route ?? this.route,
+      data: data ?? this.data,
     );
   }
 
@@ -587,6 +622,9 @@ class RoutesCompanion extends UpdateCompanion<Route> {
       map['route'] =
           Variable<String>($RoutesTable.$converterroute.toSql(route.value));
     }
+    if (data.present) {
+      map['data'] = Variable<String>(data.value);
+    }
     return map;
   }
 
@@ -596,7 +634,8 @@ class RoutesCompanion extends UpdateCompanion<Route> {
           ..write('id: $id, ')
           ..write('filePath: $filePath, ')
           ..write('distance: $distance, ')
-          ..write('route: $route')
+          ..write('route: $route, ')
+          ..write('data: $data')
           ..write(')'))
         .toString();
   }
@@ -3641,12 +3680,14 @@ typedef $$RoutesTableCreateCompanionBuilder = RoutesCompanion Function({
   required String filePath,
   required double distance,
   required List<LatLng> route,
+  required String data,
 });
 typedef $$RoutesTableUpdateCompanionBuilder = RoutesCompanion Function({
   Value<int> id,
   Value<String> filePath,
   Value<double> distance,
   Value<List<LatLng>> route,
+  Value<String> data,
 });
 
 class $$RoutesTableFilterComposer extends Composer<_$Database, $RoutesTable> {
@@ -3670,6 +3711,9 @@ class $$RoutesTableFilterComposer extends Composer<_$Database, $RoutesTable> {
       get route => $composableBuilder(
           column: $table.route,
           builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<String> get data => $composableBuilder(
+      column: $table.data, builder: (column) => ColumnFilters(column));
 }
 
 class $$RoutesTableOrderingComposer extends Composer<_$Database, $RoutesTable> {
@@ -3691,6 +3735,9 @@ class $$RoutesTableOrderingComposer extends Composer<_$Database, $RoutesTable> {
 
   ColumnOrderings<String> get route => $composableBuilder(
       column: $table.route, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get data => $composableBuilder(
+      column: $table.data, builder: (column) => ColumnOrderings(column));
 }
 
 class $$RoutesTableAnnotationComposer
@@ -3713,6 +3760,9 @@ class $$RoutesTableAnnotationComposer
 
   GeneratedColumnWithTypeConverter<List<LatLng>, String> get route =>
       $composableBuilder(column: $table.route, builder: (column) => column);
+
+  GeneratedColumn<String> get data =>
+      $composableBuilder(column: $table.data, builder: (column) => column);
 }
 
 class $$RoutesTableTableManager extends RootTableManager<
@@ -3742,24 +3792,28 @@ class $$RoutesTableTableManager extends RootTableManager<
             Value<String> filePath = const Value.absent(),
             Value<double> distance = const Value.absent(),
             Value<List<LatLng>> route = const Value.absent(),
+            Value<String> data = const Value.absent(),
           }) =>
               RoutesCompanion(
             id: id,
             filePath: filePath,
             distance: distance,
             route: route,
+            data: data,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
             required String filePath,
             required double distance,
             required List<LatLng> route,
+            required String data,
           }) =>
               RoutesCompanion.insert(
             id: id,
             filePath: filePath,
             distance: distance,
             route: route,
+            data: data,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

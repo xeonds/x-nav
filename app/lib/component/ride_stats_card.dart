@@ -1,3 +1,4 @@
+import 'package:app/utils/analysis_utils.dart' show secondToFormatTime;
 import 'package:flutter/material.dart';
 
 class RideStatsCard extends StatelessWidget {

@@ -4,7 +4,8 @@ import 'package:app/utils/fit.dart';
 import 'package:app/utils/model.dart';
 import 'package:fit_tool/fit_tool.dart'
     show Message, RecordMessage, SessionMessage;
-import 'package:latlong2/latlong.dart';
+import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart' show LatLng, Distance, LengthUnit;
 
 // 获取一个路径的几何中心
 LatLng initCenter(List<LatLng> routePoints) {
@@ -44,7 +45,6 @@ double initZoom(List<LatLng> routePoints) {
 
   return ((lngZoom < latZoom ? lngZoom : latZoom) + 0.5);
 }
-
 
 class SegmentMatcher {
   /// 用于确定两个坐标点是否匹配的距离阈值（单位：米）
@@ -246,33 +246,32 @@ class SegmentMatcher {
   int min(int a, int b) => a < b ? a : b;
 }
 
-SegmentScore parseSegmentToScore(
-  SegmentMatch segment,
-  List<Message> rideData,
-  List<LatLng> routePoints,
-) {
-  final sessionMsg = rideData.whereType<SessionMessage>().first;
+// SegmentScore parseSegmentToScore(
+//   SegmentMatch segment,
+//   History rideData,
+//   List<LatLng> routePoints,
+// ) {
+//   final sessionMsg = rideData.whereType<SessionMessage>().first;
 
-  final startIndex = segment.startIndex;
-  final endIndex = segment.endIndex;
-  final startTime = sessionMsg.startTime!;
-  final endTime = sessionMsg.totalMovingTime! + startTime;
-  return SegmentScore(
-      segment: segment,
-      startTime: startTime.toDouble(),
-      endTime: endTime,
-      duration: endTime - startTime, // 秒
-      avgSpeed: ((latlngToDistance(routePoints.sublist(startIndex, endIndex)) /
-              1000.0) /
-          ((endTime - startTime) / 1000.0) *
-          3.6), // km/h
-      distance: latlngToDistance(
-            routePoints.sublist(startIndex, endIndex),
-          ) /
-          1000.0, // km
-      route: routePoints.sublist(startIndex, endIndex));
-}
-
+//   final startIndex = segment.startIndex;
+//   final endIndex = segment.endIndex;
+//   final startTime = sessionMsg.startTime!;
+//   final endTime = sessionMsg.totalMovingTime! + startTime;
+//   return SegmentScore(
+//       segment: segment,
+//       startTime: startTime.toDouble(),
+//       endTime: endTime,
+//       duration: endTime - startTime, // 秒
+//       avgSpeed: ((latlngToDistance(routePoints.sublist(startIndex, endIndex)) /
+//               1000.0) /
+//           ((endTime - startTime) / 1000.0) *
+//           3.6), // km/h
+//       distance: latlngToDistance(
+//             routePoints.sublist(startIndex, endIndex),
+//           ) /
+//           1000.0, // km
+//       route: routePoints.sublist(startIndex, endIndex));
+// }
 
 class RideScore {
   final List<Message> rideData; // fitData原始数据

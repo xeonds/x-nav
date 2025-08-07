@@ -49,6 +49,7 @@ dependencies:
   fit_tool: ^0.9.7
   drift: ^2.28.0
   drift_flutter: ^0.2.5
+  flutter_riverpod: ^2.6.1
 
 dev_dependencies:
   flutter_test:

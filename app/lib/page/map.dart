@@ -5,12 +5,16 @@ import 'package:app/page/routes.dart';
 import 'package:app/page/user.dart';
 import 'package:app/utils/fit.dart' show parseFitDataToRoute;
 import 'package:app/utils/location_provier.dart';
+import 'package:app/utils/model.dart' show SegmentMatch;
 import 'package:app/utils/mvt_theme.dart';
+import 'package:app/utils/provider.dart';
+import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart'
     show PolylinePoints;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:mbtiles/mbtiles.dart';
 import 'package:provider/provider.dart';
@@ -363,50 +367,80 @@ class MapPageState extends State<MapPage> {
     // });
   }
 
-  void _updateSegmentStatus(Position pos) {
-    final loader = DataLoader();
-    if (!loader.isInitialized) return;
-    final now = DateTime.now();
-    final point = LatLng(pos.latitude, pos.longitude);
-    final distUtil = Distance();
-    if (_activeSegmentId == null) {
-      for (var i = 0; i < loader.routes.length; i++) {
-        final segStart = loader.routes[i].first;
-        if (distUtil.as(LengthUnit.Meter, point, segStart) < 30) {
-          _activeSegmentId = i;
-          _activeEntryTime = now;
-          _historicalBestDuration = loader.bestSegment[i]?.dataList
-                  .map((s) => s.item.duration)
-                  .reduce((a, b) => a < b ? a : b)
-                  .toInt() ??
-              0;
-          setState(() => _currentSegmentElapsed = 0);
-          return;
+  void _updateSegmentStatus(Position pos, Ref ref)async {
+    final db = DataLoader().database;
+    final routes = ref.watch(routesProvider);
+    // 先筛选出 bestScores，其 id 在 segments.bestScoreId 中
+    final segmentBestScoreIdsQuery = await db.select(db.segments)
+      .map((seg) => seg.bestScoreId).get();
+
+    final filteredBestScoresQuery = db.select(db.bestScores)
+      .where((score) => score.id.isIn(segmentBestScoreIdsQuery));
+
+    // join segments 和 bestScores，关联 seg.bestScoreId == score.id
+    final joined = await (db.select(db.segments).join([
+      innerJoin(
+      db.bestScores,
+      db.segments.bestScoreId.equalsExp(db.bestScores.id),
+      ),
+    ])).get();
+
+    // 按 seg.routeId 分组，筛选每组中 maxTime 最小的 bestScore
+    final Map<int, dynamic> grouped = {};
+    for (final row in joined) {
+      final seg = row.readTable(db.segments);
+      final score = row.readTable(db.bestScores);
+      final routeId = seg.routeId;
+      if (!grouped.containsKey(routeId) ||
+        score.maxTime < grouped[routeId].maxTime) {
+      grouped[routeId] = score;
+      }
+    }
+    final segmentsScore = grouped.values.toList();
+    routes.when(data: (routes) {
+      final now = DateTime.now();
+      final point = LatLng(pos.latitude, pos.longitude);
+      final distUtil = Distance();
+      if (_activeSegmentId == null) {
+        for (var i = 0; i < routes.length; i++) {
+          final segStart = routes[i].route.first;
+          if (distUtil.as(LengthUnit.Meter, point, segStart) < 30) {
+            _activeSegmentId = i;
+            _activeEntryTime = now;
+            _historicalBestDuration = segmentsScore[i]?.dataList
+                    .map((s) => s.item.duration)
+                    .reduce((a, b) => a < b ? a : b)
+                    .toInt() ??
+                0;
+            setState(() => _currentSegmentElapsed = 0);
+            return;
+          }
         }
-      }
-    } else {
-      final idx = _activeSegmentId!;
-      final segPoints = loader.routes[idx];
-      final segEnd = segPoints.last;
-      final diffToEnd = distUtil.as(LengthUnit.Meter, point, segEnd);
-      // 在赛段中
-      if (diffToEnd > 30) {
-        final elapsed = now.difference(_activeEntryTime!).inSeconds;
-        setState(() => _currentSegmentElapsed = elapsed);
       } else {
-        // 赛段完成
-        final elapsed = now.difference(_activeEntryTime!).inSeconds;
-        final best = _historicalBestDuration;
-        final diff = elapsed - best;
-        setState(() {
-          _segmentResultMessage =
-              '赛段${idx + 1}完成：用时${elapsed}s，历史最佳${best}s，${diff >= 0 ? '落后' : '领先'}${diff.abs()}s';
-          _activeSegmentId = null;
-        });
-        // 自动隐藏结果卡片
-        Future.delayed(Duration(seconds: 5),
-            () => setState(() => _segmentResultMessage = null));
-      }
+        final idx = _activeSegmentId!;
+        final segPoints = routes[idx];
+        final segEnd = segPoints.route.last;
+        final diffToEnd = distUtil.as(LengthUnit.Meter, point, segEnd);
+        // 在赛段中
+        if (diffToEnd > 30) {
+          final elapsed = now.difference(_activeEntryTime!).inSeconds;
+          setState(() => _currentSegmentElapsed = elapsed);
+        } else {
+          // 赛段完成
+          final elapsed = now.difference(_activeEntryTime!).inSeconds;
+          final best = _historicalBestDuration;
+          final diff = elapsed - best;
+          setState(() {
+            _segmentResultMessage =
+                '赛段${idx + 1}完成：用时${elapsed}s，历史最佳${best}s，${diff >= 0 ? '落后' : '领先'}${diff.abs()}s';
+            _activeSegmentId = null;
+          });
+          // 自动隐藏结果卡片
+          Future.delayed(Duration(seconds: 5),
+              () => setState(() => _segmentResultMessage = null));
+        }
+      } }
+    , error: (n, s)=>{}, loading: ()=>{});
     }
   }
 
@@ -439,7 +473,7 @@ class MapPageState extends State<MapPage> {
   }
 
   // filter exist routes
-  void filterRoute() {
+  void filterRoute(BuildContext context) {
     context.read<DataLoader>();
     double minLength = 0, maxLength = 100.0;
     double minStartDist = 0, maxStartDist = 20.0;
@@ -549,7 +583,7 @@ class MapPageState extends State<MapPage> {
   @override
   Widget build(BuildContext context) {
     final dataLoader = context.watch<DataLoader>();
-    final routes = dataLoader.routes;
+    final routes = ;
     final histories = dataLoader.histories;
 
     bool isDrawingRoute = isMeasureOpen && _isDrawingMeasureRoute;
