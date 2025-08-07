@@ -53,3 +53,41 @@ class RideStatsCard extends StatelessWidget {
     );
   }
 }
+
+
+class RideSummary extends StatefulWidget {
+  final Map<String, dynamic> rideData;
+  const RideSummary({super.key, required this.rideData});
+
+  @override
+  State<RideSummary> createState() => RideSummaryState();
+}
+
+class RideSummaryState extends State<RideSummary> {
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final data = widget.rideData;
+    final totalDistance = data['totalDistance'];
+    final totalRides = data['totalRides'];
+    final totalTime = data['totalTime'];
+
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          Text(
+            '总里程: ${((totalDistance ?? 0.0) / 1000.0).toStringAsFixed(2)} km',
+          ),
+          Text('总次数: $totalRides 次'),
+          Text('总时间: ${secondToFormatTime(totalTime ?? 0.0)}'),
+        ],
+      ),
+    );
+  }
+}

@@ -316,3 +316,61 @@ double latlngToDistance(List<LatLng> points) {
 double latlngPointDistance(LatLng point1, LatLng point2) {
   return const Distance().as(LengthUnit.Meter, point1, point2);
 }
+
+class RidePathPainter extends CustomPainter {
+  final List<LatLng> points;
+
+  RidePathPainter(this.points);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.deepOrange
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke;
+
+    if (points.isNotEmpty) {
+      final path = Path();
+
+      // 获取经纬度的最小值和最大值
+      final minLat =
+          points.map((p) => p.latitude).reduce((a, b) => a < b ? a : b);
+      final maxLat =
+          points.map((p) => p.latitude).reduce((a, b) => a > b ? a : b);
+      final minLng =
+          points.map((p) => p.longitude).reduce((a, b) => a < b ? a : b);
+      final maxLng =
+          points.map((p) => p.longitude).reduce((a, b) => a > b ? a : b);
+
+      // 计算缩放比例
+      final scaleX = size.width / (maxLng - minLng);
+      final scaleY = size.height / (maxLat - minLat);
+      final scale = scaleX < scaleY ? scaleX : scaleY;
+
+      // 计算偏移量
+      final offsetX = (size.width - (maxLng - minLng) * scale) / 2;
+      final offsetY = (size.height - (maxLat - minLat) * scale) / 2;
+
+      // 移动到起点
+      path.moveTo(
+        (points[0].longitude - minLng) * scale + offsetX,
+        (maxLat - points[0].latitude) * scale + offsetY,
+      );
+
+      // 绘制路径
+      for (var point in points) {
+        path.lineTo(
+          (point.longitude - minLng) * scale + offsetX,
+          (maxLat - point.latitude) * scale + offsetY,
+        );
+      }
+
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true; // 数据变化时触发重绘
+  }
+}
