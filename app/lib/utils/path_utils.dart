@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:app/utils/fit.dart';
@@ -5,6 +6,7 @@ import 'package:app/utils/model.dart';
 import 'package:fit_tool/fit_tool.dart'
     show Message, RecordMessage, SessionMessage;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart' show LatLng, Distance, LengthUnit;
 
 // 获取一个路径的几何中心
@@ -371,5 +373,39 @@ class RidePathPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) {
     return true; // 数据变化时触发重绘
+  }
+}
+
+// 计算海拔高度，稀疏采样：当点太多时均匀间隔采样64点
+Future<List<double>> fetchElevationData(List<LatLng> route) async {
+  List<LatLng> sampledRoute;
+  if (route.length > 64) {
+    sampledRoute = List.generate(
+      64,
+      (i) => route[((route.length - 1) * i ~/ 63)],
+    );
+  } else {
+    sampledRoute = route;
+  }
+  final locations =
+      sampledRoute.map((p) => '${p.latitude},${p.longitude}').join('|');
+  final url =
+      'https://api.open-elevation.com/api/v1/lookup?locations=$locations';
+  final resp = await http.get(Uri.parse(url));
+  if (resp.statusCode == 200) {
+    final data = jsonDecode(resp.body);
+    final results = data['results'] as List;
+    // _elevationData =
+    //     results.map((e) => (e['elevation'] as num).toDouble()).toList();
+    return results.map((e) => (e['elevation'] as num).toDouble()).toList();
+    // 计算坡度百分比
+    // _slopeData = [];
+    // for (var i = 1; i < _elevationData.length; i++) {
+    //   final dAlt = _elevationData[i] - _elevationData[i - 1];
+    //   final dDist = (_distanceData[i] - _distanceData[i - 1]);
+    //   _slopeData.add(dDist > 0 ? (dAlt / dDist * 100) : 0);
+    // }
+  } else {
+    return [];
   }
 }

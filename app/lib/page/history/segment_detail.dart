@@ -1,20 +1,29 @@
+import 'package:app/component/data.dart' show NavPoint, Statistic;
+import 'package:app/database.dart';
+import 'package:app/utils/analysis_utils.dart';
+import 'package:app/utils/fit.dart';
+import 'package:app/utils/path_utils.dart' show initCenter, initZoom;
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:share_plus/share_plus.dart' show Share;
+
 class SegmentDetailPage extends StatelessWidget {
   final Segment segment;
-  final RideScore rideScore;
-  final DataLoader dataLoader;
+  final History history;
+  final BestScore bestScore;
 
   const SegmentDetailPage({
     super.key,
     required this.segment,
-    required this.rideScore,
-    required this.dataLoader,
+    required this.history,
+    required this.bestScore,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDarkMode =
         MediaQuery.of(context).platformBrightness == Brightness.dark;
-    final segmentIndex = segment.segment.segmentIndex;
+    final segmentIndex = segment.id;
     final bestSegment = dataLoader.bestSegment[segmentIndex];
     final segmentRecords = bestSegment?.dataList ?? [];
 

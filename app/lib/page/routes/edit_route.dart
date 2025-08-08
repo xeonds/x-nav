@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:app/component/data.dart';
 import 'package:app/utils/data_loader.dart';
+import 'package:app/utils/provider.dart';
 import 'package:app/utils/storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -227,7 +228,7 @@ class RouteEditPageState extends State<RouteEditPage> {
               TileLayer(
                 urlTemplate:
                     'https://map.iris.al/styles/basic-preview/512/{z}/{x}/{y}.png',
-                tileProvider: dataLoader.tileProvider,
+                tileProvider: tileProvider,
               ),
               if (routePath.isNotEmpty)
                 PolylineLayer(

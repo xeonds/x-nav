@@ -673,6 +673,12 @@ class $SegmentsTable extends Segments with TableInfo<$SegmentsTable, Segment> {
   late final GeneratedColumn<int> bestScoreId = GeneratedColumn<int>(
       'best_score_id', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _summaryIdMeta =
+      const VerificationMeta('summaryId');
+  @override
+  late final GeneratedColumn<int> summaryId = GeneratedColumn<int>(
+      'summary_id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
   static const VerificationMeta _startIndexMeta =
       const VerificationMeta('startIndex');
   @override
@@ -697,6 +703,7 @@ class $SegmentsTable extends Segments with TableInfo<$SegmentsTable, Segment> {
         routeId,
         historyId,
         bestScoreId,
+        summaryId,
         startIndex,
         endIndex,
         matchPercentage
@@ -733,6 +740,12 @@ class $SegmentsTable extends Segments with TableInfo<$SegmentsTable, Segment> {
               data['best_score_id']!, _bestScoreIdMeta));
     } else if (isInserting) {
       context.missing(_bestScoreIdMeta);
+    }
+    if (data.containsKey('summary_id')) {
+      context.handle(_summaryIdMeta,
+          summaryId.isAcceptableOrUnknown(data['summary_id']!, _summaryIdMeta));
+    } else if (isInserting) {
+      context.missing(_summaryIdMeta);
     }
     if (data.containsKey('start_index')) {
       context.handle(
@@ -773,6 +786,8 @@ class $SegmentsTable extends Segments with TableInfo<$SegmentsTable, Segment> {
           .read(DriftSqlType.int, data['${effectivePrefix}history_id'])!,
       bestScoreId: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}best_score_id'])!,
+      summaryId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}summary_id'])!,
       startIndex: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}start_index'])!,
       endIndex: attachedDatabase.typeMapping
@@ -793,6 +808,7 @@ class Segment extends DataClass implements Insertable<Segment> {
   final int routeId;
   final int historyId;
   final int bestScoreId;
+  final int summaryId;
   final int startIndex;
   final int endIndex;
   final double matchPercentage;
@@ -801,6 +817,7 @@ class Segment extends DataClass implements Insertable<Segment> {
       required this.routeId,
       required this.historyId,
       required this.bestScoreId,
+      required this.summaryId,
       required this.startIndex,
       required this.endIndex,
       required this.matchPercentage});
@@ -811,6 +828,7 @@ class Segment extends DataClass implements Insertable<Segment> {
     map['route_id'] = Variable<int>(routeId);
     map['history_id'] = Variable<int>(historyId);
     map['best_score_id'] = Variable<int>(bestScoreId);
+    map['summary_id'] = Variable<int>(summaryId);
     map['start_index'] = Variable<int>(startIndex);
     map['end_index'] = Variable<int>(endIndex);
     map['match_percentage'] = Variable<double>(matchPercentage);
@@ -823,6 +841,7 @@ class Segment extends DataClass implements Insertable<Segment> {
       routeId: Value(routeId),
       historyId: Value(historyId),
       bestScoreId: Value(bestScoreId),
+      summaryId: Value(summaryId),
       startIndex: Value(startIndex),
       endIndex: Value(endIndex),
       matchPercentage: Value(matchPercentage),
@@ -837,6 +856,7 @@ class Segment extends DataClass implements Insertable<Segment> {
       routeId: serializer.fromJson<int>(json['routeId']),
       historyId: serializer.fromJson<int>(json['historyId']),
       bestScoreId: serializer.fromJson<int>(json['bestScoreId']),
+      summaryId: serializer.fromJson<int>(json['summaryId']),
       startIndex: serializer.fromJson<int>(json['startIndex']),
       endIndex: serializer.fromJson<int>(json['endIndex']),
       matchPercentage: serializer.fromJson<double>(json['matchPercentage']),
@@ -850,6 +870,7 @@ class Segment extends DataClass implements Insertable<Segment> {
       'routeId': serializer.toJson<int>(routeId),
       'historyId': serializer.toJson<int>(historyId),
       'bestScoreId': serializer.toJson<int>(bestScoreId),
+      'summaryId': serializer.toJson<int>(summaryId),
       'startIndex': serializer.toJson<int>(startIndex),
       'endIndex': serializer.toJson<int>(endIndex),
       'matchPercentage': serializer.toJson<double>(matchPercentage),
@@ -861,6 +882,7 @@ class Segment extends DataClass implements Insertable<Segment> {
           int? routeId,
           int? historyId,
           int? bestScoreId,
+          int? summaryId,
           int? startIndex,
           int? endIndex,
           double? matchPercentage}) =>
@@ -869,6 +891,7 @@ class Segment extends DataClass implements Insertable<Segment> {
         routeId: routeId ?? this.routeId,
         historyId: historyId ?? this.historyId,
         bestScoreId: bestScoreId ?? this.bestScoreId,
+        summaryId: summaryId ?? this.summaryId,
         startIndex: startIndex ?? this.startIndex,
         endIndex: endIndex ?? this.endIndex,
         matchPercentage: matchPercentage ?? this.matchPercentage,
@@ -880,6 +903,7 @@ class Segment extends DataClass implements Insertable<Segment> {
       historyId: data.historyId.present ? data.historyId.value : this.historyId,
       bestScoreId:
           data.bestScoreId.present ? data.bestScoreId.value : this.bestScoreId,
+      summaryId: data.summaryId.present ? data.summaryId.value : this.summaryId,
       startIndex:
           data.startIndex.present ? data.startIndex.value : this.startIndex,
       endIndex: data.endIndex.present ? data.endIndex.value : this.endIndex,
@@ -896,6 +920,7 @@ class Segment extends DataClass implements Insertable<Segment> {
           ..write('routeId: $routeId, ')
           ..write('historyId: $historyId, ')
           ..write('bestScoreId: $bestScoreId, ')
+          ..write('summaryId: $summaryId, ')
           ..write('startIndex: $startIndex, ')
           ..write('endIndex: $endIndex, ')
           ..write('matchPercentage: $matchPercentage')
@@ -905,7 +930,7 @@ class Segment extends DataClass implements Insertable<Segment> {
 
   @override
   int get hashCode => Object.hash(id, routeId, historyId, bestScoreId,
-      startIndex, endIndex, matchPercentage);
+      summaryId, startIndex, endIndex, matchPercentage);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -914,6 +939,7 @@ class Segment extends DataClass implements Insertable<Segment> {
           other.routeId == this.routeId &&
           other.historyId == this.historyId &&
           other.bestScoreId == this.bestScoreId &&
+          other.summaryId == this.summaryId &&
           other.startIndex == this.startIndex &&
           other.endIndex == this.endIndex &&
           other.matchPercentage == this.matchPercentage);
@@ -924,6 +950,7 @@ class SegmentsCompanion extends UpdateCompanion<Segment> {
   final Value<int> routeId;
   final Value<int> historyId;
   final Value<int> bestScoreId;
+  final Value<int> summaryId;
   final Value<int> startIndex;
   final Value<int> endIndex;
   final Value<double> matchPercentage;
@@ -932,6 +959,7 @@ class SegmentsCompanion extends UpdateCompanion<Segment> {
     this.routeId = const Value.absent(),
     this.historyId = const Value.absent(),
     this.bestScoreId = const Value.absent(),
+    this.summaryId = const Value.absent(),
     this.startIndex = const Value.absent(),
     this.endIndex = const Value.absent(),
     this.matchPercentage = const Value.absent(),
@@ -941,12 +969,14 @@ class SegmentsCompanion extends UpdateCompanion<Segment> {
     required int routeId,
     required int historyId,
     required int bestScoreId,
+    required int summaryId,
     required int startIndex,
     required int endIndex,
     required double matchPercentage,
   })  : routeId = Value(routeId),
         historyId = Value(historyId),
         bestScoreId = Value(bestScoreId),
+        summaryId = Value(summaryId),
         startIndex = Value(startIndex),
         endIndex = Value(endIndex),
         matchPercentage = Value(matchPercentage);
@@ -955,6 +985,7 @@ class SegmentsCompanion extends UpdateCompanion<Segment> {
     Expression<int>? routeId,
     Expression<int>? historyId,
     Expression<int>? bestScoreId,
+    Expression<int>? summaryId,
     Expression<int>? startIndex,
     Expression<int>? endIndex,
     Expression<double>? matchPercentage,
@@ -964,6 +995,7 @@ class SegmentsCompanion extends UpdateCompanion<Segment> {
       if (routeId != null) 'route_id': routeId,
       if (historyId != null) 'history_id': historyId,
       if (bestScoreId != null) 'best_score_id': bestScoreId,
+      if (summaryId != null) 'summary_id': summaryId,
       if (startIndex != null) 'start_index': startIndex,
       if (endIndex != null) 'end_index': endIndex,
       if (matchPercentage != null) 'match_percentage': matchPercentage,
@@ -975,6 +1007,7 @@ class SegmentsCompanion extends UpdateCompanion<Segment> {
       Value<int>? routeId,
       Value<int>? historyId,
       Value<int>? bestScoreId,
+      Value<int>? summaryId,
       Value<int>? startIndex,
       Value<int>? endIndex,
       Value<double>? matchPercentage}) {
@@ -983,6 +1016,7 @@ class SegmentsCompanion extends UpdateCompanion<Segment> {
       routeId: routeId ?? this.routeId,
       historyId: historyId ?? this.historyId,
       bestScoreId: bestScoreId ?? this.bestScoreId,
+      summaryId: summaryId ?? this.summaryId,
       startIndex: startIndex ?? this.startIndex,
       endIndex: endIndex ?? this.endIndex,
       matchPercentage: matchPercentage ?? this.matchPercentage,
@@ -1004,6 +1038,9 @@ class SegmentsCompanion extends UpdateCompanion<Segment> {
     if (bestScoreId.present) {
       map['best_score_id'] = Variable<int>(bestScoreId.value);
     }
+    if (summaryId.present) {
+      map['summary_id'] = Variable<int>(summaryId.value);
+    }
     if (startIndex.present) {
       map['start_index'] = Variable<int>(startIndex.value);
     }
@@ -1023,6 +1060,7 @@ class SegmentsCompanion extends UpdateCompanion<Segment> {
           ..write('routeId: $routeId, ')
           ..write('historyId: $historyId, ')
           ..write('bestScoreId: $bestScoreId, ')
+          ..write('summaryId: $summaryId, ')
           ..write('startIndex: $startIndex, ')
           ..write('endIndex: $endIndex, ')
           ..write('matchPercentage: $matchPercentage')
@@ -3839,6 +3877,7 @@ typedef $$SegmentsTableCreateCompanionBuilder = SegmentsCompanion Function({
   required int routeId,
   required int historyId,
   required int bestScoreId,
+  required int summaryId,
   required int startIndex,
   required int endIndex,
   required double matchPercentage,
@@ -3848,6 +3887,7 @@ typedef $$SegmentsTableUpdateCompanionBuilder = SegmentsCompanion Function({
   Value<int> routeId,
   Value<int> historyId,
   Value<int> bestScoreId,
+  Value<int> summaryId,
   Value<int> startIndex,
   Value<int> endIndex,
   Value<double> matchPercentage,
@@ -3873,6 +3913,9 @@ class $$SegmentsTableFilterComposer
 
   ColumnFilters<int> get bestScoreId => $composableBuilder(
       column: $table.bestScoreId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get summaryId => $composableBuilder(
+      column: $table.summaryId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get startIndex => $composableBuilder(
       column: $table.startIndex, builder: (column) => ColumnFilters(column));
@@ -3906,6 +3949,9 @@ class $$SegmentsTableOrderingComposer
   ColumnOrderings<int> get bestScoreId => $composableBuilder(
       column: $table.bestScoreId, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<int> get summaryId => $composableBuilder(
+      column: $table.summaryId, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get startIndex => $composableBuilder(
       column: $table.startIndex, builder: (column) => ColumnOrderings(column));
 
@@ -3937,6 +3983,9 @@ class $$SegmentsTableAnnotationComposer
 
   GeneratedColumn<int> get bestScoreId => $composableBuilder(
       column: $table.bestScoreId, builder: (column) => column);
+
+  GeneratedColumn<int> get summaryId =>
+      $composableBuilder(column: $table.summaryId, builder: (column) => column);
 
   GeneratedColumn<int> get startIndex => $composableBuilder(
       column: $table.startIndex, builder: (column) => column);
@@ -3975,6 +4024,7 @@ class $$SegmentsTableTableManager extends RootTableManager<
             Value<int> routeId = const Value.absent(),
             Value<int> historyId = const Value.absent(),
             Value<int> bestScoreId = const Value.absent(),
+            Value<int> summaryId = const Value.absent(),
             Value<int> startIndex = const Value.absent(),
             Value<int> endIndex = const Value.absent(),
             Value<double> matchPercentage = const Value.absent(),
@@ -3984,6 +4034,7 @@ class $$SegmentsTableTableManager extends RootTableManager<
             routeId: routeId,
             historyId: historyId,
             bestScoreId: bestScoreId,
+            summaryId: summaryId,
             startIndex: startIndex,
             endIndex: endIndex,
             matchPercentage: matchPercentage,
@@ -3993,6 +4044,7 @@ class $$SegmentsTableTableManager extends RootTableManager<
             required int routeId,
             required int historyId,
             required int bestScoreId,
+            required int summaryId,
             required int startIndex,
             required int endIndex,
             required double matchPercentage,
@@ -4002,6 +4054,7 @@ class $$SegmentsTableTableManager extends RootTableManager<
             routeId: routeId,
             historyId: historyId,
             bestScoreId: bestScoreId,
+            summaryId: summaryId,
             startIndex: startIndex,
             endIndex: endIndex,
             matchPercentage: matchPercentage,

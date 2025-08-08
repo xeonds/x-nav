@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:app/component/data.dart';
 import 'package:app/page/routes.dart';
 import 'package:app/page/user.dart';
-import 'package:app/utils/fit.dart' show parseFitDataToRoute;
 import 'package:app/utils/location_provier.dart';
 import 'package:app/utils/model.dart' show SegmentMatch;
 import 'package:app/utils/mvt_theme.dart';
@@ -14,10 +13,10 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart'
     show PolylinePoints;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' hide Provider;
 import 'package:latlong2/latlong.dart';
 import 'package:mbtiles/mbtiles.dart';
-import 'package:provider/provider.dart';
+import 'package:provider/provider.dart' hide Consumer;
 import 'package:geolocator/geolocator.dart';
 import 'package:app/utils/data_loader.dart';
 import 'dart:io';
@@ -30,14 +29,14 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:app/utils/path_utils.dart';
 
-class MapPage extends StatefulWidget {
+class MapPage extends ConsumerStatefulWidget {
   const MapPage({super.key});
 
   @override
-  State<MapPage> createState() => MapPageState();
+  ConsumerState<MapPage> createState() => MapPageState();
 }
 
-class MapPageState extends State<MapPage> {
+class MapPageState extends ConsumerState<MapPage> {
   // 工具箱相关状态
   bool isMeasureOpen = false; // 地图测算开关
   bool isLocationShareOpen = false; // 位置共享开关
@@ -106,6 +105,283 @@ class MapPageState extends State<MapPage> {
     _cardPageController = PageController();
   }
 
+  @override
+  Widget build(BuildContext context) {
+    bool isDrawingRoute = isMeasureOpen && _isDrawingMeasureRoute;
+    return Scaffold(
+      body: Stack(
+        children: [
+          Listener(
+            onPointerUp: (event) {
+              if (isDrawingRoute) {
+                // 结束绘制测算路径
+                _onMapLongPressEnd(
+                  LongPressEndDetails(
+                    globalPosition: event.position,
+                    localPosition: event.localPosition,
+                  ),
+                  _mapController.camera.center,
+                );
+              }
+            },
+            onPointerMove: (event) {
+              if (_isDrawingMeasureRoute) {
+                setState(() {
+                  measureRoute.add(
+                    _mapController.camera.center,
+                  );
+                });
+              }
+            },
+            child: FlutterMap(
+              options: MapOptions(
+                initialCenter: const LatLng(34.1301578, 108.8277069),
+                initialZoom: 12,
+                minZoom: 0,
+                onTap: isDrawingRoute
+                    ? (tapPos, point) {
+                        setState(() {
+                          measureRoute.add(point);
+                        });
+                      }
+                    : (tapPos, point) => _onMapTap(point),
+              ),
+              mapController: _mapController,
+              children: [
+                if (_mapMode == 1)
+                  TileLayer(
+                    urlTemplate:
+                        // 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        'https://map.iris.al/styles/basic-preview/512/{z}/{x}/{y}.png',
+                    tileProvider: tileProvider,
+                  ),
+                if (_mapMode == 2 && _mbtilesProvider != null)
+                  VectorTileLayer(
+                    theme: mapTheme,
+                    tileProviders: TileProviders({
+                      'openmaptiles': MbTilesVectorTileProvider(
+                        mbtiles: _mbtilesProvider!,
+                      ),
+                    }),
+                    maximumZoom: 18,
+                  ),
+                Consumer(builder: (builder, context, widget) {
+                  final routes = ref.watch(routesProvider);
+                  final histories = ref.watch(historyProvider);
+                  List<Polyline> polyLines = [];
+                  if (_showRoute) {
+                    polyLines.addAll(
+                      routes.when(
+                          data: (data) => data
+                              .map((e) => Polyline(
+                                    points: e.route,
+                                    color: Colors.deepOrange,
+                                    strokeWidth: 3,
+                                  ))
+                              .toList(),
+                          error: (s, e) => [],
+                          loading: () => []),
+                    );
+                  }
+                  if (_showHistory == 1) {
+                    polyLines.addAll(
+                      histories.when(
+                          data: (data) => data
+                              .map((e) => Polyline(
+                                    points: e.route,
+                                    color: Colors.deepOrange,
+                                    strokeWidth: 3,
+                                  ))
+                              .toList(),
+                          error: (s, e) => [],
+                          loading: () => []),
+                    );
+                  }
+                  if (_showHistory == 2) {
+                    polyLines.addAll(
+                      histories.when(
+                          data: (data) => data
+                              .map((e) => Polyline(
+                                    points: e.route,
+                                    color: Colors.deepPurple.withOpacity(0.15),
+                                    strokeWidth: 3,
+                                  ))
+                              .toList(),
+                          error: (s, e) => [],
+                          loading: () => []),
+                    );
+                  }
+                  return PolylineLayer(polylines: polyLines);
+                }),
+                MarkerLayer(markers: [
+                  if (isMeasureOpen &&
+                      measurePoints.isNotEmpty &&
+                      measurePoints.length == 1)
+                    Marker(
+                        point: measurePoints.first,
+                        child: const Icon(Icons.location_on,
+                            color: Colors.blue, size: 22),
+                        alignment: Alignment.topCenter),
+                ]),
+                CurrentLocationLayer(
+                  positionStream:
+                      Provider.of<LocationProvider>(context).positionStream,
+                  alignPositionStream: _followStream.stream,
+                  alignPositionOnUpdate: AlignOnUpdate.never,
+                  alignDirectionOnUpdate: AlignOnUpdate.never,
+                  moveAnimationDuration: Duration(milliseconds: 300),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            top: 32,
+            left: 16,
+            child: FloatingActionButton(
+              onPressed: filterRoute,
+              mini: true,
+              child: Icon(Icons.filter_alt),
+            ),
+          ),
+          Positioned(
+            top: 32,
+            right: 16,
+            child: FloatingActionButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => RoutesPage(),
+                  ),
+                );
+              },
+              mini: true,
+              child: Icon(Icons.alt_route),
+            ),
+          ),
+          // 卡片和FAB区域
+          Builder(
+            builder: (context) {
+              // 构建卡片列表
+              final List<Widget> cards = [
+                if (isMeasureOpen) _buildMeasureCard(),
+                if (isLocationShareOpen) _buildLocationShareCard(),
+                if (_navRoute.isNotEmpty) _buildRouteCard(),
+              ];
+              final bool hasCards = cards.isNotEmpty;
+              // FAB列
+              final fabColumn = Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    FloatingActionButton(
+                      onPressed: () {
+                        showMapLayerControllerPopup(context);
+                      },
+                      mini: true,
+                      child: const Icon(Icons.layers),
+                    ),
+                    const SizedBox(height: 4),
+                    FloatingActionButton(
+                      onPressed: () {
+                        showToolboxPopup(context);
+                      },
+                      mini: true,
+                      child: const Icon(Icons.build),
+                    ),
+                    const SizedBox(height: 4),
+                    FloatingActionButton(
+                      onPressed: _locatePosition,
+                      mini: true,
+                      child: const Icon(Icons.my_location),
+                    ),
+                    // 测算模式下仅显示“创建路书”按钮和完成按钮
+                    if (isMeasureOpen) ...[
+                      const SizedBox(height: 4),
+                      FloatingActionButton(
+                        heroTag: 'drawRoute',
+                        mini: true,
+                        child: Icon(
+                            _isDrawingMeasureRoute ? Icons.done : Icons.create),
+                        onPressed: () {
+                          setState(() {
+                            if (_isDrawingMeasureRoute) {
+                              // 完成绘制，触发测算
+                              _isDrawingMeasureRoute = false;
+                              fetchElevationData(measureRoute).then((_) {
+                                // 计算距离数据
+                                _distanceData =
+                                    List.generate(measureRoute.length, (i) {
+                                  if (i == 0) return 0.0;
+                                  return _distanceData[i - 1] +
+                                      Geolocator.distanceBetween(
+                                        measureRoute[i - 1].latitude,
+                                        measureRoute[i - 1].longitude,
+                                        measureRoute[i].latitude,
+                                        measureRoute[i].longitude,
+                                      );
+                                });
+                                setState(() {});
+                              });
+                            } else {
+                              // 开始绘制
+                              _isDrawingMeasureRoute = true;
+                              measureRoute = [];
+                              _elevationData = [];
+                              _distanceData = [];
+                            }
+                          });
+                        },
+                      ),
+                    ],
+                  ]);
+              if (!hasCards) {
+                return Positioned(
+                  right: 16,
+                  bottom: 16,
+                  child: fabColumn,
+                );
+              } else {
+                return Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: SafeArea(
+                    top: false,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(
+                              right: 16, top: 8, bottom: 8),
+                          child: Align(
+                            alignment: Alignment.bottomRight,
+                            child: fabColumn,
+                          ),
+                        ),
+                        Container(
+                          width: double.infinity,
+                          color: Colors.transparent,
+                          child: SizedBox(
+                            height: 144,
+                            child: PageView(
+                              controller: _cardPageController,
+                              onPageChanged: (idx) {},
+                              children: cards,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _loadMbtilesFiles() async {
     final docs = await getApplicationDocumentsDirectory();
     final dir = Directory(p.join(docs.path, 'mbtiles'));
@@ -145,7 +421,7 @@ class MapPageState extends State<MapPage> {
       // 单点测算
       measurePoints = [dest];
       measureRoute = [];
-      _fetchElevationData([dest]).then((_) {
+      fetchElevationData([dest]).then((_) {
         setState(() {});
       });
       setState(() {});
@@ -206,7 +482,7 @@ class MapPageState extends State<MapPage> {
       }
     });
     // 采样海拔并计算距离
-    _fetchElevationData(measureRoute).then((_) {
+    fetchElevationData(measureRoute).then((_) {
       // 计算距离数据
       double accDist = 0.0;
       _distanceData = List.generate(measureRoute.length, (i) {
@@ -319,41 +595,6 @@ class MapPageState extends State<MapPage> {
     }
   }
 
-  // 计算海拔高度，稀疏采样：当点太多时均匀间隔采样64点
-  Future<void> _fetchElevationData(List<LatLng> route) async {
-    List<LatLng> sampledRoute;
-    if (route.length > 64) {
-      sampledRoute = List.generate(
-        64,
-        (i) => route[((route.length - 1) * i ~/ 63)],
-      );
-    } else {
-      sampledRoute = route;
-    }
-    final locations =
-        sampledRoute.map((p) => '${p.latitude},${p.longitude}').join('|');
-    final url =
-        'https://api.open-elevation.com/api/v1/lookup?locations=$locations';
-    try {
-      final resp = await http.get(Uri.parse(url));
-      if (resp.statusCode == 200) {
-        final data = jsonDecode(resp.body);
-        final results = data['results'] as List;
-        _elevationData =
-            results.map((e) => (e['elevation'] as num).toDouble()).toList();
-        // 计算坡度百分比
-        // _slopeData = [];
-        // for (var i = 1; i < _elevationData.length; i++) {
-        //   final dAlt = _elevationData[i] - _elevationData[i - 1];
-        //   final dDist = (_distanceData[i] - _distanceData[i - 1]);
-        //   _slopeData.add(dDist > 0 ? (dAlt / dDist * 100) : 0);
-        // }
-      }
-    } catch (e) {
-      debugPrint('Elevation fetch error: $e');
-    }
-  }
-
   // TODO:需要重写，数据写入.fit中
   void _startRecording() {
     // final locSettings =
@@ -367,21 +608,22 @@ class MapPageState extends State<MapPage> {
     // });
   }
 
-  void _updateSegmentStatus(Position pos, Ref ref)async {
+  void _updateSegmentStatus(Position pos, Ref ref) async {
     final db = DataLoader().database;
     final routes = ref.watch(routesProvider);
     // 先筛选出 bestScores，其 id 在 segments.bestScoreId 中
-    final segmentBestScoreIdsQuery = await db.select(db.segments)
-      .map((seg) => seg.bestScoreId).get();
+    final segmentBestScoreIdsQuery =
+        await db.select(db.segments).map((seg) => seg.bestScoreId).get();
 
-    final filteredBestScoresQuery = db.select(db.bestScores)
-      .where((score) => score.id.isIn(segmentBestScoreIdsQuery));
+    final filteredBestScoresQuery = db
+        .select(db.bestScores)
+        .where((score) => score.id.isIn(segmentBestScoreIdsQuery));
 
     // join segments 和 bestScores，关联 seg.bestScoreId == score.id
     final joined = await (db.select(db.segments).join([
       innerJoin(
-      db.bestScores,
-      db.segments.bestScoreId.equalsExp(db.bestScores.id),
+        db.bestScores,
+        db.segments.bestScoreId.equalsExp(db.bestScores.id),
       ),
     ])).get();
 
@@ -392,69 +634,72 @@ class MapPageState extends State<MapPage> {
       final score = row.readTable(db.bestScores);
       final routeId = seg.routeId;
       if (!grouped.containsKey(routeId) ||
-        score.maxTime < grouped[routeId].maxTime) {
-      grouped[routeId] = score;
+          score.maxTime < grouped[routeId].maxTime) {
+        grouped[routeId] = score;
       }
     }
     final segmentsScore = grouped.values.toList();
-    routes.when(data: (routes) {
-      final now = DateTime.now();
-      final point = LatLng(pos.latitude, pos.longitude);
-      final distUtil = Distance();
-      if (_activeSegmentId == null) {
-        for (var i = 0; i < routes.length; i++) {
-          final segStart = routes[i].route.first;
-          if (distUtil.as(LengthUnit.Meter, point, segStart) < 30) {
-            _activeSegmentId = i;
-            _activeEntryTime = now;
-            _historicalBestDuration = segmentsScore[i]?.dataList
-                    .map((s) => s.item.duration)
-                    .reduce((a, b) => a < b ? a : b)
-                    .toInt() ??
-                0;
-            setState(() => _currentSegmentElapsed = 0);
-            return;
+    routes.when(
+        data: (routes) {
+          final now = DateTime.now();
+          final point = LatLng(pos.latitude, pos.longitude);
+          final distUtil = Distance();
+          if (_activeSegmentId == null) {
+            for (var i = 0; i < routes.length; i++) {
+              final segStart = routes[i].route.first;
+              if (distUtil.as(LengthUnit.Meter, point, segStart) < 30) {
+                _activeSegmentId = i;
+                _activeEntryTime = now;
+                _historicalBestDuration = segmentsScore[i]
+                        ?.dataList
+                        .map((s) => s.item.duration)
+                        .reduce((a, b) => a < b ? a : b)
+                        .toInt() ??
+                    0;
+                setState(() => _currentSegmentElapsed = 0);
+                return;
+              }
+            }
+          } else {
+            final idx = _activeSegmentId!;
+            final segPoints = routes[idx];
+            final segEnd = segPoints.route.last;
+            final diffToEnd = distUtil.as(LengthUnit.Meter, point, segEnd);
+            // 在赛段中
+            if (diffToEnd > 30) {
+              final elapsed = now.difference(_activeEntryTime!).inSeconds;
+              setState(() => _currentSegmentElapsed = elapsed);
+            } else {
+              // 赛段完成
+              final elapsed = now.difference(_activeEntryTime!).inSeconds;
+              final best = _historicalBestDuration;
+              final diff = elapsed - best;
+              setState(() {
+                _segmentResultMessage =
+                    '赛段${idx + 1}完成：用时${elapsed}s，历史最佳${best}s，${diff >= 0 ? '落后' : '领先'}${diff.abs()}s';
+                _activeSegmentId = null;
+              });
+              // 自动隐藏结果卡片
+              Future.delayed(Duration(seconds: 5),
+                  () => setState(() => _segmentResultMessage = null));
+            }
           }
-        }
-      } else {
-        final idx = _activeSegmentId!;
-        final segPoints = routes[idx];
-        final segEnd = segPoints.route.last;
-        final diffToEnd = distUtil.as(LengthUnit.Meter, point, segEnd);
-        // 在赛段中
-        if (diffToEnd > 30) {
-          final elapsed = now.difference(_activeEntryTime!).inSeconds;
-          setState(() => _currentSegmentElapsed = elapsed);
-        } else {
-          // 赛段完成
-          final elapsed = now.difference(_activeEntryTime!).inSeconds;
-          final best = _historicalBestDuration;
-          final diff = elapsed - best;
-          setState(() {
-            _segmentResultMessage =
-                '赛段${idx + 1}完成：用时${elapsed}s，历史最佳${best}s，${diff >= 0 ? '落后' : '领先'}${diff.abs()}s';
-            _activeSegmentId = null;
-          });
-          // 自动隐藏结果卡片
-          Future.delayed(Duration(seconds: 5),
-              () => setState(() => _segmentResultMessage = null));
-        }
-      } }
-    , error: (n, s)=>{}, loading: ()=>{});
-    }
+        },
+        error: (n, s) => {},
+        loading: () => {});
   }
 
-  // void _detectSegments() {
-  //   final loader = DataLoader();
-  //   if (!loader.isInitialized) return;
-  //   final segments = loader.routes;
-  //   final matches = SegmentMatcher().findSegments([_currentPosition], segments);
-  //   setState(() {
-  //     _segmentMatches = matches;
-  //   });
-  // }
+// void _detectSegments() {
+//   final loader = DataLoader();
+//   if (!loader.isInitialized) return;
+//   final segments = loader.routes;
+//   final matches = SegmentMatcher().findSegments([_currentPosition], segments);
+//   setState(() {
+//     _segmentMatches = matches;
+//   });
+// }
 
-  // 需要重写，文件写入fit
+// 需要重写，文件写入fit
   Future<void> _stopRecording() async {
     // await _positionSub?.cancel();
     // // 保存到 JSON 文件
@@ -472,8 +717,8 @@ class MapPageState extends State<MapPage> {
     // await file.writeAsString(JsonEncoder().convert(data));
   }
 
-  // filter exist routes
-  void filterRoute(BuildContext context) {
+// filter exist routes
+  void filterRoute() {
     context.read<DataLoader>();
     double minLength = 0, maxLength = 100.0;
     double minStartDist = 0, maxStartDist = 20.0;
@@ -580,294 +825,6 @@ class MapPageState extends State<MapPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final dataLoader = context.watch<DataLoader>();
-    final routes = ;
-    final histories = dataLoader.histories;
-
-    bool isDrawingRoute = isMeasureOpen && _isDrawingMeasureRoute;
-    return Scaffold(
-      body: Stack(
-        children: [
-          Listener(
-            // onPointerDown: (event) {
-            //   if (isDrawingRoute) {
-            //     // 开始绘制测算路径
-            //     _onMapLongPressStart(
-            //       LongPressStartDetails(
-            //         globalPosition: event.position,
-            //         localPosition: event.localPosition,
-            //       ),
-            //       _mapController.camera.center,
-            //     );
-            //   } else {
-            //     // 普通点击事件
-            //     final localPos = event.localPosition;
-            //     _onMapTap(_mapController.camera
-            //         .pointToLatLng(Point(localPos.dx, localPos.dy)));
-            //   }
-            // },
-            onPointerUp: (event) {
-              if (isDrawingRoute) {
-                // 结束绘制测算路径
-                _onMapLongPressEnd(
-                  LongPressEndDetails(
-                    globalPosition: event.position,
-                    localPosition: event.localPosition,
-                  ),
-                  _mapController.camera.center,
-                );
-              }
-            },
-            onPointerMove: (event) {
-              if (_isDrawingMeasureRoute) {
-                setState(() {
-                  measureRoute.add(
-                    _mapController.camera.center,
-                  );
-                });
-              }
-            },
-            child: FlutterMap(
-              options: MapOptions(
-                initialCenter: const LatLng(34.1301578, 108.8277069),
-                initialZoom: 12,
-                minZoom: 0,
-                onTap: isDrawingRoute
-                    ? (tapPos, point) {
-                        setState(() {
-                          measureRoute.add(point);
-                        });
-                      }
-                    : (tapPos, point) => _onMapTap(point),
-              ),
-              mapController: _mapController,
-              children: [
-                if (_mapMode == 1)
-                  TileLayer(
-                    urlTemplate:
-                        // 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        'https://map.iris.al/styles/basic-preview/512/{z}/{x}/{y}.png',
-                    tileProvider: dataLoader.tileProvider,
-                  ),
-                if (_mapMode == 2 && _mbtilesProvider != null)
-                  VectorTileLayer(
-                    theme: mapTheme,
-                    tileProviders: TileProviders({
-                      'openmaptiles': MbTilesVectorTileProvider(
-                        mbtiles: _mbtilesProvider!,
-                      ),
-                    }),
-                    maximumZoom: 18,
-                  ),
-                PolylineLayer(
-                  polylines: [
-                    if (_showRoute && routes.isNotEmpty)
-                      ...(dataLoader.routes).map((points) => Polyline(
-                            points: points,
-                            color: Colors.deepOrange,
-                            strokeWidth: 3,
-                          )),
-                    if (_showHistory == 1 && histories.isNotEmpty)
-                      ...(dataLoader.histories)
-                          .map((e) => parseFitDataToRoute(e))
-                          .map((points) => Polyline(
-                                points: points,
-                                color: Colors.deepOrange,
-                                strokeWidth: 3,
-                              )),
-                    if (_showHistory == 2 && histories.isNotEmpty)
-                      ...(dataLoader.histories)
-                          .map((e) => parseFitDataToRoute(e))
-                          .map((List<LatLng> points) => Polyline(
-                                points: points,
-                                color: Colors.deepPurple.withOpacity(0.15),
-                                strokeWidth: 3,
-                              )),
-                    if (_navRoute.isNotEmpty)
-                      Polyline(
-                          points: _navRoute,
-                          color: Colors.blue,
-                          strokeWidth: 4),
-                    // 测算路径实时显示
-                    if (measureRoute.length > 1)
-                      Polyline(
-                        points: measureRoute,
-                        color: Colors.blueAccent,
-                        strokeWidth: 4,
-                      ),
-                  ],
-                ),
-                MarkerLayer(markers: [
-                  if (isMeasureOpen &&
-                      measurePoints.isNotEmpty &&
-                      measurePoints.length == 1)
-                    Marker(
-                        point: measurePoints.first,
-                        child: const Icon(Icons.location_on,
-                            color: Colors.blue, size: 22),
-                        alignment: Alignment.topCenter),
-                ]),
-                CurrentLocationLayer(
-                  positionStream:
-                      Provider.of<LocationProvider>(context).positionStream,
-                  alignPositionStream: _followStream.stream,
-                  alignPositionOnUpdate: AlignOnUpdate.never,
-                  alignDirectionOnUpdate: AlignOnUpdate.never,
-                  moveAnimationDuration: Duration(milliseconds: 300),
-                ),
-              ],
-            ),
-          ),
-          Positioned(
-            top: 32,
-            left: 16,
-            child: FloatingActionButton(
-              onPressed: filterRoute,
-              mini: true,
-              child: Icon(Icons.filter_alt),
-            ),
-          ),
-          Positioned(
-            top: 32,
-            right: 16,
-            child: FloatingActionButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => RoutesPage(),
-                  ),
-                );
-              },
-              mini: true,
-              child: Icon(Icons.alt_route),
-            ),
-          ),
-          // 卡片和FAB区域
-          Builder(
-            builder: (context) {
-              // 构建卡片列表
-              final List<Widget> cards = [
-                if (isMeasureOpen) _buildMeasureCard(),
-                if (isLocationShareOpen) _buildLocationShareCard(),
-                if (_navRoute.isNotEmpty) _buildRouteCard(),
-              ];
-              final bool hasCards = cards.isNotEmpty;
-              // FAB列
-              final fabColumn = Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    FloatingActionButton(
-                      onPressed: () {
-                        showMapLayerControllerPopup(context);
-                      },
-                      mini: true,
-                      child: const Icon(Icons.layers),
-                    ),
-                    const SizedBox(height: 4),
-                    FloatingActionButton(
-                      onPressed: () {
-                        showToolboxPopup(context);
-                      },
-                      mini: true,
-                      child: const Icon(Icons.build),
-                    ),
-                    const SizedBox(height: 4),
-                    FloatingActionButton(
-                      onPressed: _locatePosition,
-                      mini: true,
-                      child: const Icon(Icons.my_location),
-                    ),
-                    // 测算模式下仅显示“创建路书”按钮和完成按钮
-                    if (isMeasureOpen) ...[
-                      const SizedBox(height: 4),
-                      FloatingActionButton(
-                        heroTag: 'drawRoute',
-                        mini: true,
-                        child: Icon(
-                            _isDrawingMeasureRoute ? Icons.done : Icons.create),
-                        onPressed: () {
-                          setState(() {
-                            if (_isDrawingMeasureRoute) {
-                              // 完成绘制，触发测算
-                              _isDrawingMeasureRoute = false;
-                              _fetchElevationData(measureRoute).then((_) {
-                                // 计算距离数据
-                                _distanceData =
-                                    List.generate(measureRoute.length, (i) {
-                                  if (i == 0) return 0.0;
-                                  return _distanceData[i - 1] +
-                                      Geolocator.distanceBetween(
-                                        measureRoute[i - 1].latitude,
-                                        measureRoute[i - 1].longitude,
-                                        measureRoute[i].latitude,
-                                        measureRoute[i].longitude,
-                                      );
-                                });
-                                setState(() {});
-                              });
-                            } else {
-                              // 开始绘制
-                              _isDrawingMeasureRoute = true;
-                              measureRoute = [];
-                              _elevationData = [];
-                              _distanceData = [];
-                            }
-                          });
-                        },
-                      ),
-                    ],
-                  ]);
-              if (!hasCards) {
-                return Positioned(
-                  right: 16,
-                  bottom: 16,
-                  child: fabColumn,
-                );
-              } else {
-                return Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: SafeArea(
-                    top: false,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(
-                              right: 16, top: 8, bottom: 8),
-                          child: Align(
-                            alignment: Alignment.bottomRight,
-                            child: fabColumn,
-                          ),
-                        ),
-                        Container(
-                          width: double.infinity,
-                          color: Colors.transparent,
-                          child: SizedBox(
-                            height: 144,
-                            child: PageView(
-                              controller: _cardPageController,
-                              onPageChanged: (idx) {},
-                              children: cards,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<dynamic> showToolboxPopup(BuildContext context) {
     return showModalBottomSheet(
       context: context,
@@ -931,7 +888,7 @@ class MapPageState extends State<MapPage> {
     );
   }
 
-  // --- 卡片构建方法 ---
+// --- 卡片构建方法 ---
   Widget _buildMeasureCard() {
     final isPoint = measurePoints.length == 1 && measureRoute.isEmpty;
     final isRoute = measureRoute.length > 1;
@@ -1208,7 +1165,7 @@ class MapPageState extends State<MapPage> {
               children: [
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  tileProvider: context.read<DataLoader>().tileProvider,
+                  tileProvider: tileProvider,
                 ),
                 if (_navRoute.isNotEmpty)
                   PolylineLayer(

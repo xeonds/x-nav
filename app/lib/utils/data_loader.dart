@@ -9,7 +9,6 @@ import 'package:app/utils/storage.dart';
 import 'package:drift/drift.dart';
 import 'package:fit_tool/fit_tool.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:gpx/gpx.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -37,27 +36,6 @@ class DataLoader extends ChangeNotifier {
   // final Map<int, List<Segment>> subRoutesOfRoutes = {};
 
   // 获取 MBTiles 文件列表
-  static Future<List<String>> listMbtilesFiles() async {
-    // 默认存储在 appDocPath/mbtiles 目录下
-    if (Storage.appDocPath == null) {
-      await Storage.initialize();
-    }
-    final dir = Directory('${Storage.appDocPath}/mbtiles');
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
-    final files = dir
-        .listSync()
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.mbtiles'))
-        .map((f) => f.path)
-        .toList();
-    return files;
-  }
-
-  final FMTCTileProvider tileProvider = FMTCTileProvider(
-    stores: const {'mapStore': BrowseStoreStrategy.readUpdateCreate},
-  );
   bool isInitialized = false;
   // 数据库连接
   final Database database = Database();
@@ -82,15 +60,6 @@ class DataLoader extends ChangeNotifier {
   bool oneTimeTaskFlag = false;
 
   Future<void> initialize() async {
-    if (!oneTimeTaskFlag) {
-      await Future.wait([
-        FMTCObjectBoxBackend().initialise(),
-        Storage.initialize(),
-      ]);
-      await FMTCStore('mapStore').manage.create();
-      oneTimeTaskFlag = true;
-    }
-
     if (isLoading) return;
     isLoading = true;
     isInitialized = false;
@@ -119,7 +88,6 @@ class DataLoader extends ChangeNotifier {
             notifyListeners();
           } else if (msg is Map && msg['phase'] == 'finish') {
             currentStep = '分析完成';
-            // TODO: 加载数据到对象中/对象暴露getter提供即时数据拉取检索
             isInitialized = true;
             isLoading = false;
             progressMessage = null;
@@ -335,4 +303,22 @@ void _dataLoadIsolateEntryWithProgressPhased(
   } catch (e, st) {
     sendPort.send({'error': e.toString(), 'stack': st.toString()});
   }
+}
+
+Future<List<String>> listMbtilesFiles() async {
+  // 默认存储在 appDocPath/mbtiles 目录下
+  if (Storage.appDocPath == null) {
+    await Storage.initialize();
+  }
+  final dir = Directory('${Storage.appDocPath}/mbtiles');
+  if (!await dir.exists()) {
+    await dir.create(recursive: true);
+  }
+  final files = dir
+      .listSync()
+      .whereType<File>()
+      .where((f) => f.path.endsWith('.mbtiles'))
+      .map((f) => f.path)
+      .toList();
+  return files;
 }

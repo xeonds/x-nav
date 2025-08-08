@@ -1,5 +1,6 @@
 // 全局数据库实例提供者
 import 'package:app/database.dart';
+import 'package:app/page/history/history_detail.dart';
 import 'package:app/utils/cache.dart';
 import 'package:flutter/material.dart'
     show
@@ -10,11 +11,17 @@ import 'package:flutter/material.dart'
         FontWeight,
         TextStyle,
         Brightness;
+import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // 历史记录数据提供者（自动缓存）
-final historyProvider = buildStreamProvider((db)=>db.select(db.historys).watch());
-final routesProvider =  buildStreamProvider((db)=>db.select(db.routes).watch());
+final historyProvider =
+    buildStreamProvider((db) => db.select(db.historys).watch());
+final routesProvider =
+    buildStreamProvider((db) => db.select(db.routes).watch());
+final FMTCTileProvider tileProvider = FMTCTileProvider(
+  stores: const {'mapStore': BrowseStoreStrategy.readUpdateCreate},
+);
 
 AutoDisposeStreamProvider<T> buildStreamProvider<T>(
     Stream<T> Function(Database db) queryFn) {
@@ -46,3 +53,7 @@ final darkThemeProvider = Provider<ThemeData>((ref) => ThemeData(
         headlineMedium: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
       ),
     ));
+
+final bestScoreRankingsProvider = FutureProvider.family<Map<String, int>, int>((ref, historyId) async {
+  return await getBestScoreRankings(historyId);
+});

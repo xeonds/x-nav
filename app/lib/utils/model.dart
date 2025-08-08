@@ -24,6 +24,7 @@ class Segments extends Table {
   IntColumn get routeId => integer()(); // 关联Routes的id
   IntColumn get historyId => integer()(); // 关联History的id
   IntColumn get bestScoreId => integer()();
+  IntColumn get summaryId => integer()();
   IntColumn get startIndex => integer()(); // 骑行记录中匹配到赛段的起始点索引
   IntColumn get endIndex => integer()(); // 骑行记录中匹配到赛段的结束点索引
   RealColumn get matchPercentage => real()(); // 匹配度百分比
