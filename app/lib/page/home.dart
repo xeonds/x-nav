@@ -1,7 +1,7 @@
 import 'package:app/component/data.dart';
 import 'package:app/component/ride_stats_card.dart';
 import 'package:app/database.dart';
-import 'package:app/page/history/history_detail.dart';
+import 'package:app/page/history.dart';
 import 'package:app/page/routes/edit_route.dart';
 import 'package:app/page/tachometer.dart';
 import 'package:app/utils/data_loader.dart';
@@ -280,10 +280,10 @@ class _HomePageState extends State<HomePage> {
             0.0,
             (sum, entry) =>
                 sum + entry.value.fold(0.0, (e0, e) => e0 + e.totalDistance!));
-        final totalAscent = monthRecords.fold<double>(
-            0.0,
-            (sum, entry) =>
-                sum + entry.value.fold(0.0, (e0, e) => e0 + e.totalAscent!));
+        // final totalAscent = monthRecords.fold<double>(
+        //     0.0,
+        //     (sum, entry) =>
+        //         sum + entry.value.fold(0.0, (e0, e) => e0 + e.totalAscent!));
         final totalTime = monthRecords.fold<double>(
             0.0,
             (sum, entry) =>
@@ -292,13 +292,10 @@ class _HomePageState extends State<HomePage> {
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 8.0),
           child: RideSummary(
-            rideData: {
-              'totalDistance': totalDistance,
-              'totalRides': monthRecords.fold<int>(
-                  0, (sum, entry) => (sum + entry.value.length).toInt()),
-              'totalTime': totalTime,
-              'totalAscent': totalAscent,
-            },
+            totalDistance: totalDistance,
+            totalRides: monthRecords.fold<int>(
+                0, (sum, entry) => (sum + entry.value.length).toInt()),
+            totalTime: totalTime,
           ),
         );
       },
@@ -538,30 +535,20 @@ class _HomePageState extends State<HomePage> {
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
-                        child: RideSummary(rideData: {
-                          'totalDistance': summaryToday.fold(
+                        child: RideSummary(
+                          totalDistance: summaryToday.fold(
                               0.0, (a, b) => a + b.totalDistance!),
-                          'totalRides': summaryToday.length,
-                          'totalTime': summaryToday.fold(
-                              0.0, (a, b) => a + b.totalElapsedTime!)
-                        }),
+                          totalRides: summaryToday.length,
+                          totalTime: summaryToday.fold(
+                              0.0, (a, b) => a + b.totalElapsedTime!),
+                        ),
                       ),
                     ),
                     SliverList(
                         delegate: SliverChildBuilderDelegate(
                       (context, index) {
-                        return RideHistoryCard(
-                          rideData: dailyRecords[index],
-                          summary: summaryToday[index],
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (context) => RideDetailPage(
-                                    rideData: dailyRecords[index]),
-                              ),
-                            );
-                          },
-                        );
+                        return RideHistoryState.buildRideHistoryCard(
+                            dailyRecords[index], summaryToday[index], context);
                       },
                       childCount: dailyRecords.length,
                     ))

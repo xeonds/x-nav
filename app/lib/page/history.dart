@@ -3,8 +3,7 @@ import 'dart:io';
 import 'package:app/component/ride_stats_card.dart';
 import 'package:app/database.dart';
 import 'package:app/page/history/history_detail.dart';
-import 'package:app/utils/path_utils.dart'
-    show RidePathPainter;
+import 'package:app/utils/path_utils.dart' show RidePathPainter;
 import 'package:app/utils/provider.dart';
 import 'package:app/utils/storage.dart';
 import 'package:file_picker/file_picker.dart';
@@ -169,7 +168,7 @@ class RideHistoryState extends State<RideHistory> {
                                                       data: (res) =>
                                                           buildRideHistoryCard(
                                                               data[index],
-                                                              res!),
+                                                              res!, context),
                                                       error: (s, e) =>
                                                           const Center(
                                                               child:
@@ -210,7 +209,8 @@ class RideHistoryState extends State<RideHistory> {
     );
   }
 
-  Widget buildRideHistoryCard(History rideData, Summary summary) {
+  static Widget buildRideHistoryCard(
+      History rideData, Summary summary, BuildContext context) {
     return Card(
       child: ListTile(
         leading: SizedBox(
@@ -231,8 +231,7 @@ class RideHistoryState extends State<RideHistory> {
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (context) => RideDetailPage(history: rideData),
-            ),
+                builder: (context) => RideDetailPage(history: rideData)),
           );
         },
       ),
