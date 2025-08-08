@@ -1,13 +1,16 @@
 import 'dart:io';
 
 import 'package:app/component/data.dart';
+import 'package:app/component/ride_stats_card.dart';
 import 'package:app/database.dart';
+import 'package:app/page/history/history_detail.dart';
 import 'package:app/utils/analysis_utils.dart';
 import 'package:app/utils/data_loader.dart';
 import 'package:app/utils/fit.dart';
 import 'package:app/utils/model.dart';
 import 'package:app/utils/path_utils.dart'
-    show RideScore, SegmentScore, initCenter, initZoom;
+    show RideScore, initCenter, initZoom;
+import 'package:app/utils/provider.dart';
 import 'package:app/utils/storage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:fit_tool/fit_tool.dart'
@@ -15,8 +18,9 @@ import 'package:fit_tool/fit_tool.dart'
 import 'package:fl_chart/fl_chart.dart'; // 用于图表
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart'; // 用于地图
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart' show LatLng;
-import 'package:provider/provider.dart';
+import 'package:provider/provider.dart' hide Consumer;
 import 'package:share_plus/share_plus.dart';
 
 class RideHistory extends StatefulWidget {
@@ -30,7 +34,6 @@ class RideHistoryState extends State<RideHistory> {
   // multi-select mode states
   bool isMultiSelectMode = false;
   Set<int> selectedIndices = {};
-  final dataLoader = context.watch<DataLoader>(); // 监听 DataLoader 的状态
   
   @override
   void initState() {
@@ -43,9 +46,22 @@ class RideHistoryState extends State<RideHistory> {
       appBar: AppBar(title: const Text('骑行记录')),
       body: Column(
         children: [
-          RideSummary(rideData: dataLoader.rideData),
+          Consumer(builder: (context, ref, child){
+            final kvs = ref.watch(buildStreamProvider((db)=>db.select(db.kVs).watch()));
+            return kvs.when(data: (data){
+                final dataMap = Map<String, String>.fromEntries(
+                data.map((e) => MapEntry(e.key, e.value)),
+                );
+              
+              return RideSummary(totalDistance: dataMap['totalDistance'], totalRides: dataMap['totalRides'], totalTime: dataMap['totalTime']);
+            }, error: (s, e)=>const Center(child: Text('加载失败')), loading: ()=>const Center(child: CircularProgressIndicator())
+            );
+          }),
           Expanded(
-            child:  sortedHistory.isEmpty
+            child: Consumer(builder: (context, ref, child){
+              final rides = ref.watch(buildStreamProvider((db)=>db.select(db.historys).watch()));
+              return 
+              rides.when(data: (data)=>data.isEmpty
               ? const Center(child: Text('没有骑行记录'))
               : StatefulBuilder(
                   builder: (context, setState) {
@@ -100,7 +116,7 @@ class RideHistoryState extends State<RideHistory> {
                           ),
                         Expanded(
                           child: ListView.builder(
-                            itemCount: sortedHistory.length,
+                            itemCount: data.length,
                             itemBuilder: (context, index) {
                               final isSelected = selectedIndices.contains(index);
                               return GestureDetector(
@@ -126,7 +142,7 @@ class RideHistoryState extends State<RideHistory> {
                                     Navigator.of(context).push(
                                       MaterialPageRoute(
                                           builder: (context) => RideDetailPage(
-                                              rideData: sortedHistory[index])),
+                                              history: data[index])),
                                     );
                                   }
                                 },
@@ -135,12 +151,8 @@ class RideHistoryState extends State<RideHistory> {
                                       ? Colors.grey.withOpacity(0.3)
                                       : Colors.transparent,
                                   child: buildRideHistoryCard(
-                                    rideData: sortedHistory[index].value,
-                                    onTap: () {
-                                      if (!isMultiSelectMode) {
-                                        
-                                      }
-                                    },
+                                    rideData: data[index],
+                                    summary: data[index].summary,
                                   ),
                                 ),
                               );
@@ -151,6 +163,9 @@ class RideHistoryState extends State<RideHistory> {
                     );
                   },
                 )
+              , error: (s, e)=>const Center(child: Text('加载失败')), loading: ()=>const Center(child: CircularProgressIndicator()));
+            })
+            
           ),
         ],
       ),

@@ -1,3 +1,17 @@
+import 'dart:io';
+
+import 'package:app/component/data.dart';
+import 'package:app/database.dart';
+import 'package:app/page/history/segment_detail.dart';
+import 'package:app/utils/analysis_utils.dart';
+import 'package:app/utils/data_loader.dart';
+import 'package:app/utils/fit.dart';
+import 'package:app/utils/path_utils.dart';
+import 'package:fit_tool/fit_tool.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+
 class RideDetailPage extends StatefulWidget {
   final History history;
   const RideDetailPage({super.key, required this.history});
@@ -277,25 +291,25 @@ class RideDetailPageState extends State<RideDetailPage> {
                                       children: [
                                         Statistic(
                                           data:
-                                              '${(rideScore.summary.totalDistance! / 1000.0).toStringAsFixed(2)}',
+                                              (rideScore.summary.totalDistance! / 1000.0).toStringAsFixed(2),
                                           label: 'km',
                                           subtitle: '总里程',
                                         ),
                                         Statistic(
                                           data:
-                                              '${(rideScore.summary.totalElapsedTime! / 60).toStringAsFixed(2)}',
+                                              (rideScore.summary.totalElapsedTime! / 60).toStringAsFixed(2),
                                           label: '分钟',
                                           subtitle: '总耗时',
                                         ),
                                         Statistic(
                                           data:
-                                              '${(rideScore.summary.avgSpeed! * 3.6).toStringAsFixed(2)}',
+                                              (rideScore.summary.avgSpeed! * 3.6).toStringAsFixed(2),
                                           label: 'km/h',
                                           subtitle: '均速',
                                         ),
                                         Statistic(
                                           data:
-                                              '${(rideScore.summary.maxSpeed! * 3.6).toStringAsFixed(2)}',
+                                              (rideScore.summary.maxSpeed! * 3.6).toStringAsFixed(2),
                                           label: 'km/h',
                                           subtitle: '最大速度',
                                         ),

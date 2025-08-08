@@ -55,38 +55,55 @@ class RideStatsCard extends StatelessWidget {
   }
 }
 
+class RideSummary extends StatelessWidget {
+  final dynamic totalDistance;
+  final dynamic totalRides;
+  final dynamic totalTime;
 
-class RideSummary extends StatefulWidget {
-  final Map<String, dynamic> rideData;
-  const RideSummary({super.key, required this.rideData});
-
-  @override
-  State<RideSummary> createState() => RideSummaryState();
-}
-
-class RideSummaryState extends State<RideSummary> {
-  @override
-  void initState() {
-    super.initState();
-  }
+  const RideSummary({
+    Key? key,
+    required this.totalDistance,
+    required this.totalRides,
+    required this.totalTime,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final data = widget.rideData;
-    final totalDistance = data['totalDistance'];
-    final totalRides = data['totalRides'];
-    final totalTime = data['totalTime'];
+    String distanceStr;
+    if (totalDistance is String) {
+      distanceStr = totalDistance;
+    } else if (totalDistance is num) {
+      distanceStr = '${(totalDistance / 1000.0).toStringAsFixed(2)} km';
+    } else {
+      distanceStr = totalDistance.toString();
+    }
+
+    String ridesStr;
+    if (totalRides is String) {
+      ridesStr = totalRides;
+    } else if (totalRides is num) {
+      ridesStr = '$totalRides 次';
+    } else {
+      ridesStr = totalRides.toString();
+    }
+
+    String timeStr;
+    if (totalTime is String) {
+      timeStr = totalTime;
+    } else if (totalTime is num) {
+      timeStr = secondToFormatTime(totalTime);
+    } else {
+      timeStr = totalTime.toString();
+    }
 
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          Text(
-            '总里程: ${((totalDistance ?? 0.0) / 1000.0).toStringAsFixed(2)} km',
-          ),
-          Text('总次数: $totalRides 次'),
-          Text('总时间: ${secondToFormatTime(totalTime ?? 0.0)}'),
+          Text('总里程: $distanceStr'),
+          Text('总次数: $ridesStr'),
+          Text('总时间: $timeStr'),
         ],
       ),
     );

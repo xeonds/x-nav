@@ -1,13 +1,14 @@
 import 'package:app/component/data.dart';
+import 'package:app/component/ride_stats_card.dart';
 import 'package:app/database.dart';
-import 'package:app/page/routes.dart';
+import 'package:app/page/history/history_detail.dart';
+import 'package:app/page/routes/edit_route.dart';
 import 'package:app/page/tachometer.dart';
 import 'package:app/utils/data_loader.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:table_calendar/table_calendar.dart';
-import 'package:app/page/history.dart'; // 导入 RideHistoryCard
 import 'package:provider/provider.dart';
 
 enum StatsRangeType { all, month, year, custom }
@@ -29,18 +30,6 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    db.select(db.historys).get().then((res) => setState(() {
-          histories = res;
-        }));
-    db.select(db.summarys).get().then((res) {
-      setState(() {
-        summaries = res;
-      });
-      summariesByDay = groupSummariesByDay(summaries);
-    });
-    db.select(db.kVs).get().then((res) => setState(() {
-          bestScores = res;
-        }));
   }
 
   @override
