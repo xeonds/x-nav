@@ -31,6 +31,14 @@ AutoDisposeStreamProvider<T> buildStreamProvider<T>(
   });
 }
 
+AutoDisposeFutureProvider<T> buildFutureProvider<T>(
+    Future<T> Function(Database db) queryFn) {
+  return FutureProvider.autoDispose<T>((ref) {
+    final db = Database();
+    return queryFn(db);
+  });
+}
+
 final cacheProvider = Provider<Cache>((ref) => Cache(ref));
 
 // You cannot access BuildContext in a Provider's create function.
@@ -54,6 +62,7 @@ final darkThemeProvider = Provider<ThemeData>((ref) => ThemeData(
       ),
     ));
 
-final bestScoreRankingsProvider = FutureProvider.family<Map<String, int>, int>((ref, historyId) async {
+final bestScoreRankingsProvider =
+    FutureProvider.family<Map<String, int>, int>((ref, historyId) async {
   return await getBestScoreRankings(historyId);
 });

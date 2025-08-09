@@ -89,6 +89,7 @@ class Summarys extends Table {
 // data class for each data entry's best score, like speed, ride distance
 class BestScores extends Table {
   IntColumn get id => integer().autoIncrement()();
+  DateTimeColumn get timestamp => dateTime()();
   IntColumn get historyId => integer()();
   RealColumn get maxSpeed => real().withDefault(const Constant(0.0))();
   RealColumn get maxAltitude => real().withDefault(const Constant(0.0))();
