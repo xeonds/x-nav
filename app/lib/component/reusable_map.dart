@@ -1,7 +1,7 @@
+import 'package:app/utils/provider.dart' show tileProvider;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:provider/provider.dart';
 import 'package:vector_map_tiles/vector_map_tiles.dart';
 import 'package:vector_map_tiles_mbtiles/vector_map_tiles_mbtiles.dart';
 import 'package:vector_tile_renderer/vector_tile_renderer.dart' as vtr;
@@ -40,7 +40,7 @@ class _ReusableMapState extends State<ReusableMap> {
   }
 
   Future<void> _loadMbtilesFiles() async {
-    final files = await DataLoader.listMbtilesFiles();
+    final files = await listMbtilesFiles();
     if (_selectedMbtiles == null && files.isNotEmpty) {
       _selectedMbtiles = files.first;
       await Prefs.setPreference<String>('mbtilesFile', _selectedMbtiles!);
@@ -92,7 +92,7 @@ class _ReusableMapState extends State<ReusableMap> {
               TileLayer(
                 urlTemplate:
                     'https://map.iris.al/styles/basic-preview/512/{z}/{x}/{y}.png',
-                tileProvider: Provider.of<DataLoader>(context).tileProvider,
+                tileProvider: tileProvider,
               ),
             if (_mapMode == 2 && _mbtilesProvider != null)
               VectorTileLayer(
